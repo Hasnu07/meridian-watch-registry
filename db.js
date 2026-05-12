@@ -1,0 +1,251 @@
+'use strict';
+
+const { DatabaseSync } = require('node:sqlite');
+const path = require('path');
+const bcrypt = require('bcrypt');
+
+const { DB_PATH } = require('./config');
+const db = new DatabaseSync(DB_PATH);
+
+function init() {
+  db.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA foreign_keys = ON;
+
+    CREATE TABLE IF NOT EXISTS admin (
+      id          INTEGER PRIMARY KEY,
+      password_hash TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS profiles (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      name          TEXT NOT NULL,
+      email         TEXT UNIQUE NOT NULL,
+      address       TEXT,
+      subscriber_id TEXT,
+      pp_urn        TEXT,
+      photo_path    TEXT,
+      id_card_path  TEXT,
+      created_at    DATETIME DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS watches (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id       INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      model            TEXT NOT NULL,
+      serial_number    TEXT,
+      source           TEXT CHECK(source IN ('Company','Dealer')) NOT NULL,
+      purchase_date    DATE,
+      price            REAL,
+      reference_number TEXT,
+      notes            TEXT,
+      image_path       TEXT,
+      created_at       DATETIME DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS company_docs (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      shop_name  TEXT NOT NULL,
+      doc_path   TEXT NOT NULL,
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
+  `);
+
+  // Migrate: add columns introduced after initial schema
+  const cols = db.prepare("PRAGMA table_info(profiles)").all().map(r => r.name);
+  if (!cols.includes('subscriber_id')) db.exec("ALTER TABLE profiles ADD COLUMN subscriber_id TEXT");
+  if (!cols.includes('pp_urn'))        db.exec("ALTER TABLE profiles ADD COLUMN pp_urn TEXT");
+  if (!cols.includes('photo_path'))    db.exec("ALTER TABLE profiles ADD COLUMN photo_path TEXT");
+  if (!cols.includes('title'))         db.exec("ALTER TABLE profiles ADD COLUMN title TEXT");
+  if (!cols.includes('first_name'))    db.exec("ALTER TABLE profiles ADD COLUMN first_name TEXT");
+  if (!cols.includes('last_name'))     db.exec("ALTER TABLE profiles ADD COLUMN last_name TEXT");
+  if (!cols.includes('gender'))        db.exec("ALTER TABLE profiles ADD COLUMN gender TEXT");
+  if (!cols.includes('dob'))           db.exec("ALTER TABLE profiles ADD COLUMN dob TEXT");
+  if (!cols.includes('postal_code'))   db.exec("ALTER TABLE profiles ADD COLUMN postal_code TEXT");
+  if (!cols.includes('city'))          db.exec("ALTER TABLE profiles ADD COLUMN city TEXT");
+  if (!cols.includes('country'))       db.exec("ALTER TABLE profiles ADD COLUMN country TEXT");
+
+  const wcols = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
+  if (!wcols.includes('image_path'))       db.exec("ALTER TABLE watches ADD COLUMN image_path TEXT");
+  if (!wcols.includes('movement_number'))  db.exec("ALTER TABLE watches ADD COLUMN movement_number TEXT");
+  if (!wcols.includes('case_number'))      db.exec("ALTER TABLE watches ADD COLUMN case_number TEXT");
+
+  // Seed admin row if missing
+  const row = db.prepare('SELECT id FROM admin WHERE id = 1').get();
+  if (!row) {
+    const hash = bcrypt.hashSync(process.env.ADMIN_PASSWORD || 'admin123', 10);
+    db.prepare('INSERT INTO admin (id, password_hash) VALUES (1, ?)').run(hash);
+  }
+}
+
+// ── Admin ──────────────────────────────────────────────────────────────────
+
+function getAdminHash() {
+  return db.prepare('SELECT password_hash FROM admin WHERE id = 1').get()?.password_hash;
+}
+
+function setAdminPassword(hash) {
+  db.prepare('UPDATE admin SET password_hash = ? WHERE id = 1').run(hash);
+}
+
+// ── Profiles ───────────────────────────────────────────────────────────────
+
+function listProfiles() {
+  return db.prepare(`
+    SELECT p.*, COUNT(w.id) AS watch_count
+    FROM profiles p
+    LEFT JOIN watches w ON w.profile_id = p.id
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+  `).all();
+}
+
+function getProfile(id) {
+  return db.prepare('SELECT * FROM profiles WHERE id = ?').get(id);
+}
+
+function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
+                          title, first_name, last_name, gender, dob, postal_code, city, country }) {
+  const result = db.prepare(`
+    INSERT INTO profiles
+      (name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
+       title, first_name, last_name, gender, dob, postal_code, city, country)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(name, email, address ?? null, subscriber_id ?? null, pp_urn ?? null,
+         photo_path ?? null, id_card_path ?? null,
+         title ?? null, first_name ?? null, last_name ?? null,
+         gender ?? null, dob ?? null, postal_code ?? null, city ?? null, country ?? null);
+  return result.lastInsertRowid;
+}
+
+function updateProfile(id, updates) {
+  const FIELDS = ['name','email','address','subscriber_id','pp_urn','photo_path','id_card_path',
+                  'title','first_name','last_name','gender','dob','postal_code','city','country'];
+  const fields = [];
+  const values = [];
+  for (const f of FIELDS) {
+    if (updates[f] !== undefined) { fields.push(`${f} = ?`); values.push(updates[f]); }
+  }
+  if (!fields.length) return;
+  values.push(id);
+  db.prepare(`UPDATE profiles SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+function deleteProfile(id) {
+  db.prepare('DELETE FROM profiles WHERE id = ?').run(id);
+}
+
+// ── Watches ────────────────────────────────────────────────────────────────
+
+function listWatchesForProfile(profileId) {
+  return db.prepare(
+    'SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC'
+  ).all(profileId);
+}
+
+function listAllWatches({ q, source, profile_id } = {}) {
+  let sql = `
+    SELECT w.*, p.name AS client_name, p.email AS client_email
+    FROM watches w
+    JOIN profiles p ON p.id = w.profile_id
+    WHERE 1=1
+  `;
+  const params = [];
+
+  if (q) {
+    sql += ` AND (w.model LIKE ? OR w.serial_number LIKE ? OR w.reference_number LIKE ? OR p.name LIKE ?)`;
+    const like = `%${q}%`;
+    params.push(like, like, like, like);
+  }
+  if (source) {
+    sql += ` AND w.source = ?`;
+    params.push(source);
+  }
+  if (profile_id) {
+    sql += ` AND w.profile_id = ?`;
+    params.push(Number(profile_id));
+  }
+
+  sql += ' ORDER BY w.created_at DESC';
+  return db.prepare(sql).all(...params);
+}
+
+function getWatch(id) {
+  return db.prepare('SELECT * FROM watches WHERE id = ?').get(id);
+}
+
+function createWatch(profileId, { model, serial_number, source, purchase_date, price,
+                                   reference_number, notes, image_path, movement_number, case_number }) {
+  const result = db.prepare(`
+    INSERT INTO watches
+      (profile_id, model, serial_number, source, purchase_date, price,
+       reference_number, notes, image_path, movement_number, case_number)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    profileId, model, serial_number ?? null, source,
+    purchase_date ?? null, price != null ? Number(price) : null,
+    reference_number ?? null, notes ?? null, image_path ?? null,
+    movement_number ?? null, case_number ?? null
+  );
+  return result.lastInsertRowid;
+}
+
+function updateWatch(id, updates) {
+  const FIELDS = ['model','serial_number','source','purchase_date','price',
+                  'reference_number','notes','image_path','movement_number','case_number'];
+  const fields = [];
+  const values = [];
+  for (const f of FIELDS) {
+    if (updates[f] !== undefined) {
+      fields.push(`${f} = ?`);
+      values.push(f === 'price' ? (updates[f] != null && updates[f] !== '' ? Number(updates[f]) : null) : updates[f]);
+    }
+  }
+  if (!fields.length) return;
+  values.push(id);
+  db.prepare(`UPDATE watches SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+function deleteWatch(id) {
+  db.prepare('DELETE FROM watches WHERE id = ?').run(id);
+}
+
+// ── Company Docs ───────────────────────────────────────────────────────────
+
+function listCompanyDocs(profileId) {
+  return db.prepare('SELECT * FROM company_docs WHERE profile_id = ? ORDER BY created_at DESC').all(profileId);
+}
+
+function getCompanyDoc(id) {
+  return db.prepare('SELECT * FROM company_docs WHERE id = ?').get(id);
+}
+
+function createCompanyDoc(profileId, { shop_name, doc_path }) {
+  const result = db.prepare(
+    'INSERT INTO company_docs (profile_id, shop_name, doc_path) VALUES (?, ?, ?)'
+  ).run(profileId, shop_name, doc_path);
+  return result.lastInsertRowid;
+}
+
+function deleteCompanyDoc(id) {
+  db.prepare('DELETE FROM company_docs WHERE id = ?').run(id);
+}
+
+function getStats() {
+  const { total_profiles } = db.prepare('SELECT COUNT(*) AS total_profiles FROM profiles').get();
+  const { total_watches }  = db.prepare('SELECT COUNT(*) AS total_watches  FROM watches').get();
+  const { company_watches } = db.prepare("SELECT COUNT(*) AS company_watches FROM watches WHERE source = 'Company'").get();
+  const { dealer_watches }  = db.prepare("SELECT COUNT(*) AS dealer_watches  FROM watches WHERE source = 'Dealer'").get();
+  const { total_value }    = db.prepare('SELECT COALESCE(SUM(price), 0) AS total_value FROM watches').get();
+  return { total_profiles, total_watches, company_watches, dealer_watches, total_value };
+}
+
+module.exports = {
+  init,
+  getAdminHash, setAdminPassword,
+  listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
+  listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,
+  listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,
+  getStats,
+};

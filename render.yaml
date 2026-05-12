@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: meridian-watch-registry
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: registry-data
+      mountPath: /var/data
+      sizeGB: 1

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meridian — Elite Horology</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            background: '#16130b',
+            'surface-container-low': '#1f1b13',
+            'surface-container': '#231f17',
+            'surface-container-highest': '#38342b',
+            'outline-variant': '#4d4635',
+            outline: '#99907c',
+            primary: '#f2ca50',
+            'on-primary': '#3c2f00',
+            'on-surface': '#eae1d4',
+            'on-surface-variant': '#d0c5af',
+            error: '#ffb4ab',
+            'error-container': '#93000a',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
+    .glass-card {
+      background: rgba(31, 27, 19, 0.85);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    input:-webkit-autofill,
+    input:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 100px #1f1b13 inset;
+      -webkit-text-fill-color: #eae1d4;
+    }
+  </style>
+</head>
+<body class="bg-background min-h-screen flex items-center justify-center" style="background: radial-gradient(ellipse at 40% 30%, #1a150a 0%, #16130b 60%, #0e0b06 100%);">
+
+  <!-- Decorative watermark -->
+  <div class="fixed top-0 right-0 p-10 opacity-[0.03] select-none pointer-events-none text-right">
+    <p class="text-[120px] font-['Playfair_Display'] font-bold text-on-surface leading-none">M</p>
+    <p class="text-xs uppercase tracking-[0.4em] text-on-surface">Meridian Platinum</p>
+  </div>
+
+  <div class="w-full max-w-sm px-4">
+    <!-- Logo mark -->
+    <div class="text-center mb-8">
+      <svg class="inline-block mb-4" width="52" height="52" viewBox="0 0 52 52" fill="none">
+        <circle cx="26" cy="26" r="23" stroke="#f2ca50" stroke-width="1.5"/>
+        <circle cx="26" cy="26" r="17" stroke="#f2ca50" stroke-width="1" opacity="0.5"/>
+        <line x1="26" y1="26" x2="26" y2="11" stroke="#f2ca50" stroke-width="2" stroke-linecap="round"/>
+        <line x1="26" y1="26" x2="35" y2="30" stroke="#f2ca50" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="26" cy="26" r="2.5" fill="#f2ca50"/>
+        <line x1="26" y1="5" x2="26" y2="8" stroke="#f2ca50" stroke-width="1.5"/>
+        <line x1="26" y1="44" x2="26" y2="47" stroke="#f2ca50" stroke-width="1.5"/>
+        <line x1="5" y1="26" x2="8" y2="26" stroke="#f2ca50" stroke-width="1.5"/>
+        <line x1="44" y1="26" x2="47" y2="26" stroke="#f2ca50" stroke-width="1.5"/>
+      </svg>
+      <h1 class="text-3xl font-['Playfair_Display'] font-semibold text-primary tracking-wide">Meridian</h1>
+      <p class="text-[10px] uppercase tracking-[0.3em] text-outline mt-1">Elite Horology Registry</p>
+    </div>
+
+    <!-- Login card -->
+    <div class="glass-card rounded-xl p-8 shadow-2xl">
+      <p class="text-on-surface-variant text-sm mb-6 text-center">Sign in to access the vault</p>
+
+      <form id="loginForm" autocomplete="off">
+        <div class="mb-5">
+          <label class="block text-xs text-outline uppercase tracking-widest mb-2">Admin Password</label>
+          <div class="relative">
+            <input
+              type="password"
+              id="password"
+              autocomplete="current-password"
+              required
+              class="w-full bg-[#110e07] border border-[#4d4635]/60 rounded-lg px-4 py-3 text-on-surface text-sm placeholder-outline/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+              placeholder="Enter password"
+            >
+            <button type="button" id="togglePass" class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
+              <span class="material-symbols-outlined text-[18px]">visibility</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="loginError" class="hidden mb-4 px-4 py-3 rounded-lg bg-error-container/20 border border-error/20 text-error text-sm"></div>
+
+        <button
+          type="submit"
+          id="loginBtn"
+          class="w-full bg-primary text-on-primary font-semibold py-3 rounded-lg text-sm tracking-wide hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/10"
+        >
+          Sign In
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center text-[11px] text-outline/40 mt-8 uppercase tracking-widest">Meridian Watch Registry © 2026</p>
+  </div>
+
+  <script>
+    // Toggle password visibility
+    document.getElementById('togglePass').addEventListener('click', () => {
+      const inp = document.getElementById('password');
+      const ico = document.querySelector('#togglePass .material-symbols-outlined');
+      if (inp.type === 'password') { inp.type = 'text'; ico.textContent = 'visibility_off'; }
+      else { inp.type = 'password'; ico.textContent = 'visibility'; }
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      const err = document.getElementById('loginError');
+      err.classList.add('hidden');
+      btn.textContent = 'Signing in…';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: document.getElementById('password').value }),
+        });
+        if (res.ok) {
+          window.location.href = '/dashboard';
+        } else {
+          const data = await res.json();
+          err.textContent = data.error || 'Invalid credentials';
+          err.classList.remove('hidden');
+          btn.textContent = 'Sign In';
+          btn.disabled = false;
+        }
+      } catch {
+        err.textContent = 'Network error — please try again';
+        err.classList.remove('hidden');
+        btn.textContent = 'Sign In';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

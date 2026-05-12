@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meridian Watch Registry</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            background:                  '#16130b',
+            'surface-container-lowest':  '#110e07',
+            'surface-container-low':     '#1f1b13',
+            'surface-container':         '#231f17',
+            'surface-container-high':    '#2d2a21',
+            'surface-container-highest': '#38342b',
+            'surface-variant':           '#38342b',
+            'surface-bright':            '#3d392f',
+            'outline-variant':           '#4d4635',
+            outline:                     '#99907c',
+            primary:                     '#f2ca50',
+            'on-primary':                '#3c2f00',
+            'primary-container':         '#d4af37',
+            'on-surface':                '#eae1d4',
+            'on-surface-variant':        '#d0c5af',
+            secondary:                   '#bec7d2',
+            error:                       '#ffb4ab',
+            'error-container':           '#93000a',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-background text-on-surface font-['Inter'] antialiased">
+
+<!-- ═══ APP SHELL ════════════════════════════════════════════════════════ -->
+<div class="flex min-h-screen">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+  <aside id="sidebar" class="w-64 fixed left-0 top-0 h-screen flex flex-col bg-background border-r border-outline-variant/15 z-50">
+    <!-- Logo -->
+    <div class="px-6 pt-7 pb-8">
+      <h1 class="text-2xl font-playfair font-semibold text-primary tracking-wide">Meridian</h1>
+      <p class="text-[10px] uppercase tracking-[0.3em] text-outline mt-0.5">Elite Horology</p>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 space-y-0.5 px-3">
+      <button data-page="dashboard" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
+        <span class="material-symbols-outlined">diamond</span>
+        <span>Vault</span>
+      </button>
+      <button data-page="profiles" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span>Clients</span>
+      </button>
+      <button data-page="watches" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
+        <span class="material-symbols-outlined">watch</span>
+        <span>Watches</span>
+      </button>
+      <button data-page="messages" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
+        <span class="material-symbols-outlined">mark_email_read</span>
+        <span>Messages</span>
+      </button>
+      <button data-page="settings" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
+        <span class="material-symbols-outlined">settings</span>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-3 pb-6 mt-auto border-t border-outline-variant/15 pt-4">
+      <button id="logoutBtn" class="nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-error hover:bg-error/5">
+        <span class="material-symbols-outlined">logout</span>
+        <span>Sign Out</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────────────────────── -->
+  <div class="ml-64 flex-1 flex flex-col min-h-screen">
+
+    <!-- Topbar -->
+    <header class="fixed top-0 right-0 left-64 h-16 flex items-center justify-between px-6 bg-background/80 backdrop-blur-md border-b border-outline-variant/10 z-40">
+      <div id="topbarTitle" class="font-playfair text-xl text-on-surface"></div>
+      <div class="flex items-center gap-4">
+        <!-- Search -->
+        <div id="globalSearchWrap" class="flex items-center gap-2 bg-surface-container rounded-full px-4 py-2 border border-outline-variant/20 w-72">
+          <span class="material-symbols-outlined text-outline text-[18px]">search</span>
+          <input id="globalSearch" type="text" placeholder="Search watches, clients…" class="bg-transparent border-none outline-none text-sm text-on-surface placeholder-outline/60 w-full p-0 focus:ring-0">
+        </div>
+        <!-- Action buttons -->
+        <button id="addProfileBtn" class="hidden bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+          <span class="material-symbols-outlined text-[16px]">add</span> Add Client
+        </button>
+        <button id="addWatchTopBtn" class="hidden bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+          <span class="material-symbols-outlined text-[16px]">add_circle</span> Add Watch
+        </button>
+      </div>
+    </header>
+
+    <!-- Page content -->
+    <main class="pt-16 flex-1 flex flex-col">
+
+      <!-- ── Dashboard ───────────────────────────────────────────────── -->
+      <div id="page-dashboard" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-10">
+          <h2 class="font-playfair text-5xl font-semibold text-on-surface">Dashboard</h2>
+          <p class="text-on-surface-variant text-sm mt-2">Overview of your Meridian horology portfolio and client registry.</p>
+        </div>
+        <!-- Stats bento -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
+          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
+            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Clients</span>
+            <div><div id="s-profiles" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
+          </div>
+          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
+            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Watches</span>
+            <div><div id="s-watches" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
+          </div>
+          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
+            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Company Pieces</span>
+            <div><div id="s-company" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
+          </div>
+          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
+            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Dealer Pieces</span>
+            <div><div id="s-dealer" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
+          </div>
+          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px] border-primary/20">
+            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-primary">Portfolio Value</span>
+            <div><div id="s-value" class="text-2xl font-playfair font-medium text-on-surface">—</div></div>
+          </div>
+        </div>
+        <!-- Recent clients -->
+        <div class="glass-surface rounded-xl overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
+            <h3 class="font-playfair text-xl text-on-surface">Recent Clients</h3>
+            <button class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline transition-all" data-page="profiles">View All Clients</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Watches</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Added</th>
+                  <th class="px-6 py-4"></th>
+                </tr>
+              </thead>
+              <tbody id="recentProfiles" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Profiles ────────────────────────────────────────────────── -->
+      <div id="page-profiles" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-8">
+          <h2 class="font-playfair text-5xl font-semibold text-on-surface">Clients</h2>
+          <p class="text-on-surface-variant text-sm mt-2">Manage your private client registry.</p>
+        </div>
+        <div class="glass-surface rounded-xl overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
+            <h3 class="font-playfair text-xl text-on-surface">All Clients</h3>
+            <div class="flex items-center gap-2 glass-panel rounded-lg px-4 py-2 border border-outline-variant/20">
+              <span class="material-symbols-outlined text-outline text-[16px]">search</span>
+              <input id="profileSearch" type="text" placeholder="Search clients…" class="bg-transparent border-none outline-none text-sm text-on-surface placeholder-outline/60 w-48 p-0 focus:ring-0">
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Subscriber ID</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">PP URN</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Watches</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Added</th>
+                  <th class="px-6 py-4"></th>
+                </tr>
+              </thead>
+              <tbody id="profilesBody" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+          <div id="profilesPagination" class="px-6 py-4 flex items-center justify-end gap-2 border-t border-outline-variant/10"></div>
+        </div>
+      </div>
+
+      <!-- ── Profile Detail ──────────────────────────────────────────── -->
+      <div id="page-profile-detail" class="hidden flex-1 flex flex-col">
+        <!-- Back bar -->
+        <div class="px-10 pt-8 pb-0">
+          <button id="backToProfiles" class="flex items-center gap-1.5 text-xs uppercase tracking-widest text-outline hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[16px]">arrow_back</span> Back to Clients
+          </button>
+        </div>
+        <!-- Content grid -->
+        <div class="flex flex-1 overflow-hidden">
+          <!-- Main column -->
+          <div class="flex-1 overflow-y-auto p-10">
+            <!-- Hero header -->
+            <section id="profileDetailHeader" class="mb-10"></section>
+            <!-- Watches -->
+            <section>
+              <div class="flex items-end justify-between mb-5">
+                <h3 class="font-playfair text-2xl text-on-surface">Collection Portfolio</h3>
+                <button id="addWatchForProfileBtn" class="bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+                  <span class="material-symbols-outlined text-[16px]">add_circle</span> Add Watch
+                </button>
+              </div>
+              <div class="glass-surface rounded-xl overflow-hidden border border-outline-variant/10">
+                <table class="w-full text-left">
+                  <thead>
+                    <tr class="bg-surface-container border-b border-outline-variant/15">
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Purchase Date</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Notes</th>
+                      <th class="px-6 py-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="profileWatchesBody" class="divide-y divide-white/[0.04]"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+          <!-- Verification panel -->
+          <aside id="verificationPanel" class="w-80 border-l border-outline-variant/10 bg-surface-container-lowest/60 overflow-y-auto p-6 flex flex-col gap-6 flex-shrink-0"></aside>
+        </div>
+      </div>
+
+      <!-- ── Watches ─────────────────────────────────────────────────── -->
+      <div id="page-watches" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-8">
+          <h2 class="font-playfair text-5xl font-semibold text-on-surface">Watches</h2>
+          <p class="text-on-surface-variant text-sm mt-2">Full inventory across all clients.</p>
+        </div>
+        <!-- Mini stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div class="glass-surface rounded-xl p-5">
+            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Total Value</p>
+            <p id="wv-value" class="font-playfair text-xl text-primary">—</p>
+          </div>
+          <div class="glass-surface rounded-xl p-5">
+            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Total Pieces</p>
+            <p id="wv-total" class="font-playfair text-xl text-on-surface">—</p>
+          </div>
+          <div class="glass-surface rounded-xl p-5">
+            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Company</p>
+            <p id="wv-company" class="font-playfair text-xl text-on-surface">—</p>
+          </div>
+          <div class="glass-surface rounded-xl p-5">
+            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Dealer</p>
+            <p id="wv-dealer" class="font-playfair text-xl text-on-surface">—</p>
+          </div>
+        </div>
+        <!-- Table -->
+        <div class="glass-surface rounded-xl overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
+            <h3 class="font-playfair text-xl text-on-surface">All Timepieces</h3>
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2 glass-panel rounded-lg px-3 py-2 border border-outline-variant/20">
+                <span class="material-symbols-outlined text-primary text-[16px]">filter_list</span>
+                <select id="watchSourceFilter" class="bg-transparent border-none outline-none text-xs text-on-surface p-0 focus:ring-0 cursor-pointer min-w-[100px]">
+                  <option value="">All Sources</option>
+                  <option value="Company">Company</option>
+                  <option value="Dealer">Dealer</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2 glass-panel rounded-lg px-3 py-2 border border-outline-variant/20">
+                <span class="material-symbols-outlined text-outline text-[16px]">search</span>
+                <input id="watchSearch" type="text" placeholder="Search inventory…" class="bg-transparent border-none outline-none text-xs text-on-surface placeholder-outline/60 w-44 p-0 focus:ring-0">
+              </div>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Purchase Date</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
+                  <th class="px-6 py-4"></th>
+                </tr>
+              </thead>
+              <tbody id="watchesBody" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+          <div id="watchesPagination" class="px-6 py-4 flex items-center justify-between border-t border-outline-variant/10"></div>
+        </div>
+      </div>
+
+      <!-- ── Settings ────────────────────────────────────────────────── -->
+      <!-- ── Settings ────────────────────────────────────────────────── -->
+      <div id="page-settings" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-8">
+          <h2 class="font-playfair text-5xl font-semibold text-on-surface">Settings</h2>
+          <p class="text-on-surface-variant text-sm mt-2">Manage your registry credentials.</p>
+        </div>
+        <div class="glass-surface rounded-xl p-8 max-w-md">
+          <h3 class="font-playfair text-xl text-on-surface mb-6 pb-5 border-b border-outline-variant/15">Change Admin Password</h3>
+          <form id="passwordForm" class="space-y-4">
+            <div>
+              <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Current Password</label>
+              <input type="password" id="currPass" required class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">New Password</label>
+              <input type="password" id="newPass" required minlength="6" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Confirm New Password</label>
+              <input type="password" id="confPass" required class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+            </div>
+            <div id="passMsg"></div>
+            <button type="submit" class="bg-primary text-on-primary font-semibold px-6 py-3 rounded-lg text-sm hover:brightness-110 active:scale-95 transition-all">Update Password</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ── Messages ───────────────────────────────────────────────── -->
+      <div id="page-messages" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-8">
+          <h2 class="font-playfair text-5xl font-semibold text-on-surface">Messages</h2>
+          <p class="text-on-surface-variant text-sm mt-2">Generate Patek registration messages for your clients.</p>
+        </div>
+        <div class="glass-surface rounded-xl p-8">
+          <div class="flex flex-col sm:flex-row gap-3 mb-8">
+            <select id="msgClientSelect" class="flex-1 bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+              <option value="">— Select client —</option>
+            </select>
+            <button id="generateMsgBtn" class="bg-primary text-on-primary font-semibold px-6 py-3 rounded-lg text-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2 flex-shrink-0">
+              <span class="material-symbols-outlined text-[18px]">auto_awesome</span>
+              Generate
+            </button>
+          </div>
+
+          <div id="msgOutput" class="hidden">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Generated Message</p>
+              <button id="copyMsgBtn" class="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-semibold border border-primary/30 hover:bg-primary/10 px-3 py-1.5 rounded-lg transition-all">
+                <span class="material-symbols-outlined text-[15px]">content_copy</span>
+                <span id="copyMsgLabel">Copy</span>
+              </button>
+            </div>
+            <textarea id="msgText" rows="24" readonly
+              class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-5 py-4 text-on-surface text-sm font-mono resize-none focus:outline-none leading-relaxed"></textarea>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ═══ PROFILE MODAL ════════════════════════════════════════════════════ -->
+<div id="profileModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-2xl bg-[#161B22] border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 id="profileModalTitle" class="font-playfair text-2xl text-primary">Add Client</h2>
+      <button id="closeProfileModal" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 overflow-y-auto space-y-5">
+      <input type="hidden" id="profileId">
+
+      <!-- ── Contact ── -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Full Name *</label>
+          <input type="text" id="pName" required class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Email *</label>
+          <input type="email" id="pEmail" required class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Subscriber ID</label>
+          <input type="text" id="pSubscriberId" placeholder="e.g. 659383/SPA" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">PP URN</label>
+          <input type="text" id="pPpUrn" placeholder="e.g. 249496" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+      </div>
+
+      <!-- ── Personal Details ── -->
+      <div class="border-t border-outline-variant/10 pt-4">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-3">Personal Details</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Title</label>
+            <select id="pTitle" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+              <option value="">—</option>
+              <option value="Mr.">Mr.</option>
+              <option value="Ms.">Ms.</option>
+              <option value="Mrs.">Mrs.</option>
+              <option value="Dr.">Dr.</option>
+              <option value="Sr.">Sr.</option>
+              <option value="Sra.">Sra.</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Gender</label>
+            <select id="pGender" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+              <option value="">—</option>
+              <option value="M">Male (M)</option>
+              <option value="F">Female (F)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">First Name</label>
+            <input type="text" id="pFirstName" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Last Name</label>
+            <input type="text" id="pLastName" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Date of Birth</label>
+            <input type="text" id="pDob" placeholder="e.g. 1985-04-14" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Address ── -->
+      <div class="border-t border-outline-variant/10 pt-4">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-3">Address</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="md:col-span-2">
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Street Address</label>
+            <input type="text" id="pAddress" placeholder="e.g. AVDA. DE NOVELDA 37" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Postal Code</label>
+            <input type="text" id="pPostalCode" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">City</label>
+            <input type="text" id="pCity" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Country</label>
+            <input type="text" id="pCountry" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Documents ── -->
+      <div class="border-t border-outline-variant/10 pt-4">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-3">Documents &amp; Photo</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Profile photo -->
+        <div class="md:col-span-2">
+          <label class="block text-xs uppercase tracking-widest text-outline mb-2">Profile Photo</label>
+          <div class="flex items-center gap-4">
+            <div id="photoPreview" class="w-16 h-16 rounded-full bg-surface-variant border border-outline-variant/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <span class="material-symbols-outlined text-outline text-2xl">person</span>
+            </div>
+            <label class="flex-1 upload-zone block p-4 text-center bg-white/[0.02] hover:bg-white/[0.04] transition-all cursor-pointer">
+              <input type="file" id="pPhoto" accept=".jpg,.jpeg,.png,.webp" class="hidden">
+              <p class="text-sm text-on-surface-variant">Click to upload photo</p>
+              <p class="text-xs text-outline mt-0.5">JPG, PNG, WebP up to 10MB</p>
+            </label>
+          </div>
+          <div id="photoChosen" class="mt-1.5 text-xs text-primary hidden"></div>
+        </div>
+        <!-- ID card -->
+        <div class="md:col-span-2">
+          <label class="block text-xs uppercase tracking-widest text-outline mb-2">Identity Document</label>
+          <label class="upload-zone block p-6 text-center bg-white/[0.02] hover:bg-white/[0.04] transition-all cursor-pointer">
+            <input type="file" id="pIdCard" accept=".jpg,.jpeg,.png,.webp,.pdf" class="hidden">
+            <div class="flex flex-col items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-2xl">badge</span>
+              <div>
+                <p class="text-sm font-medium text-on-surface">ID Card / Document</p>
+                <p class="text-xs text-outline mt-0.5">JPG, PNG, PDF up to 10MB</p>
+              </div>
+            </div>
+          </label>
+          <div id="currentIdCard" class="mt-2"></div>
+          <div id="fileChosen" class="mt-1.5 text-xs text-primary hidden"></div>
+        </div>
+        </div><!-- /grid -->
+      </div><!-- /Documents section -->
+
+      <div id="profileFormError" class="hidden px-4 py-3 rounded-lg bg-error-container/20 border border-error/20 text-error text-sm"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-white/[0.06] bg-[#161B22] flex items-center justify-end gap-3">
+      <button id="cancelProfileModal" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button id="saveProfileBtn" class="bg-primary text-on-primary font-semibold px-8 py-3 rounded-lg text-sm hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/10">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WATCH MODAL ═══════════════════════════════════════════════════════ -->
+<div id="watchModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-2xl bg-[#161B22] border border-white/10 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 id="watchModalTitle" class="font-playfair text-2xl text-primary">Add Watch</h2>
+      <button id="closeWatchModal" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 overflow-y-auto space-y-4">
+      <input type="hidden" id="watchId">
+      <input type="hidden" id="watchProfileId">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Model *</label>
+          <input type="text" id="wModel" required placeholder="e.g. Patek Philippe Nautilus 5711" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Serial Number</label>
+          <input type="text" id="wSerial" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Source *</label>
+          <select id="wSource" required class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+            <option value="">Select source…</option>
+            <option value="Company">Company</option>
+            <option value="Dealer">Dealer</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Purchase Date</label>
+          <input type="date" id="wDate" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Price</label>
+          <input type="number" id="wPrice" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Reference / Invoice #</label>
+          <input type="text" id="wRef" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Movement Number</label>
+          <input type="text" id="wMovement" placeholder="e.g. 7839152" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Case Number</label>
+          <input type="text" id="wCase" placeholder="e.g. 6846200" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Notes</label>
+          <textarea id="wNotes" rows="3" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"></textarea>
+        </div>
+        <!-- Watch image -->
+        <div class="md:col-span-2">
+          <label class="block text-xs uppercase tracking-widest text-outline mb-2">Watch Photo</label>
+          <div class="flex items-center gap-4">
+            <div id="watchImgPreview" class="w-16 h-16 rounded-lg bg-surface-container border border-outline-variant/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <span class="material-symbols-outlined text-outline text-2xl">watch</span>
+            </div>
+            <label class="flex-1 upload-zone block p-4 text-center bg-white/[0.02] hover:bg-white/[0.04] transition-all cursor-pointer">
+              <input type="file" id="wImage" accept=".jpg,.jpeg,.png,.webp" class="hidden">
+              <p class="text-sm text-on-surface-variant">Click to upload watch photo</p>
+              <p class="text-xs text-outline mt-0.5">JPG, PNG, WebP up to 10MB</p>
+            </label>
+          </div>
+          <div id="watchImgChosen" class="mt-1.5 text-xs text-primary hidden"></div>
+        </div>
+      </div>
+      <div id="watchFormError" class="hidden px-4 py-3 rounded-lg bg-error-container/20 border border-error/20 text-error text-sm"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-white/[0.06] bg-[#161B22] flex items-center justify-end gap-3">
+      <button id="cancelWatchModal" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button id="saveWatchBtn" class="bg-primary text-on-primary font-semibold px-8 py-3 rounded-lg text-sm hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/10">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM MODAL ════════════════════════════════════════════════════ -->
+<div id="confirmModal" class="fixed inset-0 z-[110] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-sm bg-[#161B22] border border-white/10 rounded-xl shadow-2xl">
+    <div class="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 class="font-playfair text-xl text-on-surface">Confirm Delete</h2>
+      <button id="closeConfirm" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6">
+      <p id="confirmMsg" class="text-on-surface-variant text-sm leading-relaxed"></p>
+    </div>
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+      <button id="cancelConfirm" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button id="okConfirm" class="bg-error-container/30 text-error border border-error/20 hover:bg-error-container/50 font-semibold px-6 py-2.5 rounded-lg text-sm transition-all">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COMPANY DOC MODAL ════════════════════════════════════════════════ -->
+<div id="companyDocModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-md bg-[#161B22] border border-white/10 rounded-2xl shadow-2xl">
+    <div class="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 class="font-playfair text-2xl text-primary">Add Company Document</h2>
+      <button id="closeCompanyDocModal" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 space-y-5">
+      <input type="hidden" id="cdocProfileId">
+
+      <!-- Shop name -->
+      <div>
+        <label class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Shop / Company Name <span class="text-error">*</span></label>
+        <input type="text" id="cdocShopName" placeholder="e.g. Rolex Boutique Dubai"
+               class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+      </div>
+
+      <!-- Document upload -->
+      <div>
+        <label class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Document <span class="text-error">*</span></label>
+        <label class="upload-zone flex flex-col items-center gap-3 py-7 px-4 text-center cursor-pointer hover:bg-white/[0.03] transition-all" for="cdocFile">
+          <span class="material-symbols-outlined text-primary text-3xl">upload_file</span>
+          <span class="text-sm text-on-surface-variant">Click to upload document</span>
+          <span class="text-[11px] text-outline">PDF, JPG, PNG up to 20 MB</span>
+        </label>
+        <input type="file" id="cdocFile" accept=".pdf,.jpg,.jpeg,.png,.webp" class="hidden">
+        <p id="cdocFileChosen" class="hidden text-xs text-primary mt-2 font-medium"></p>
+      </div>
+
+      <div id="cdocError" class="hidden px-4 py-3 rounded-lg bg-error-container/20 border border-error/20 text-error text-sm"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+      <button id="cancelCompanyDocModal" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button id="saveCompanyDocBtn" class="bg-primary text-on-primary font-semibold px-8 py-3 rounded-lg text-sm hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/10">Upload</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LIGHTBOX ═════════════════════════════════════════════════════════ -->
+<div id="lightbox" class="fixed inset-0 z-[200] hidden flex items-center justify-center cursor-zoom-out" style="background:rgba(0,0,0,.88);backdrop-filter:blur(8px)">
+  <img id="lightboxImg" src="" alt="ID document" class="max-w-[92vw] max-h-[92vh] rounded-xl shadow-2xl">
+</div>
+
+<!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   Meridian Watch Registry — App Logic
+══════════════════════════════════════════════════════════════════════ */
+
+// ── API ────────────────────────────────────────────────────────────────────
+async function api(method, url, data) {
+  const opts = { method, headers: {} };
+  if (data instanceof FormData) {
+    opts.body = data;
+  } else if (data) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(data);
+  }
+  const res = await fetch(url, opts);
+  if (res.status === 401) { window.location.href = '/'; return; }
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || 'Request failed');
+  return json;
+}
+
+const fmt = {
+  date:     d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—',
+  money:    v => v != null && v !== '' ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) : '—',
+  initials: n => (n||'').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2),
+};
+
+// ── Routing ────────────────────────────────────────────────────────────────
+let currentPage = 'dashboard';
+let currentProfileId = null;
+const PAGES = ['dashboard','profiles','profile-detail','watches','messages','settings'];
+
+function showPage(name) {
+  PAGES.forEach(p => {
+    const el = document.getElementById(`page-${p}`);
+    if (el) {
+      el.classList.toggle('hidden', p !== name);
+      if (p === name) el.classList.add('page-enter');
+    }
+  });
+
+  // Sidebar active states
+  document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
+    btn.classList.remove('nav-active');
+    btn.classList.add('nav-inactive');
+    if (btn.dataset.page === name) {
+      btn.classList.remove('nav-inactive');
+      btn.classList.add('nav-active');
+    }
+  });
+
+  const titles = { dashboard:'Vault', profiles:'Clients', 'profile-detail':'Client Detail', watches:'Watches', messages:'Messages', settings:'Settings' };
+  document.getElementById('topbarTitle').textContent = titles[name] || '';
+
+  const showAddProfile = name === 'profiles';
+  const showAddWatch   = name === 'watches';
+  document.getElementById('addProfileBtn').classList.toggle('hidden', !showAddProfile);
+  document.getElementById('addWatchTopBtn').classList.toggle('hidden', !showAddWatch);
+  document.getElementById('globalSearchWrap').classList.toggle('hidden', name === 'settings');
+
+  currentPage = name;
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'profiles')  loadProfiles();
+  if (name === 'watches')   loadWatches();
+  if (name === 'settings')  resetPasswordForm();
+  if (name === 'messages')  loadMsgClients();
+}
+
+document.querySelectorAll('[data-page]').forEach(el => {
+  el.addEventListener('click', () => showPage(el.dataset.page));
+});
+
+// ── Logout ─────────────────────────────────────────────────────────────────
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await api('POST', '/api/auth/logout');
+  window.location.href = '/';
+});
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  const stats = await api('GET', '/api/stats');
+  document.getElementById('s-profiles').textContent = stats.total_profiles.toLocaleString();
+  document.getElementById('s-watches').textContent  = stats.total_watches.toLocaleString();
+  document.getElementById('s-company').textContent  = stats.company_watches.toLocaleString();
+  document.getElementById('s-dealer').textContent   = stats.dealer_watches.toLocaleString();
+  document.getElementById('s-value').textContent    = fmt.money(stats.total_value);
+
+  const profiles = await api('GET', '/api/profiles');
+  document.getElementById('recentProfiles').innerHTML = profiles.slice(0, 8).map(p => `
+    <tr class="tbl-row">
+      <td class="px-6 py-5">
+        <div class="flex items-center gap-4">
+          ${avatarHtml(p.name, p.photo_path)}
+          <div>
+            <div class="text-on-surface font-medium text-sm">${esc(p.name)}</div>
+            <div class="text-on-surface-variant text-xs mt-0.5">${esc(p.email)}</div>
+          </div>
+        </div>
+      </td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${p.watch_count} piece${p.watch_count !== 1 ? 's' : ''}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${fmt.date(p.created_at.split(' ')[0])}</td>
+      <td class="px-6 py-5 text-right">
+        <button onclick="openProfileDetail(${p.id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline px-3 py-1 border border-transparent hover:border-primary/20 rounded transition-all">View</button>
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients yet. <button onclick="openAddProfile()" class="text-primary underline ml-1">Add your first client</button></td></tr>`;
+}
+
+// ── Profiles ───────────────────────────────────────────────────────────────
+let allProfiles = [];
+let profilePage = 1;
+const PER_PAGE  = 15;
+
+async function loadProfiles() {
+  allProfiles = await api('GET', '/api/profiles');
+  profilePage = 1;
+  renderProfiles();
+}
+
+function renderProfiles() {
+  const q    = document.getElementById('profileSearch').value.trim().toLowerCase();
+  const data = q ? allProfiles.filter(p => p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)) : allProfiles;
+  const total = data.length;
+  const slice = data.slice((profilePage - 1) * PER_PAGE, profilePage * PER_PAGE);
+
+  document.getElementById('profilesBody').innerHTML = slice.map(p => `
+    <tr class="tbl-row">
+      <td class="px-6 py-5">
+        <div class="flex items-center gap-4">
+          ${avatarHtml(p.name, p.photo_path)}
+          <div>
+            <div class="text-on-surface font-medium text-sm">${esc(p.name)}</div>
+            <div class="text-on-surface-variant text-xs mt-0.5">${esc(p.email)}</div>
+          </div>
+        </div>
+      </td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm font-mono">${esc(p.subscriber_id || '—')}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm font-mono">${esc(p.pp_urn || '—')}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${p.watch_count}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${fmt.date(p.created_at.split(' ')[0])}</td>
+      <td class="px-6 py-5">
+        <div class="flex items-center justify-end gap-1">
+          <button onclick="openProfileDetail(${p.id})" title="View" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+          </button>
+          <button onclick="openEditProfile(${p.id})" title="Edit" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[18px]">edit</span>
+          </button>
+          <button onclick="confirmDeleteProfile(${p.id},'${esc(p.name).replace(/'/g,"\\'")}',false)" title="Delete" class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors">
+            <span class="material-symbols-outlined text-[18px]">delete</span>
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('') || `<tr><td colspan="6" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients found.</td></tr>`;
+
+  renderPagination('profilesPagination', profilePage, total, PER_PAGE, n => { profilePage = n; renderProfiles(); });
+}
+
+document.getElementById('profileSearch').addEventListener('input', () => { profilePage = 1; renderProfiles(); });
+document.getElementById('addProfileBtn').addEventListener('click', openAddProfile);
+
+// ── Profile detail ─────────────────────────────────────────────────────────
+async function openProfileDetail(id) {
+  currentProfileId = id;
+  showPage('profile-detail');
+  const [profile, companyDocs] = await Promise.all([
+    api('GET', `/api/profiles/${id}`),
+    api('GET', `/api/profiles/${id}/company-docs`),
+  ]);
+
+  // Hero header
+  document.getElementById('profileDetailHeader').innerHTML = `
+    <div class="flex items-start justify-between gap-6 flex-wrap">
+      <div class="flex items-start gap-5">
+        ${avatarHtml(profile.name, profile.photo_path, 'lg')}
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1">Private Client</p>
+          <h2 class="font-playfair text-4xl font-semibold text-on-surface leading-tight">${esc(profile.name)}</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-3 mt-5 pt-5 border-t border-outline-variant/15">
+            <div>
+              <p class="text-xs text-on-surface-variant mb-0.5">Email</p>
+              <p class="text-sm text-on-surface">${esc(profile.email)}</p>
+            </div>
+            ${profile.address ? `<div>
+              <p class="text-xs text-on-surface-variant mb-0.5">Address</p>
+              <p class="text-sm text-on-surface leading-relaxed">${esc(profile.address)}</p>
+            </div>` : ''}
+            ${profile.subscriber_id ? `<div>
+              <p class="text-xs text-on-surface-variant mb-0.5">Subscriber ID</p>
+              <p class="text-sm text-on-surface font-mono">${esc(profile.subscriber_id)}</p>
+            </div>` : ''}
+            ${profile.pp_urn ? `<div>
+              <p class="text-xs text-on-surface-variant mb-0.5">PP URN</p>
+              <p class="text-sm text-on-surface font-mono">${esc(profile.pp_urn)}</p>
+            </div>` : ''}
+            <div>
+              <p class="text-xs text-on-surface-variant mb-0.5">Member Since</p>
+              <p class="text-sm text-on-surface">${fmt.date(profile.created_at.split(' ')[0])}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openEditProfile(${id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary px-4 py-2 border border-primary/30 rounded-lg hover:bg-primary/10 transition-all">Edit</button>
+        <button onclick="confirmDeleteProfile(${id},'${esc(profile.name).replace(/'/g,"\\'")}',true)" class="text-[10px] font-semibold uppercase tracking-widest text-error px-4 py-2 border border-error/20 rounded-lg hover:bg-error/10 transition-all">Delete</button>
+      </div>
+    </div>
+  `;
+
+  // Verification panel
+  const panel = document.getElementById('verificationPanel');
+  panel.innerHTML = `
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <h4 class="font-playfair text-lg text-on-surface">Verification</h4>
+        <span class="material-symbols-outlined text-primary">verified</span>
+      </div>
+      <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-3 font-semibold">Identity Document</p>
+      ${profile.id_card_path ? `
+        <div class="id-card-wrap relative rounded-xl overflow-hidden border border-outline-variant/15 cursor-zoom-in bg-surface-container-highest" onclick="openLightbox('${profile.id_card_path}')">
+          <img src="${profile.id_card_path}" alt="ID Card" class="w-full h-48 object-cover opacity-70 grayscale transition-all duration-500">
+          <div class="id-card-overlay absolute inset-0 flex items-center justify-center bg-background/50">
+            <span class="bg-primary text-on-primary text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+              <span class="material-symbols-outlined text-[16px]">visibility</span> View Original
+            </span>
+          </div>
+        </div>
+        <p class="text-xs text-on-surface-variant mt-2 flex items-center justify-between">
+          <span>${profile.id_card_path.split('/').pop()}</span>
+          <span class="text-primary">On file</span>
+        </p>
+      ` : `
+        <div class="upload-zone p-8 text-center bg-white/[0.02] flex flex-col items-center gap-3 cursor-pointer hover:bg-white/[0.04] transition-all" onclick="openEditProfile(${id})">
+          <span class="material-symbols-outlined text-outline text-3xl">badge</span>
+          <p class="text-xs text-outline">No document on file — click Edit to upload</p>
+        </div>
+      `}
+    </div>
+    ${(profile.subscriber_id || profile.pp_urn) ? `
+    <div class="space-y-3 pt-4 border-t border-outline-variant/10">
+      <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Registry Identifiers</p>
+      ${profile.subscriber_id ? `
+        <div class="glass-surface rounded-lg px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-1">Subscriber ID</p>
+          <p class="text-sm font-mono text-on-surface">${esc(profile.subscriber_id)}</p>
+        </div>` : ''}
+      ${profile.pp_urn ? `
+        <div class="glass-surface rounded-lg px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-1">PP URN</p>
+          <p class="text-sm font-mono text-on-surface">${esc(profile.pp_urn)}</p>
+        </div>` : ''}
+    </div>` : ''}
+    <div class="pt-4 border-t border-outline-variant/10">
+      <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-3">Portfolio Summary</p>
+      <div class="glass-surface rounded-lg px-4 py-3 flex items-center justify-between">
+        <span class="text-xs text-on-surface-variant">Total Pieces</span>
+        <span class="font-playfair text-lg text-on-surface">${profile.watches.length}</span>
+      </div>
+    </div>
+    <!-- Company Documentation -->
+    <div class="pt-4 border-t border-outline-variant/10" id="companyDocsSection">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Company Documentation</p>
+        <button onclick="openAddCompanyDoc(${id})" class="w-6 h-6 rounded-md bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all group" title="Add document">
+          <span class="material-symbols-outlined text-primary text-[16px]">add</span>
+        </button>
+      </div>
+      <div id="companyDocTiles" class="flex flex-col gap-2">
+        ${renderCompanyDocTiles(companyDocs, id)}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('addWatchForProfileBtn').onclick = () => openAddWatch(id);
+  renderProfileWatches(profile.watches);
+}
+
+function renderProfileWatches(watches) {
+  document.getElementById('profileWatchesBody').innerHTML = watches.length
+    ? watches.map(w => watchRow(w, true)).join('')
+    : `<tr><td colspan="8" class="px-6 py-16 text-center text-on-surface-variant text-sm">No watches recorded yet.</td></tr>`;
+}
+
+// ── Company Documentation ──────────────────────────────────────────────────
+
+function isPdf(path) { return path?.toLowerCase().endsWith('.pdf'); }
+
+function renderCompanyDocTiles(docs, profileId) {
+  if (!docs.length) return `
+    <div class="upload-zone p-5 text-center bg-white/[0.02] flex flex-col items-center gap-2">
+      <span class="material-symbols-outlined text-outline text-2xl">domain</span>
+      <p class="text-xs text-outline">No company documents yet</p>
+    </div>`;
+  return docs.map(doc => `
+    <div class="group glass-surface rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-primary/30 hover:bg-primary/[0.03] transition-all border border-transparent"
+         onclick="${isPdf(doc.doc_path) ? `window.open('${doc.doc_path}','_blank')` : `openLightbox('${doc.doc_path}')`}">
+      <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-primary text-[18px]">${isPdf(doc.doc_path) ? 'picture_as_pdf' : 'image'}</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-on-surface truncate">${esc(doc.shop_name)}</p>
+        <p class="text-[10px] text-on-surface-variant truncate">${doc.doc_path.split('/').pop()}</p>
+      </div>
+      <button onclick="event.stopPropagation(); deleteCompanyDoc(${doc.id}, ${profileId})"
+              class="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md hover:bg-error/20 transition-all flex-shrink-0"
+              title="Remove">
+        <span class="material-symbols-outlined text-error text-[16px]">close</span>
+      </button>
+    </div>`).join('');
+}
+
+function openAddCompanyDoc(profileId) {
+  document.getElementById('cdocProfileId').value = profileId;
+  document.getElementById('cdocShopName').value  = '';
+  document.getElementById('cdocFile').value      = '';
+  document.getElementById('cdocFileChosen').classList.add('hidden');
+  document.getElementById('cdocError').classList.add('hidden');
+  document.getElementById('companyDocModal').classList.remove('hidden');
+  document.getElementById('cdocShopName').focus();
+}
+
+function closeCompanyDocModal() {
+  document.getElementById('companyDocModal').classList.add('hidden');
+}
+
+document.getElementById('closeCompanyDocModal').addEventListener('click', closeCompanyDocModal);
+document.getElementById('cancelCompanyDocModal').addEventListener('click', closeCompanyDocModal);
+
+document.getElementById('cdocFile').addEventListener('change', e => {
+  const fc = document.getElementById('cdocFileChosen');
+  if (e.target.files[0]) { fc.textContent = '✓ ' + e.target.files[0].name; fc.classList.remove('hidden'); }
+  else fc.classList.add('hidden');
+});
+
+document.getElementById('saveCompanyDocBtn').addEventListener('click', async () => {
+  const profileId = document.getElementById('cdocProfileId').value;
+  const shopName  = document.getElementById('cdocShopName').value.trim();
+  const file      = document.getElementById('cdocFile').files[0];
+  const errEl     = document.getElementById('cdocError');
+  errEl.classList.add('hidden');
+
+  if (!shopName) { errEl.textContent = 'Shop name is required'; errEl.classList.remove('hidden'); return; }
+  if (!file)     { errEl.textContent = 'Please select a document'; errEl.classList.remove('hidden'); return; }
+
+  const fd = new FormData();
+  fd.append('shop_name', shopName);
+  fd.append('document',  file);
+
+  try {
+    await api('POST', `/api/profiles/${profileId}/company-docs`, fd);
+    closeCompanyDocModal();
+    // Refresh company docs tiles in place
+    const docs = await api('GET', `/api/profiles/${profileId}/company-docs`);
+    const tilesEl = document.getElementById('companyDocTiles');
+    if (tilesEl) tilesEl.innerHTML = renderCompanyDocTiles(docs, Number(profileId));
+  } catch (e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  }
+});
+
+async function deleteCompanyDoc(docId, profileId) {
+  try {
+    await api('DELETE', `/api/profiles/${profileId}/company-docs/${docId}`);
+    const docs = await api('GET', `/api/profiles/${profileId}/company-docs`);
+    const tilesEl = document.getElementById('companyDocTiles');
+    if (tilesEl) tilesEl.innerHTML = renderCompanyDocTiles(docs, profileId);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+document.getElementById('backToProfiles').addEventListener('click', () => showPage('profiles'));
+
+// ── Watches page ───────────────────────────────────────────────────────────
+let allWatches = [];
+let watchPage  = 1;
+
+async function loadWatches(q, source) {
+  const stats = await api('GET', '/api/stats');
+  document.getElementById('wv-value').textContent   = fmt.money(stats.total_value);
+  document.getElementById('wv-total').textContent   = stats.total_watches.toLocaleString();
+  document.getElementById('wv-company').textContent = stats.company_watches.toLocaleString();
+  document.getElementById('wv-dealer').textContent  = stats.dealer_watches.toLocaleString();
+
+  const params = new URLSearchParams();
+  if (q)      params.set('q', q);
+  if (source) params.set('source', source);
+  allWatches = await api('GET', `/api/watches?${params}`);
+  watchPage  = 1;
+  renderWatches();
+}
+
+function renderWatches() {
+  const total = allWatches.length;
+  const slice = allWatches.slice((watchPage - 1) * PER_PAGE, watchPage * PER_PAGE);
+  document.getElementById('watchesBody').innerHTML = slice.map(w => watchRow(w, false)).join('')
+    || `<tr><td colspan="8" class="px-6 py-16 text-center text-on-surface-variant text-sm">No watches found.</td></tr>`;
+  renderPagination('watchesPagination', watchPage, total, PER_PAGE, n => { watchPage = n; renderWatches(); });
+}
+
+function sourceBadge(source) {
+  if (source === 'Company') return `<span class="px-3 py-1 border border-primary/50 text-primary text-[10px] font-semibold uppercase tracking-wider rounded-full">Company</span>`;
+  return `<span class="px-3 py-1 border border-outline-variant/40 text-on-surface-variant text-[10px] font-semibold uppercase tracking-wider rounded-full">Dealer</span>`;
+}
+
+function avatarHtml(name, photoPath, size = 'sm') {
+  const dim    = size === 'lg' ? 'w-16 h-16 text-xl' : 'w-10 h-10 text-sm';
+  const initials = esc(fmt.initials(name));
+  if (photoPath) {
+    return `<div class="${dim} rounded-full border border-outline-variant/30 overflow-hidden flex-shrink-0"><img src="${photoPath}" class="w-full h-full object-cover" alt="${initials}"></div>`;
+  }
+  return `<div class="${dim} rounded-full bg-surface-variant flex items-center justify-center text-primary font-semibold flex-shrink-0">${initials}</div>`;
+}
+
+function watchRow(w, detail) {
+  const thumb = w.image_path
+    ? `<img src="${w.image_path}" class="w-full h-full object-cover" alt="${esc(w.model)}" onclick="openLightbox('${w.image_path}')" style="cursor:zoom-in">`
+    : `<span class="material-symbols-outlined text-outline text-[22px]">watch</span>`;
+  const clientCell = detail ? '' : `
+    <td class="px-6 py-6">
+      <button onclick="openProfileDetail(${w.profile_id})" class="text-on-surface-variant text-sm hover:text-primary transition-colors">${esc(w.client_name || '—')}</button>
+    </td>`;
+  const notesCell = detail ? `<td class="px-6 py-6 text-on-surface-variant text-xs max-w-[160px] truncate">${esc(w.notes || '—')}</td>` : '';
+  return `
+    <tr class="tbl-row">
+      <td class="px-6 py-6">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
+            ${thumb}
+          </div>
+          <div>
+            <p class="text-on-surface font-medium text-sm leading-tight">${esc(w.model)}</p>
+            ${w.serial_number ? `<p class="text-on-surface-variant text-xs mt-0.5 font-mono">${esc(w.serial_number)}</p>` : ''}
+          </div>
+        </div>
+      </td>
+      ${clientCell}
+      <td class="px-6 py-6">${sourceBadge(w.source)}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
+      <td class="px-6 py-6 font-semibold text-primary text-sm">${fmt.money(w.price)}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>
+      ${notesCell}
+      <td class="px-6 py-6">
+        <div class="flex items-center justify-end gap-1">
+          <button onclick="openEditWatch(${w.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[18px]">edit</span>
+          </button>
+          <button onclick="confirmDeleteWatch(${w.id},'${esc(w.model).replace(/'/g,"\\'")}')">
+            <span class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors block">
+              <span class="material-symbols-outlined text-[18px]">delete</span>
+            </span>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+let watchSearchTimer;
+document.getElementById('watchSearch').addEventListener('input', e => {
+  clearTimeout(watchSearchTimer);
+  watchSearchTimer = setTimeout(() => { watchPage = 1; loadWatches(e.target.value.trim(), document.getElementById('watchSourceFilter').value); }, 300);
+});
+document.getElementById('watchSourceFilter').addEventListener('change', e => {
+  watchPage = 1; loadWatches(document.getElementById('watchSearch').value.trim(), e.target.value);
+});
+document.getElementById('addWatchTopBtn').addEventListener('click', () => openAddWatch(null));
+
+// Global search
+let globalTimer;
+document.getElementById('globalSearch').addEventListener('input', e => {
+  clearTimeout(globalTimer);
+  globalTimer = setTimeout(() => {
+    const q = e.target.value.trim();
+    if (!q) return;
+    showPage('watches');
+    document.getElementById('watchSearch').value = q;
+    watchPage = 1;
+    loadWatches(q, '');
+  }, 300);
+});
+
+// ── Profile modal ──────────────────────────────────────────────────────────
+
+function resetPhotoPreview(src) {
+  const el = document.getElementById('photoPreview');
+  if (src) {
+    el.innerHTML = `<img src="${src}" class="w-full h-full object-cover">`;
+  } else {
+    el.innerHTML = `<span class="material-symbols-outlined text-outline text-2xl">person</span>`;
+  }
+}
+
+const REG_FIELDS = ['pTitle','pFirstName','pLastName','pGender','pDob','pPostalCode','pCity','pCountry'];
+
+function clearRegFields() {
+  REG_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+function openAddProfile() {
+  ['profileId','pName','pEmail','pAddress','pSubscriberId','pPpUrn'].forEach(id => document.getElementById(id).value = '');
+  clearRegFields();
+  document.getElementById('pPhoto').value            = '';
+  document.getElementById('pIdCard').value           = '';
+  document.getElementById('currentIdCard').innerHTML = '';
+  document.getElementById('fileChosen').classList.add('hidden');
+  document.getElementById('photoChosen').classList.add('hidden');
+  resetPhotoPreview(null);
+  document.getElementById('profileModalTitle').textContent = 'Add Client';
+  document.getElementById('profileFormError').classList.add('hidden');
+  document.getElementById('profileModal').classList.remove('hidden');
+}
+
+async function openEditProfile(id) {
+  const p = await api('GET', `/api/profiles/${id}`);
+  document.getElementById('profileId').value         = p.id;
+  document.getElementById('pName').value             = p.name;
+  document.getElementById('pEmail').value            = p.email;
+  document.getElementById('pAddress').value          = p.address || '';
+  document.getElementById('pSubscriberId').value     = p.subscriber_id || '';
+  document.getElementById('pPpUrn').value            = p.pp_urn || '';
+  // Registration details
+  document.getElementById('pTitle').value      = p.title      || '';
+  document.getElementById('pFirstName').value  = p.first_name || '';
+  document.getElementById('pLastName').value   = p.last_name  || '';
+  document.getElementById('pGender').value     = p.gender     || '';
+  document.getElementById('pDob').value        = p.dob        || '';
+  document.getElementById('pPostalCode').value = p.postal_code|| '';
+  document.getElementById('pCity').value       = p.city       || '';
+  document.getElementById('pCountry').value    = p.country    || '';
+  document.getElementById('pPhoto').value            = '';
+  document.getElementById('pIdCard').value           = '';
+  document.getElementById('fileChosen').classList.add('hidden');
+  document.getElementById('photoChosen').classList.add('hidden');
+  resetPhotoPreview(p.photo_path || null);
+  document.getElementById('profileModalTitle').textContent = 'Edit Client';
+  document.getElementById('profileFormError').classList.add('hidden');
+  document.getElementById('currentIdCard').innerHTML = p.id_card_path
+    ? `<p class="text-xs text-on-surface-variant">Current: <a href="${p.id_card_path}" target="_blank" class="text-primary underline">${p.id_card_path.split('/').pop()}</a> — upload new to replace</p>`
+    : '';
+  document.getElementById('profileModal').classList.remove('hidden');
+}
+
+// Live preview for profile photo
+document.getElementById('pPhoto').addEventListener('change', e => {
+  const file = e.target.files[0];
+  const pc   = document.getElementById('photoChosen');
+  if (file) {
+    pc.textContent = '✓ ' + file.name; pc.classList.remove('hidden');
+    const reader = new FileReader();
+    reader.onload = ev => resetPhotoPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  } else { pc.classList.add('hidden'); resetPhotoPreview(null); }
+});
+
+// Show selected ID card filename
+document.getElementById('pIdCard').addEventListener('change', e => {
+  const fc = document.getElementById('fileChosen');
+  if (e.target.files[0]) { fc.textContent = '✓ ' + e.target.files[0].name; fc.classList.remove('hidden'); }
+  else fc.classList.add('hidden');
+});
+
+function closeProfileModal() { document.getElementById('profileModal').classList.add('hidden'); }
+document.getElementById('closeProfileModal').addEventListener('click', closeProfileModal);
+document.getElementById('cancelProfileModal').addEventListener('click', closeProfileModal);
+
+document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+  const id    = document.getElementById('profileId').value;
+  const errEl = document.getElementById('profileFormError');
+  errEl.classList.add('hidden');
+
+  const fd = new FormData();
+  fd.append('name',          document.getElementById('pName').value.trim());
+  fd.append('email',         document.getElementById('pEmail').value.trim());
+  fd.append('address',       document.getElementById('pAddress').value.trim());
+  fd.append('subscriber_id', document.getElementById('pSubscriberId').value.trim());
+  fd.append('pp_urn',        document.getElementById('pPpUrn').value.trim());
+  fd.append('title',         document.getElementById('pTitle').value.trim());
+  fd.append('first_name',    document.getElementById('pFirstName').value.trim());
+  fd.append('last_name',     document.getElementById('pLastName').value.trim());
+  fd.append('gender',        document.getElementById('pGender').value.trim());
+  fd.append('dob',           document.getElementById('pDob').value.trim());
+  fd.append('postal_code',   document.getElementById('pPostalCode').value.trim());
+  fd.append('city',          document.getElementById('pCity').value.trim());
+  fd.append('country',       document.getElementById('pCountry').value.trim());
+  const photoFile  = document.getElementById('pPhoto').files[0];
+  const idCardFile = document.getElementById('pIdCard').files[0];
+  if (photoFile)  fd.append('photo',   photoFile);
+  if (idCardFile) fd.append('id_card', idCardFile);
+
+  if (!fd.get('name') || !fd.get('email')) {
+    errEl.textContent = 'Name and email are required'; errEl.classList.remove('hidden'); return;
+  }
+  try {
+    id ? await api('PUT', `/api/profiles/${id}`, fd) : await api('POST', '/api/profiles', fd);
+    closeProfileModal();
+    if (currentPage === 'profiles')                                    loadProfiles();
+    else if (currentPage === 'dashboard')                              loadDashboard();
+    else if (currentPage === 'profile-detail' && currentProfileId == id) openProfileDetail(id);
+  } catch (e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  }
+});
+
+// ── Watch modal ────────────────────────────────────────────────────────────
+function resetWatchImgPreview(src) {
+  const el = document.getElementById('watchImgPreview');
+  if (src) {
+    el.innerHTML = `<img src="${src}" class="w-full h-full object-cover">`;
+  } else {
+    el.innerHTML = `<span class="material-symbols-outlined text-outline text-2xl">watch</span>`;
+  }
+}
+
+function openAddWatch(profileId) {
+  ['watchId','wModel','wSerial','wDate','wRef','wNotes','wMovement','wCase'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('watchProfileId').value = profileId || '';
+  document.getElementById('wSource').value = '';
+  document.getElementById('wPrice').value  = '';
+  document.getElementById('wImage').value  = '';
+  document.getElementById('watchImgChosen').classList.add('hidden');
+  resetWatchImgPreview(null);
+  document.getElementById('watchModalTitle').textContent = 'Add Watch';
+  document.getElementById('watchFormError').classList.add('hidden');
+  document.getElementById('watchModal').classList.remove('hidden');
+}
+
+async function openEditWatch(id) {
+  let wt = allWatches.find(x => x.id === id);
+  if (!wt) { const all = await api('GET', '/api/watches'); wt = all.find(x => x.id === id); }
+  if (!wt) return;
+  document.getElementById('watchId').value        = wt.id;
+  document.getElementById('watchProfileId').value = wt.profile_id;
+  document.getElementById('wModel').value    = wt.model;
+  document.getElementById('wSerial').value   = wt.serial_number   || '';
+  document.getElementById('wSource').value   = wt.source;
+  document.getElementById('wDate').value     = wt.purchase_date   || '';
+  document.getElementById('wPrice').value    = wt.price != null   ? wt.price : '';
+  document.getElementById('wRef').value      = wt.reference_number|| '';
+  document.getElementById('wMovement').value = wt.movement_number || '';
+  document.getElementById('wCase').value     = wt.case_number     || '';
+  document.getElementById('wNotes').value    = wt.notes           || '';
+  document.getElementById('wImage').value    = '';
+  document.getElementById('watchImgChosen').classList.add('hidden');
+  resetWatchImgPreview(wt.image_path || null);
+  document.getElementById('watchModalTitle').textContent = 'Edit Watch';
+  document.getElementById('watchFormError').classList.add('hidden');
+  document.getElementById('watchModal').classList.remove('hidden');
+}
+
+// Live preview for watch image
+document.getElementById('wImage').addEventListener('change', e => {
+  const file = e.target.files[0];
+  const ic   = document.getElementById('watchImgChosen');
+  if (file) {
+    ic.textContent = '✓ ' + file.name; ic.classList.remove('hidden');
+    const reader = new FileReader();
+    reader.onload = ev => resetWatchImgPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  } else { ic.classList.add('hidden'); resetWatchImgPreview(null); }
+});
+
+function closeWatchModal() { document.getElementById('watchModal').classList.add('hidden'); }
+document.getElementById('closeWatchModal').addEventListener('click', closeWatchModal);
+document.getElementById('cancelWatchModal').addEventListener('click', closeWatchModal);
+
+document.getElementById('saveWatchBtn').addEventListener('click', async () => {
+  const id        = document.getElementById('watchId').value;
+  const profileId = document.getElementById('watchProfileId').value;
+  const errEl     = document.getElementById('watchFormError');
+  errEl.classList.add('hidden');
+
+  const model  = document.getElementById('wModel').value.trim();
+  const source = document.getElementById('wSource').value;
+  if (!model)  { errEl.textContent = 'Model is required';  errEl.classList.remove('hidden'); return; }
+  if (!source) { errEl.textContent = 'Source is required'; errEl.classList.remove('hidden'); return; }
+
+  const fd = new FormData();
+  fd.append('model',            model);
+  fd.append('source',           source);
+  fd.append('serial_number',    document.getElementById('wSerial').value.trim());
+  fd.append('purchase_date',    document.getElementById('wDate').value);
+  fd.append('price',            document.getElementById('wPrice').value);
+  fd.append('reference_number', document.getElementById('wRef').value.trim());
+  fd.append('movement_number',  document.getElementById('wMovement').value.trim());
+  fd.append('case_number',      document.getElementById('wCase').value.trim());
+  fd.append('notes',            document.getElementById('wNotes').value.trim());
+  const imgFile = document.getElementById('wImage').files[0];
+  if (imgFile) fd.append('image', imgFile);
+
+  try {
+    if (id) {
+      await api('PUT', `/api/watches/${id}`, fd);
+    } else {
+      if (!profileId) { errEl.textContent = 'No client selected'; errEl.classList.remove('hidden'); return; }
+      await api('POST', `/api/profiles/${profileId}/watches`, fd);
+    }
+    closeWatchModal();
+    if (currentPage === 'profile-detail') openProfileDetail(currentProfileId);
+    else if (currentPage === 'watches')   loadWatches(document.getElementById('watchSearch').value, document.getElementById('watchSourceFilter').value);
+    else if (currentPage === 'dashboard') loadDashboard();
+  } catch (e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
+});
+
+// ── Delete confirm ─────────────────────────────────────────────────────────
+let pendingDelete = null;
+
+function showConfirm(msg, onOk) {
+  document.getElementById('confirmMsg').textContent = msg;
+  document.getElementById('confirmModal').classList.remove('hidden');
+  pendingDelete = onOk;
+}
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.add('hidden');
+  pendingDelete = null;
+}
+
+document.getElementById('closeConfirm').addEventListener('click', closeConfirm);
+document.getElementById('cancelConfirm').addEventListener('click', closeConfirm);
+document.getElementById('okConfirm').addEventListener('click', async () => {
+  if (pendingDelete) await pendingDelete();
+  closeConfirm();
+});
+
+function confirmDeleteProfile(id, name, goBack) {
+  showConfirm(`Delete client "${name}" and all their watches? This cannot be undone.`, async () => {
+    await api('DELETE', `/api/profiles/${id}`);
+    if (goBack) showPage('profiles');
+    if (currentPage === 'profiles')  loadProfiles();
+    if (currentPage === 'dashboard') loadDashboard();
+  });
+}
+function confirmDeleteWatch(id, model) {
+  showConfirm(`Delete watch "${model}"? This cannot be undone.`, async () => {
+    await api('DELETE', `/api/watches/${id}`);
+    if (currentPage === 'profile-detail') openProfileDetail(currentProfileId);
+    else if (currentPage === 'watches')   loadWatches(document.getElementById('watchSearch').value, document.getElementById('watchSourceFilter').value);
+    else if (currentPage === 'dashboard') loadDashboard();
+  });
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+function resetPasswordForm() {
+  ['currPass','newPass','confPass'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('passMsg').innerHTML = '';
+}
+
+document.getElementById('passwordForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = document.getElementById('passMsg');
+  const np = document.getElementById('newPass').value;
+  const cp = document.getElementById('confPass').value;
+  if (np !== cp) {
+    msg.innerHTML = `<p class="text-error text-sm mt-2">Passwords do not match</p>`; return;
+  }
+  try {
+    await api('POST', '/api/settings/password', { current_password: document.getElementById('currPass').value, new_password: np });
+    msg.innerHTML = `<p class="text-green-400 text-sm mt-2">Password updated successfully.</p>`;
+    ['currPass','newPass','confPass'].forEach(id => document.getElementById(id).value = '');
+  } catch (err) {
+    msg.innerHTML = `<p class="text-error text-sm mt-2">${esc(err.message)}</p>`;
+  }
+});
+
+// ── Message Generator ──────────────────────────────────────────────────────
+
+async function loadMsgClients() {
+  const profiles = await api('GET', '/api/profiles');
+  const sel = document.getElementById('msgClientSelect');
+  sel.innerHTML = '<option value="">— Select client —</option>' +
+    profiles.map(p => `<option value="${p.id}">${esc(p.name)}${p.pp_urn ? ' · ' + p.pp_urn : ''}</option>`).join('');
+}
+
+function buildMessage(profile, watches) {
+  const line = (label, val) => val ? `${label}: ${val}\n` : '';
+  let msg = '';
+  msg += `Email ${profile.email}\n\n`;
+
+  if (profile.pp_urn || profile.subscriber_id) {
+    if (profile.pp_urn) msg += `PP URN: ${profile.pp_urn} | Patek Identification\n`;
+    if (profile.subscriber_id) msg += `Subscriber ID: ${profile.subscriber_id}\n`;
+  }
+
+  msg += line('Título',            profile.title);
+  msg += line('Apellido',          profile.last_name);
+  msg += line('Nombre',            profile.first_name);
+  msg += line('Género',            profile.gender);
+  msg += line('Fecha de nacimiento', profile.dob);
+  msg += line('Dirección',         profile.address);
+  msg += line('Código postal',     profile.postal_code);
+  msg += line('Ciudad',            profile.city);
+  msg += line('País',              profile.country);
+
+  if (watches.length) {
+    msg += '\nWatches Received\n\n';
+    watches.forEach(w => {
+      let parts = [];
+      if (w.reference_number) parts.push(`Reference: ${w.reference_number}`);
+      else if (w.model)       parts.push(`Model: ${w.model}`);
+      if (w.serial_number)    parts.push(`Serial: ${w.serial_number}`);
+      if (w.movement_number || w.case_number) {
+        const mc = [w.movement_number, w.case_number].filter(Boolean).join('/');
+        parts.push(`Movement/case: ${mc}`);
+      }
+      msg += parts.join('; ') + '\n';
+    });
+  }
+
+  return msg.trim();
+}
+
+document.getElementById('generateMsgBtn').addEventListener('click', async () => {
+  const profileId = document.getElementById('msgClientSelect').value;
+  if (!profileId) return;
+  try {
+    const profile = await api('GET', `/api/profiles/${profileId}`);
+    const msg = buildMessage(profile, profile.watches || []);
+    document.getElementById('msgText').value = msg;
+    document.getElementById('msgOutput').classList.remove('hidden');
+    document.getElementById('copyMsgLabel').textContent = 'Copy';
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById('copyMsgBtn').addEventListener('click', () => {
+  const text = document.getElementById('msgText').value;
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('copyMsgLabel').textContent = 'Copied!';
+    setTimeout(() => document.getElementById('copyMsgLabel').textContent = 'Copy', 2000);
+  });
+});
+
+// ── Lightbox ───────────────────────────────────────────────────────────────
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.remove('hidden');
+}
+document.getElementById('lightbox').addEventListener('click', () => document.getElementById('lightbox').classList.add('hidden'));
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+function renderPagination(containerId, current, total, perPage, onChange) {
+  const pages = Math.ceil(total / perPage);
+  const el    = document.getElementById(containerId);
+  if (pages <= 1) { el.innerHTML = `<p class="text-xs text-on-surface-variant">${total} total</p>`; return; }
+
+  let html = `<p class="text-xs text-on-surface-variant">${total} total</p><div class="flex gap-1.5">`;
+  html += `<button class="px-3 py-1.5 border border-outline-variant/20 rounded-lg text-xs text-on-surface-variant hover:bg-surface-variant/30 disabled:opacity-30 transition-colors" ${current===1?'disabled':''} onclick="(${onChange.toString()})(${current-1})">‹</button>`;
+  for (let i = 1; i <= pages; i++) {
+    if (pages > 7 && Math.abs(i - current) > 2 && i > 2 && i < pages - 1) {
+      if (i === 3 || i === pages - 2) html += `<span class="px-2 py-1.5 text-xs text-on-surface-variant">…</span>`;
+      continue;
+    }
+    html += `<button class="px-3 py-1.5 border rounded-lg text-xs transition-colors ${i===current ? 'bg-primary text-on-primary border-primary' : 'border-outline-variant/20 text-on-surface-variant hover:bg-surface-variant/30'}" onclick="(${onChange.toString()})(${i})">${i}</button>`;
+  }
+  html += `<button class="px-3 py-1.5 border border-outline-variant/20 rounded-lg text-xs text-on-surface-variant hover:bg-surface-variant/30 disabled:opacity-30 transition-colors" ${current===pages?'disabled':''} onclick="(${onChange.toString()})(${current+1})">›</button>`;
+  el.innerHTML = html + '</div>';
+}
+
+// ── Close on backdrop click ────────────────────────────────────────────────
+['profileModal','watchModal','confirmModal','companyDocModal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target === e.currentTarget) {
+      if (id === 'profileModal') closeProfileModal();
+      else if (id === 'watchModal') closeWatchModal();
+      else if (id === 'companyDocModal') closeCompanyDocModal();
+      else closeConfirm();
+    }
+  });
+});
+
+// ── Escape key ─────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal();
+  document.getElementById('lightbox').classList.add('hidden');
+});
+
+// ── Escape helper ──────────────────────────────────────────────────────────
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+showPage('dashboard');
+</script>
+</body>
+</html>
