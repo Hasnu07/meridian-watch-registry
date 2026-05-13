@@ -71,6 +71,7 @@ function init() {
 
     CREATE TABLE IF NOT EXISTS clients (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      master_id  TEXT UNIQUE,
       name       TEXT NOT NULL,
       photo_path TEXT,
       created_at DATETIME DEFAULT (datetime('now'))
@@ -111,6 +112,17 @@ function init() {
       const cid = insClient.run(p.name, p.photo_path).lastInsertRowid;
       linkClient.run(cid, p.id);
     }
+  }
+
+  // Migrate clients columns — add master_id if missing
+  const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(r => r.name);
+  if (!clientCols.includes('master_id')) {
+    db.exec("ALTER TABLE clients ADD COLUMN master_id TEXT");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_master_id ON clients (master_id)");
+    // Backfill: assign 001, 002, 003… ordered by id
+    const allC = db.prepare("SELECT id FROM clients ORDER BY id ASC").all();
+    const setMid = db.prepare("UPDATE clients SET master_id = ? WHERE id = ?");
+    allC.forEach((c, i) => setMid.run(String(i + 1).padStart(3, '0'), c.id));
   }
 
   // Migrate portfolios columns
@@ -333,19 +345,29 @@ function getClientWithMemberships(id) {
 
 function createClient({ name, photo_path }) {
   const result = db.prepare('INSERT INTO clients (name, photo_path) VALUES (?, ?)').run(name, photo_path ?? null);
-  return result.lastInsertRowid;
+  const id = result.lastInsertRowid;
+  // Auto-assign master_id as zero-padded row id (e.g. 001, 002…)
+  // Use the actual row id so it's always unique even if rows were deleted
+  db.prepare("UPDATE clients SET master_id = ? WHERE id = ? AND master_id IS NULL")
+    .run(String(id).padStart(3, '0'), id);
+  return id;
 }
 
 function updateClient(id, updates) {
   const fields = [], values = [];
   if (updates.name       !== undefined) { fields.push('name = ?');       values.push(updates.name); }
   if (updates.photo_path !== undefined) { fields.push('photo_path = ?'); values.push(updates.photo_path); }
+  if (updates.master_id  !== undefined) { fields.push('master_id = ?');  values.push(updates.master_id); }
   if (!fields.length) return;
   values.push(id);
   db.prepare(`UPDATE clients SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   // Keep denormalised copies on profiles in sync
   if (updates.name       !== undefined) db.prepare("UPDATE profiles SET name       = ? WHERE client_id = ?").run(updates.name, id);
   if (updates.photo_path !== undefined) db.prepare("UPDATE profiles SET photo_path = ? WHERE client_id = ?").run(updates.photo_path, id);
+}
+
+function getClientByMasterId(masterId) {
+  return db.prepare('SELECT * FROM clients WHERE master_id = ?').get(masterId);
 }
 
 function deleteClient(id) {
@@ -518,7 +540,7 @@ module.exports = {
   getAdminHash, setAdminPassword,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
-  listClients, getClient, getClientWithMemberships, createClient, updateClient, deleteClient,
+  listClients, getClient, getClientByMasterId, getClientWithMemberships, createClient, updateClient, deleteClient,
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,
   listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,

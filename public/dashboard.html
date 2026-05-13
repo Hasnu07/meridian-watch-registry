@@ -491,11 +491,32 @@
       <input type="hidden" id="pClientId">
 
       <!-- ── Selected Client Identity (shown when adding membership to existing client) ── -->
+      <!-- ── Master ID lookup (visible when no client selected) ── -->
+      <div id="clientResolutionWrap">
+        <div class="flex items-end gap-3">
+          <div class="flex-1">
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Master Client ID</label>
+            <div class="flex items-center gap-2 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all">
+              <span class="text-outline font-mono text-sm select-none">#</span>
+              <input type="text" id="pMasterIdLookup" placeholder="001" maxlength="20"
+                     class="flex-1 bg-transparent text-on-surface text-sm font-mono focus:outline-none">
+            </div>
+            <p id="masterIdStatus" class="text-xs mt-1 hidden"></p>
+          </div>
+          <button type="button" id="browseClientsBtnInModal"
+                  class="flex-shrink-0 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant px-4 py-3 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all">
+            <span class="material-symbols-outlined text-[14px]">search</span> Browse
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Selected Client Identity (shown when adding membership to existing client) ── -->
       <div id="selectedClientIdentity" class="hidden glass-surface rounded-xl p-4 flex items-center gap-4 border border-primary/20">
         <div id="selectedClientAvatar" class="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0 overflow-hidden border border-outline-variant/30"></div>
         <div class="flex-1">
           <p class="text-[10px] uppercase tracking-widest text-outline mb-0.5">Master Identity · Read-only</p>
           <p id="selectedClientName" class="font-playfair text-lg text-on-surface"></p>
+          <p id="selectedClientMasterId" class="text-[10px] font-mono text-primary mt-0.5"></p>
         </div>
         <button id="clearSelectedClient" class="text-outline hover:text-error transition-colors p-1 rounded" title="Change client">
           <span class="material-symbols-outlined text-[18px]">close</span>
@@ -529,10 +550,6 @@
         <div>
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Email *</label>
           <input type="email" id="pEmail" required class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
-        </div>
-        <div>
-          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Subscriber ID</label>
-          <input type="text" id="pSubscriberId" placeholder="e.g. 659383/SPA" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
         <div>
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">PP URN</label>
@@ -871,6 +888,15 @@
     <div class="p-6 space-y-5">
       <input type="hidden" id="ceClientId">
       <div>
+        <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Master ID</label>
+        <div class="flex items-center gap-2 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all">
+          <span class="text-outline font-mono text-sm select-none">#</span>
+          <input type="text" id="ceMasterId" placeholder="001" maxlength="20"
+                 class="flex-1 bg-transparent text-on-surface text-sm font-mono focus:outline-none">
+        </div>
+        <p class="text-xs text-outline mt-1">Unique identifier — auto-assigned, editable</p>
+      </div>
+      <div>
         <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Full Name *</label>
         <input type="text" id="ceName" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
       </div>
@@ -1037,7 +1063,10 @@ function renderClients() {
         <div class="flex items-center gap-4">
           ${avatarHtml(c.name, c.photo_path)}
           <div>
-            <div class="text-on-surface font-medium text-sm">${esc(c.name)}</div>
+            <div class="flex items-center gap-2">
+              <span class="text-on-surface font-medium text-sm">${esc(c.name)}</span>
+              ${c.master_id ? `<span class="font-mono text-[10px] text-primary/90 bg-primary/10 px-1.5 py-0.5 rounded border border-primary/15">#${esc(c.master_id)}</span>` : ''}
+            </div>
             <div class="text-on-surface-variant text-xs mt-0.5">${c.membership_count} shop presence${c.membership_count !== 1 ? 's' : ''}</div>
           </div>
         </div>
@@ -1093,7 +1122,10 @@ async function openClientDetail(id) {
       <div class="flex items-start gap-5">
         ${avatarHtml(client.name, client.photo_path, 'lg')}
         <div>
-          <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1">Master Identity</p>
+          <div class="flex items-center gap-3 mb-1">
+            <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold">Master Identity</p>
+            ${client.master_id ? `<span class="font-mono text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md">#${esc(client.master_id)}</span>` : ''}
+          </div>
           <h2 class="font-playfair text-4xl font-semibold text-on-surface leading-tight">${esc(client.name)}</h2>
           <div class="flex items-center gap-6 mt-3 pt-3 border-t border-outline-variant/15">
             <div class="flex items-center gap-1.5 text-on-surface-variant text-sm">
@@ -1117,13 +1149,13 @@ async function openClientDetail(id) {
   `;
 
   document.getElementById('clientMemberships').innerHTML = client.memberships.length
-    ? client.memberships.map(m => renderMembershipCard(client, m)).join('')
+    ? client.memberships.map(m => renderMembershipCard(client, m, client.master_id)).join('')
     : `<div class="glass-surface rounded-xl p-10 text-center text-on-surface-variant text-sm border border-dashed border-outline-variant/20">
          No shop memberships yet.
        </div>`;
 }
 
-function renderMembershipCard(client, m) {
+function renderMembershipCard(client, m, masterIdBadge) {
   const shopLabel = [m.shop_name, m.portfolio_name].filter(Boolean).join(' · ');
   const watches   = m.watches || [];
 
@@ -1169,7 +1201,6 @@ function renderMembershipCard(client, m) {
       <!-- ── Contact + Registry IDs ── -->
       <div class="px-8 py-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-10 gap-y-5 border-b border-outline-variant/10">
         ${field('Email', m.email)}
-        ${field('Subscriber ID', m.subscriber_id, true)}
         ${field('PP URN', m.pp_urn, true)}
         ${field('Full Name', fullName)}
         ${field('Gender', m.gender === 'M' ? 'Male' : m.gender === 'F' ? 'Female' : m.gender)}
@@ -1268,9 +1299,10 @@ document.getElementById('backToClients').addEventListener('click', () => showPag
 
 function openEditClient(id) {
   api('GET', `/api/clients/${id}`).then(c => {
-    document.getElementById('ceClientId').value = c.id;
-    document.getElementById('ceName').value     = c.name;
-    document.getElementById('cePhoto').value    = '';
+    document.getElementById('ceClientId').value  = c.id;
+    document.getElementById('ceMasterId').value  = c.master_id || '';
+    document.getElementById('ceName').value      = c.name;
+    document.getElementById('cePhoto').value     = '';
     document.getElementById('cePhotoChosen').classList.add('hidden');
     document.getElementById('ceFormError').classList.add('hidden');
     const prev = document.getElementById('cePhotoPreview');
@@ -1299,13 +1331,16 @@ document.getElementById('cePhoto').addEventListener('change', e => {
 });
 
 document.getElementById('saveClientEditBtn').addEventListener('click', async () => {
-  const id    = document.getElementById('ceClientId').value;
-  const name  = document.getElementById('ceName').value.trim();
-  const errEl = document.getElementById('ceFormError');
+  const id       = document.getElementById('ceClientId').value;
+  const name     = document.getElementById('ceName').value.trim();
+  const masterId = document.getElementById('ceMasterId').value.trim();
+  const errEl    = document.getElementById('ceFormError');
   errEl.classList.add('hidden');
   if (!name) { errEl.textContent = 'Name is required'; errEl.classList.remove('hidden'); return; }
+  if (!masterId) { errEl.textContent = 'Master ID is required'; errEl.classList.remove('hidden'); return; }
   const fd = new FormData();
   fd.append('name', name);
+  fd.append('master_id', masterId);
   const file = document.getElementById('cePhoto').files[0];
   if (file) fd.append('photo', file);
   try {
@@ -1368,10 +1403,6 @@ async function openProfileDetail(id) {
               <p class="text-xs text-on-surface-variant mb-0.5">Address</p>
               <p class="text-sm text-on-surface leading-relaxed">${esc(profile.address)}</p>
             </div>` : ''}
-            ${profile.subscriber_id ? `<div>
-              <p class="text-xs text-on-surface-variant mb-0.5">Subscriber ID</p>
-              <p class="text-sm text-on-surface font-mono">${esc(profile.subscriber_id)}</p>
-            </div>` : ''}
             ${profile.pp_urn ? `<div>
               <p class="text-xs text-on-surface-variant mb-0.5">PP URN</p>
               <p class="text-sm text-on-surface font-mono">${esc(profile.pp_urn)}</p>
@@ -1419,19 +1450,13 @@ async function openProfileDetail(id) {
         </div>
       `}
     </div>
-    ${(profile.subscriber_id || profile.pp_urn) ? `
+    ${profile.pp_urn ? `
     <div class="space-y-3 pt-4 border-t border-outline-variant/10">
       <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Registry Identifiers</p>
-      ${profile.subscriber_id ? `
-        <div class="glass-surface rounded-lg px-4 py-3">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-1">Subscriber ID</p>
-          <p class="text-sm font-mono text-on-surface">${esc(profile.subscriber_id)}</p>
-        </div>` : ''}
-      ${profile.pp_urn ? `
-        <div class="glass-surface rounded-lg px-4 py-3">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-1">PP URN</p>
-          <p class="text-sm font-mono text-on-surface">${esc(profile.pp_urn)}</p>
-        </div>` : ''}
+      <div class="glass-surface rounded-lg px-4 py-3">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-1">PP URN</p>
+        <p class="text-sm font-mono text-on-surface">${esc(profile.pp_urn)}</p>
+      </div>
     </div>` : ''}
     <div class="pt-4 border-t border-outline-variant/10">
       <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-3">Portfolio Summary</p>
@@ -1713,19 +1738,25 @@ function setProfileModalClientMode(clientId, clientData) {
   const hasClient = !!clientId;
   document.getElementById('pClientId').value = clientId || '';
   document.getElementById('selectedClientIdentity').classList.toggle('hidden', !hasClient);
+  document.getElementById('clientResolutionWrap').classList.toggle('hidden', hasClient);
   document.getElementById('nameFieldWrap').classList.toggle('hidden', hasClient);
   document.getElementById('photoUploadWrap').classList.toggle('hidden', hasClient);
+  if (!hasClient) {
+    document.getElementById('pMasterIdLookup').value = '';
+    document.getElementById('masterIdStatus').classList.add('hidden');
+  }
   if (hasClient && clientData) {
     const av = document.getElementById('selectedClientAvatar');
     av.innerHTML = clientData.photo_path
       ? `<img src="${clientData.photo_path}" class="w-full h-full object-cover">`
       : `<span class="text-sm font-semibold">${esc(fmt.initials(clientData.name))}</span>`;
     document.getElementById('selectedClientName').textContent = clientData.name;
+    document.getElementById('selectedClientMasterId').textContent = clientData.master_id ? '#' + clientData.master_id : '';
   }
 }
 
 function openAddProfile(presetShopId, presetPortfolioId, presetClientId, presetClientData) {
-  ['profileId','pName','pEmail','pAddress','pSubscriberId','pPpUrn'].forEach(id => document.getElementById(id).value = '');
+  ['profileId','pName','pEmail','pAddress','pPpUrn'].forEach(id => document.getElementById(id).value = '');
   clearRegFields();
   document.getElementById('pPhoto').value            = '';
   document.getElementById('pIdCard').value           = '';
@@ -1745,7 +1776,6 @@ async function openEditProfile(id) {
   document.getElementById('profileId').value         = p.id;
   document.getElementById('pEmail').value            = p.email;
   document.getElementById('pAddress').value          = p.address || '';
-  document.getElementById('pSubscriberId').value     = p.subscriber_id || '';
   document.getElementById('pPpUrn').value            = p.pp_urn || '';
   document.getElementById('pTitle').value      = p.title      || '';
   document.getElementById('pFirstName').value  = p.first_name || '';
@@ -1804,6 +1834,67 @@ document.getElementById('closeProfileModal').addEventListener('click', closeProf
 document.getElementById('cancelProfileModal').addEventListener('click', closeProfileModal);
 document.getElementById('clearSelectedClient').addEventListener('click', () => setProfileModalClientMode(null, null));
 
+// ── Master ID lookup in profile modal ─────────────────────────────────────
+
+async function doMasterIdLookup() {
+  const val    = document.getElementById('pMasterIdLookup').value.trim();
+  const status = document.getElementById('masterIdStatus');
+  if (!val) return;
+  status.textContent = 'Looking up…';
+  status.className   = 'text-xs mt-1 text-outline';
+  status.classList.remove('hidden');
+  try {
+    const client = await api('GET', `/api/clients/lookup?master_id=${encodeURIComponent(val)}`);
+    // Auto-fill membership fields from most recent existing membership
+    if (client.memberships && client.memberships.length > 0) {
+      const last = client.memberships[client.memberships.length - 1];
+      document.getElementById('pEmail').value      = last.email      || '';
+      document.getElementById('pPpUrn').value      = last.pp_urn     || '';
+      document.getElementById('pTitle').value      = last.title      || '';
+      document.getElementById('pFirstName').value  = last.first_name || '';
+      document.getElementById('pLastName').value   = last.last_name  || '';
+      document.getElementById('pGender').value     = last.gender     || '';
+      document.getElementById('pDob').value        = last.dob        || '';
+      document.getElementById('pAddress').value    = last.address    || '';
+      document.getElementById('pPostalCode').value = last.postal_code|| '';
+      document.getElementById('pCity').value       = last.city       || '';
+      document.getElementById('pCountry').value    = last.country    || '';
+    }
+    setProfileModalClientMode(client.id, client);
+    document.getElementById('profileModalTitle').textContent = 'Add Shop Membership';
+  } catch (e) {
+    status.textContent = 'No client found with that Master ID';
+    status.className   = 'text-xs mt-1 text-error';
+  }
+}
+
+document.getElementById('pMasterIdLookup').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); doMasterIdLookup(); }
+});
+document.getElementById('pMasterIdLookup').addEventListener('blur', doMasterIdLookup);
+
+document.getElementById('browseClientsBtnInModal').addEventListener('click', () => {
+  openClientPicker(c => {
+    // When a client is picked, also pre-fill from their most recent membership
+    if (c.memberships && c.memberships.length > 0) {
+      const last = c.memberships[c.memberships.length - 1];
+      document.getElementById('pEmail').value      = last.email      || '';
+      document.getElementById('pPpUrn').value      = last.pp_urn     || '';
+      document.getElementById('pTitle').value      = last.title      || '';
+      document.getElementById('pFirstName').value  = last.first_name || '';
+      document.getElementById('pLastName').value   = last.last_name  || '';
+      document.getElementById('pGender').value     = last.gender     || '';
+      document.getElementById('pDob').value        = last.dob        || '';
+      document.getElementById('pAddress').value    = last.address    || '';
+      document.getElementById('pPostalCode').value = last.postal_code|| '';
+      document.getElementById('pCity').value       = last.city       || '';
+      document.getElementById('pCountry').value    = last.country    || '';
+    }
+    setProfileModalClientMode(c.id, c);
+    document.getElementById('profileModalTitle').textContent = 'Add Shop Membership';
+  });
+});
+
 // ── Client Picker Modal ────────────────────────────────────────────────────
 let _clientPickerCallback = null; // fn(clientId, clientData)
 let _clientPickerAll = [];
@@ -1824,7 +1915,10 @@ function renderClientPickerList(list) {
               class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-surface-container-high transition-colors text-left group">
         ${avatarHtml(c.name, c.photo_path)}
         <div class="flex-1">
-          <p class="text-on-surface text-sm font-medium">${esc(c.name)}</p>
+          <div class="flex items-center gap-2">
+            <p class="text-on-surface text-sm font-medium">${esc(c.name)}</p>
+            ${c.master_id ? `<span class="font-mono text-[10px] text-primary/80 bg-primary/10 px-1.5 py-0.5 rounded">#${esc(c.master_id)}</span>` : ''}
+          </div>
           <p class="text-on-surface-variant text-xs">${c.membership_count} shop${c.membership_count !== 1 ? 's' : ''} · ${c.watch_count} watch${c.watch_count !== 1 ? 'es' : ''}</p>
         </div>
         <span class="material-symbols-outlined text-outline group-hover:text-primary text-[18px] transition-colors">chevron_right</span>
@@ -1836,7 +1930,10 @@ function selectPickedClient(clientId) {
   const c = _clientPickerAll.find(x => x.id === clientId);
   if (!c) return;
   closeClientPickerModal();
-  if (_clientPickerCallback) _clientPickerCallback(c);
+  // Fetch full client (with memberships) so callbacks can pre-fill fields
+  api('GET', `/api/clients/${clientId}`).then(full => {
+    if (_clientPickerCallback) _clientPickerCallback(full);
+  });
 }
 
 function closeClientPickerModal() { document.getElementById('clientPickerModal').classList.add('hidden'); }
@@ -1857,10 +1954,9 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
   const fd = new FormData();
   if (!clientId) fd.append('name', document.getElementById('pName').value.trim());
   if (clientId)  fd.append('client_id', clientId);
-  fd.append('email',         document.getElementById('pEmail').value.trim());
-  fd.append('address',       document.getElementById('pAddress').value.trim());
-  fd.append('subscriber_id', document.getElementById('pSubscriberId').value.trim());
-  fd.append('pp_urn',        document.getElementById('pPpUrn').value.trim());
+  fd.append('email',   document.getElementById('pEmail').value.trim());
+  fd.append('address', document.getElementById('pAddress').value.trim());
+  fd.append('pp_urn',  document.getElementById('pPpUrn').value.trim());
   fd.append('title',         document.getElementById('pTitle').value.trim());
   fd.append('first_name',    document.getElementById('pFirstName').value.trim());
   fd.append('last_name',     document.getElementById('pLastName').value.trim());
@@ -2080,10 +2176,7 @@ function buildMessage(profile, watches) {
   let msg = '';
   msg += `Email ${profile.email}\n\n`;
 
-  if (profile.pp_urn || profile.subscriber_id) {
-    if (profile.pp_urn) msg += `PP URN: ${profile.pp_urn} | Patek Identification\n`;
-    if (profile.subscriber_id) msg += `Subscriber ID: ${profile.subscriber_id}\n`;
-  }
+  if (profile.pp_urn) msg += `PP URN: ${profile.pp_urn} | Patek Identification\n`;
 
   msg += line('Título',            profile.title);
   msg += line('Apellido',          profile.last_name);

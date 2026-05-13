@@ -41,6 +41,15 @@ router.post('/', (req, res) => {
   });
 });
 
+// GET /api/clients/lookup?master_id=001  — look up by master ID (used for auto-fill)
+router.get('/lookup', (req, res) => {
+  const { master_id } = req.query;
+  if (!master_id) return res.status(400).json({ error: 'master_id query param required' });
+  const client = db.getClientByMasterId(master_id.trim());
+  if (!client) return res.status(404).json({ error: 'No client found with that Master ID' });
+  res.json(db.getClientWithMemberships(client.id));
+});
+
 // GET /api/clients/:id  — with all memberships + watches
 router.get('/:id', (req, res) => {
   const client = db.getClientWithMemberships(req.params.id);
@@ -59,7 +68,8 @@ router.put('/:id', (req, res) => {
     if (!client) return res.status(404).json({ error: 'Not found' });
 
     const updates = {};
-    if (req.body.name) updates.name = req.body.name.trim();
+    if (req.body.name)      updates.name      = req.body.name.trim();
+    if (req.body.master_id !== undefined) updates.master_id = req.body.master_id ? req.body.master_id.trim() : null;
     try {
       if (req.file) {
         await storage.deleteFile(client.photo_path);

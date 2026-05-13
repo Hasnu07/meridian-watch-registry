@@ -35,7 +35,7 @@ router.post('/', (req, res) => {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
     }
-    const { name, email, address, subscriber_id, pp_urn,
+    const { name, email, address, pp_urn,
             title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id, client_id } = req.body;
 
     // If linking to an existing master client, name + photo come from that record
@@ -65,8 +65,8 @@ router.post('/', (req, res) => {
         name:          resolvedName,
         email,
         address,
-        subscriber_id: subscriber_id || null,
-        pp_urn:        pp_urn        || null,
+        subscriber_id: null,
+        pp_urn:        pp_urn || null,
         photo_path:    photoUrl,
         id_card_path:  idCardUrl,
         title:         title        || null,
@@ -111,8 +111,8 @@ router.put('/:id', (req, res) => {
     // If profile is linked to a master client, name + photo are managed there — skip them here
     const isLinked = !!profile.client_id;
     const TEXT_FIELDS = isLinked
-      ? ['email','address','subscriber_id','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country']
-      : ['name','email','address','subscriber_id','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country'];
+      ? ['email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country']
+      : ['name','email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country'];
     TEXT_FIELDS.forEach(f => {
       if (req.body[f] !== undefined) updates[f] = req.body[f] || null;
     });
