@@ -1373,11 +1373,27 @@ function confirmDeleteMembership(profileId, shopName) {
 }
 
 // ── Profile detail ─────────────────────────────────────────────────────────
+let _profileDetailFrom = null; // { page, id } — where we came from
+
 async function openProfileDetail(id) {
+  // Snapshot origin before showPage changes currentPage
+  _profileDetailFrom = {
+    page: currentPage,
+    id:   currentPage === 'portfolio-detail' ? currentPortfolioId
+        : currentPage === 'shop-detail'      ? currentShopId
+        : currentPage === 'client-detail'    ? currentClientId
+        : null,
+  };
+  const backLabels = {
+    'portfolio-detail': 'Back to Portfolio',
+    'shop-detail':      'Back to Shop',
+    'client-detail':    'Back to Client',
+  };
+  document.getElementById('backToProfilesLabel').textContent =
+    backLabels[_profileDetailFrom.page] || 'Back to Clients';
+
   currentProfileId = id;
   showPage('profile-detail');
-  document.getElementById('backToProfilesLabel').textContent =
-    currentClientId ? 'Back to Client' : 'Back to Clients';
   const [profile, companyDocs] = await Promise.all([
     api('GET', `/api/profiles/${id}`),
     api('GET', `/api/profiles/${id}/company-docs`),
@@ -1578,7 +1594,11 @@ async function deleteCompanyDoc(docId, profileId) {
 }
 
 document.getElementById('backToProfiles').addEventListener('click', () => {
-  if (currentClientId) openClientDetail(currentClientId);
+  const f = _profileDetailFrom;
+  if (!f) { showPage('profiles'); return; }
+  if (f.page === 'portfolio-detail' && f.id) openPortfolioDetail(f.id);
+  else if (f.page === 'shop-detail'  && f.id) openShopDetail(f.id);
+  else if (f.page === 'client-detail'&& f.id) openClientDetail(f.id);
   else showPage('profiles');
 });
 
