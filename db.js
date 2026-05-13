@@ -1,7 +1,8 @@
 'use strict';
 
 const { DatabaseSync } = require('node:sqlite');
-const path = require('path');
+const path   = require('path');
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 
 const { DB_PATH } = require('./config');
@@ -119,6 +120,11 @@ function init() {
     }
   }
 
+  // Backfill share tokens for any portfolio that doesn't have one
+  const unshared = db.prepare("SELECT id FROM portfolios WHERE share_token IS NULL").all();
+  const backfill = db.prepare("UPDATE portfolios SET share_token = ? WHERE id = ?");
+  for (const pt of unshared) backfill.run(crypto.randomBytes(32).toString('hex'), pt.id);
+
   // Seed admin row if missing
   const row = db.prepare('SELECT id FROM admin WHERE id = 1').get();
   if (!row) {
@@ -221,7 +227,8 @@ function getPortfolio(id) {
 }
 
 function createPortfolio({ name, shop_id }) {
-  const result = db.prepare('INSERT INTO portfolios (name, shop_id) VALUES (?, ?)').run(name, Number(shop_id));
+  const token  = crypto.randomBytes(32).toString('hex');
+  const result = db.prepare('INSERT INTO portfolios (name, shop_id, share_token) VALUES (?, ?, ?)').run(name, Number(shop_id), token);
   return result.lastInsertRowid;
 }
 
