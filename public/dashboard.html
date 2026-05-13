@@ -2437,7 +2437,6 @@ async function openShopDetail(id) {
 }
 
 function clientRow(p) {
-  const openFn = p.client_id ? `openClientDetail(${p.client_id})` : `openProfileDetail(${p.id})`;
   return `
     <tr class="tbl-row" id="client-row-${p.id}">
       <td class="px-6 py-5">
@@ -2464,7 +2463,7 @@ function clientRow(p) {
           <button onclick="openAddWatch(${p.id})" title="Add Watch" class="p-2 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors">
             <span class="material-symbols-outlined text-[18px]">add_circle</span>
           </button>
-          <button onclick="${openFn}" title="View" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+          <button onclick="openProfileDetail(${p.id})" title="View Membership" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
             <span class="material-symbols-outlined text-[18px]">open_in_new</span>
           </button>
           <button onclick="openEditProfile(${p.id})" title="Edit" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
