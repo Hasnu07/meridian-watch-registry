@@ -61,6 +61,10 @@
         <span class="material-symbols-outlined">store</span>
         <span>Shops</span>
       </button>
+      <button data-page="portfolios" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
+        <span class="material-symbols-outlined">folder_special</span>
+        <span>Portfolios</span>
+      </button>
       <button data-page="profiles" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
         <span class="material-symbols-outlined">inventory_2</span>
         <span>Clients</span>
@@ -194,6 +198,15 @@
           <p class="text-on-surface-variant text-sm mt-2">Authorised Patek Philippe retailer network.</p>
         </div>
         <div id="shopsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+
+      <!-- ── Portfolios ────────────────────────────────────────────── -->
+      <div id="page-portfolios" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-8">
+          <h2 class="font-playfair text-5xl font-semibold text-on-surface">Portfolios</h2>
+          <p class="text-on-surface-variant text-sm mt-2">All portfolios across every shop.</p>
+        </div>
+        <div id="allPortfoliosGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </div>
 
       <!-- ── Shop Detail ────────────────────────────────────────────── -->
@@ -826,7 +839,7 @@ const fmt = {
 let currentPage = 'dashboard';
 let currentProfileId = null;
 let currentShopId = null;
-const PAGES = ['dashboard','shops','shop-detail','portfolio-detail','profiles','profile-detail','watches','messages','settings'];
+const PAGES = ['dashboard','shops','portfolios','shop-detail','portfolio-detail','profiles','profile-detail','watches','messages','settings'];
 
 function showPage(name) {
   PAGES.forEach(p => {
@@ -847,7 +860,7 @@ function showPage(name) {
     }
   });
 
-  const titles = { dashboard:'Vault', shops:'Shops', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'profile-detail':'Client Detail', watches:'Watches', messages:'Messages', settings:'Settings' };
+  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'profile-detail':'Client Detail', watches:'Watches', messages:'Messages', settings:'Settings' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
 
   const showAddProfile   = name === 'profiles';
@@ -861,9 +874,10 @@ function showPage(name) {
   document.getElementById('globalSearchWrap').classList.toggle('hidden', name === 'settings');
 
   currentPage = name;
-  if (name === 'dashboard') loadDashboard();
-  if (name === 'shops')     loadShops();
-  if (name === 'profiles')  loadProfiles();
+  if (name === 'dashboard')  loadDashboard();
+  if (name === 'shops')      loadShops();
+  if (name === 'portfolios') loadAllPortfolios();
+  if (name === 'profiles')   loadProfiles();
   if (name === 'watches')   loadWatches();
   if (name === 'settings')  resetPasswordForm();
   if (name === 'messages')  loadMsgClients();
@@ -1742,6 +1756,37 @@ async function loadShops() {
       </div>
     </div>
   `).join('') : `<div class="col-span-3 glass-surface rounded-xl p-12 text-center text-on-surface-variant text-sm">No shops configured yet.</div>`;
+}
+
+async function loadAllPortfolios() {
+  const shops = await api('GET', '/api/shops');
+  const allPortfolios = (await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)))).flat();
+  const shopMap = {};
+  shops.forEach(s => { shopMap[s.id] = s.name; });
+
+  document.getElementById('allPortfoliosGrid').innerHTML = allPortfolios.length
+    ? allPortfolios.map(pt => `
+      <div class="glass-surface rounded-xl p-6 hover:border-primary/20 border border-transparent transition-all cursor-pointer group"
+           onclick="openPortfolioDetail(${pt.id})">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-primary">folder_special</span>
+          </div>
+          <span class="text-[10px] uppercase tracking-widest text-outline">${esc(shopMap[pt.shop_id] || '')}</span>
+        </div>
+        <h3 class="font-playfair text-lg font-semibold text-on-surface mb-1">${esc(pt.name)}</h3>
+        <div class="flex items-center gap-4 pt-4 border-t border-outline-variant/10">
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary text-[16px]">group</span>
+            <span class="text-sm text-on-surface-variant">${pt.client_count} client${pt.client_count !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary text-[16px]">watch</span>
+            <span class="text-sm text-on-surface-variant">${pt.watch_count} watch${pt.watch_count !== 1 ? 'es' : ''}</span>
+          </div>
+        </div>
+      </div>`).join('')
+    : `<div class="col-span-3 glass-surface rounded-xl p-12 text-center text-on-surface-variant text-sm">No portfolios yet.</div>`;
 }
 
 async function openShopDetail(id) {
