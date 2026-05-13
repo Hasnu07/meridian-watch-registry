@@ -57,6 +57,10 @@
         <span class="material-symbols-outlined">diamond</span>
         <span>Vault</span>
       </button>
+      <button data-page="shops" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
+        <span class="material-symbols-outlined">store</span>
+        <span>Shops</span>
+      </button>
       <button data-page="profiles" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
         <span class="material-symbols-outlined">inventory_2</span>
         <span>Clients</span>
@@ -99,6 +103,9 @@
         <!-- Action buttons -->
         <button id="addProfileBtn" class="hidden bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
           <span class="material-symbols-outlined text-[16px]">add</span> Add Client
+        </button>
+        <button id="addShopBtn" class="hidden bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+          <span class="material-symbols-outlined text-[16px]">add_business</span> Add Shop
         </button>
         <button id="addWatchTopBtn" class="hidden bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
           <span class="material-symbols-outlined text-[16px]">add_circle</span> Add Watch
@@ -190,6 +197,48 @@
             </table>
           </div>
           <div id="profilesPagination" class="px-6 py-4 flex items-center justify-end gap-2 border-t border-outline-variant/10"></div>
+        </div>
+      </div>
+
+      <!-- ── Shops ─────────────────────────────────────────────────── -->
+      <div id="page-shops" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-8">
+          <h2 class="font-playfair text-5xl font-semibold text-on-surface">Shops</h2>
+          <p class="text-on-surface-variant text-sm mt-2">Authorised Patek Philippe retailer network.</p>
+        </div>
+        <div id="shopsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+
+      <!-- ── Shop Detail ────────────────────────────────────────────── -->
+      <div id="page-shop-detail" class="hidden flex-1 flex flex-col">
+        <div class="px-10 pt-8 pb-0">
+          <button id="backToShops" class="flex items-center gap-1.5 text-xs uppercase tracking-widest text-outline hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[16px]">arrow_back</span> Back to Shops
+          </button>
+        </div>
+        <div class="p-10">
+          <div id="shopDetailHeader" class="mb-8"></div>
+          <div class="glass-surface rounded-xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
+              <h3 class="font-playfair text-xl text-on-surface">Clients</h3>
+              <button id="addClientForShopBtn" class="bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+                <span class="material-symbols-outlined text-[16px]">person_add</span> Add Client
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead>
+                  <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                    <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                    <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Watches</th>
+                    <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Added</th>
+                    <th class="px-6 py-4"></th>
+                  </tr>
+                </thead>
+                <tbody id="shopClientsBody" class="divide-y divide-white/[0.04]"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -378,6 +427,14 @@
     </div>
     <div class="p-6 overflow-y-auto space-y-5">
       <input type="hidden" id="profileId">
+
+      <!-- ── Shop ── -->
+      <div>
+        <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Shop</label>
+        <select id="pShopId" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          <option value="">— No shop assigned —</option>
+        </select>
+      </div>
 
       <!-- ── Contact ── -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -645,6 +702,34 @@
   </div>
 </div>
 
+<!-- ═══ SHOP MODAL ════════════════════════════════════════════════════════ -->
+<div id="shopModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-md bg-[#161B22] border border-white/10 rounded-xl shadow-2xl">
+    <div class="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 id="shopModalTitle" class="font-playfair text-2xl text-primary">Add Shop</h2>
+      <button id="closeShopModal" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="shopId">
+      <div>
+        <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Shop Name *</label>
+        <input type="text" id="shopName" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Address</label>
+        <textarea id="shopAddress" rows="3" placeholder="Street&#10;Postal code City, Country" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"></textarea>
+      </div>
+      <div id="shopFormError" class="hidden px-4 py-3 rounded-lg bg-error-container/20 border border-error/20 text-error text-sm"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+      <button id="cancelShopModal" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button id="saveShopBtn" class="bg-primary text-on-primary font-semibold px-8 py-3 rounded-lg text-sm hover:brightness-110 active:scale-[0.98] transition-all">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ LIGHTBOX ═════════════════════════════════════════════════════════ -->
 <div id="lightbox" class="fixed inset-0 z-[200] hidden flex items-center justify-center cursor-zoom-out" style="background:rgba(0,0,0,.88);backdrop-filter:blur(8px)">
   <img id="lightboxImg" src="" alt="ID document" class="max-w-[92vw] max-h-[92vh] rounded-xl shadow-2xl">
@@ -681,7 +766,8 @@ const fmt = {
 // ── Routing ────────────────────────────────────────────────────────────────
 let currentPage = 'dashboard';
 let currentProfileId = null;
-const PAGES = ['dashboard','profiles','profile-detail','watches','messages','settings'];
+let currentShopId = null;
+const PAGES = ['dashboard','shops','shop-detail','profiles','profile-detail','watches','messages','settings'];
 
 function showPage(name) {
   PAGES.forEach(p => {
@@ -702,17 +788,20 @@ function showPage(name) {
     }
   });
 
-  const titles = { dashboard:'Vault', profiles:'Clients', 'profile-detail':'Client Detail', watches:'Watches', messages:'Messages', settings:'Settings' };
+  const titles = { dashboard:'Vault', shops:'Shops', 'shop-detail':'Shop Detail', profiles:'Clients', 'profile-detail':'Client Detail', watches:'Watches', messages:'Messages', settings:'Settings' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
 
   const showAddProfile = name === 'profiles';
   const showAddWatch   = name === 'watches';
+  const showAddShop    = name === 'shops';
   document.getElementById('addProfileBtn').classList.toggle('hidden', !showAddProfile);
   document.getElementById('addWatchTopBtn').classList.toggle('hidden', !showAddWatch);
+  document.getElementById('addShopBtn').classList.toggle('hidden', !showAddShop);
   document.getElementById('globalSearchWrap').classList.toggle('hidden', name === 'settings');
 
   currentPage = name;
   if (name === 'dashboard') loadDashboard();
+  if (name === 'shops')     loadShops();
   if (name === 'profiles')  loadProfiles();
   if (name === 'watches')   loadWatches();
   if (name === 'settings')  resetPasswordForm();
@@ -828,7 +917,7 @@ async function openProfileDetail(id) {
       <div class="flex items-start gap-5">
         ${avatarHtml(profile.name, profile.photo_path, 'lg')}
         <div>
-          <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1">Private Client</p>
+          <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1">${profile.shop_name ? esc(profile.shop_name) + ' · ' : ''}Private Client</p>
           <h2 class="font-playfair text-4xl font-semibold text-on-surface leading-tight">${esc(profile.name)}</h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-3 mt-5 pt-5 border-t border-outline-variant/15">
             <div>
@@ -1154,7 +1243,14 @@ function clearRegFields() {
   });
 }
 
-function openAddProfile() {
+async function populateShopDropdown(selectedId) {
+  const shops = await api('GET', '/api/shops');
+  const sel = document.getElementById('pShopId');
+  sel.innerHTML = '<option value="">— No shop assigned —</option>' +
+    shops.map(s => `<option value="${s.id}"${s.id == selectedId ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+}
+
+function openAddProfile(presetShopId) {
   ['profileId','pName','pEmail','pAddress','pSubscriberId','pPpUrn'].forEach(id => document.getElementById(id).value = '');
   clearRegFields();
   document.getElementById('pPhoto').value            = '';
@@ -1165,6 +1261,7 @@ function openAddProfile() {
   resetPhotoPreview(null);
   document.getElementById('profileModalTitle').textContent = 'Add Client';
   document.getElementById('profileFormError').classList.add('hidden');
+  populateShopDropdown(presetShopId || null);
   document.getElementById('profileModal').classList.remove('hidden');
 }
 
@@ -1192,6 +1289,7 @@ async function openEditProfile(id) {
   resetPhotoPreview(p.photo_path || null);
   document.getElementById('profileModalTitle').textContent = 'Edit Client';
   document.getElementById('profileFormError').classList.add('hidden');
+  populateShopDropdown(p.shop_id || null);
   document.getElementById('currentIdCard').innerHTML = p.id_card_path
     ? `<p class="text-xs text-on-surface-variant">Current: <a href="${p.id_card_path}" target="_blank" class="text-primary underline">${p.id_card_path.split('/').pop()}</a> — upload new to replace</p>`
     : '';
@@ -1240,6 +1338,7 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
   fd.append('postal_code',   document.getElementById('pPostalCode').value.trim());
   fd.append('city',          document.getElementById('pCity').value.trim());
   fd.append('country',       document.getElementById('pCountry').value.trim());
+  fd.append('shop_id',       document.getElementById('pShopId').value);
   const photoFile  = document.getElementById('pPhoto').files[0];
   const idCardFile = document.getElementById('pIdCard').files[0];
   if (photoFile)  fd.append('photo',   photoFile);
@@ -1527,7 +1626,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 // ── Escape key ─────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal();
+  closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal(); closeShopModal();
   document.getElementById('lightbox').classList.add('hidden');
 });
 
@@ -1536,6 +1635,142 @@ function esc(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ── Shops ──────────────────────────────────────────────────────────────────
+
+async function loadShops() {
+  const shops = await api('GET', '/api/shops');
+  document.getElementById('shopsGrid').innerHTML = shops.length ? shops.map(shop => `
+    <div class="glass-surface rounded-xl p-6 hover:border-primary/20 border border-transparent transition-all cursor-pointer group"
+         onclick="openShopDetail(${shop.id})">
+      <div class="flex items-start justify-between mb-4">
+        <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-primary">store</span>
+        </div>
+        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onclick="event.stopPropagation(); openEditShop(${shop.id})"
+                  class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors" title="Edit">
+            <span class="material-symbols-outlined text-[16px]">edit</span>
+          </button>
+          <button onclick="event.stopPropagation(); confirmDeleteShop(${shop.id},'${esc(shop.name).replace(/'/g,"\\'")}')"
+                  class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors" title="Delete">
+            <span class="material-symbols-outlined text-[16px]">delete</span>
+          </button>
+        </div>
+      </div>
+      <h3 class="font-playfair text-lg font-semibold text-on-surface mb-1">${esc(shop.name)}</h3>
+      <p class="text-xs text-on-surface-variant leading-relaxed mb-4 whitespace-pre-line min-h-[2.5rem]">${esc(shop.address || '')}</p>
+      <div class="flex items-center gap-2 pt-4 border-t border-outline-variant/10">
+        <span class="material-symbols-outlined text-primary text-[16px]">group</span>
+        <span class="text-sm text-on-surface-variant">${shop.client_count} client${shop.client_count !== 1 ? 's' : ''}</span>
+      </div>
+    </div>
+  `).join('') : `<div class="col-span-3 glass-surface rounded-xl p-12 text-center text-on-surface-variant text-sm">No shops configured yet.</div>`;
+}
+
+async function openShopDetail(id) {
+  currentShopId = id;
+  showPage('shop-detail');
+  const shop = await api('GET', `/api/shops/${id}`);
+
+  document.getElementById('shopDetailHeader').innerHTML = `
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1">Authorised Retailer</p>
+        <h2 class="font-playfair text-4xl font-semibold text-on-surface">${esc(shop.name)}</h2>
+        ${shop.address ? `<p class="text-on-surface-variant text-sm mt-2 whitespace-pre-line">${esc(shop.address)}</p>` : ''}
+      </div>
+      <button onclick="openEditShop(${id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary px-4 py-2 border border-primary/30 rounded-lg hover:bg-primary/10 transition-all">Edit Shop</button>
+    </div>
+  `;
+
+  const clients = shop.profiles || [];
+  document.getElementById('shopClientsBody').innerHTML = clients.length
+    ? clients.map(p => `
+        <tr class="tbl-row">
+          <td class="px-6 py-5">
+            <div class="flex items-center gap-4">
+              ${avatarHtml(p.name, p.photo_path)}
+              <div>
+                <div class="text-on-surface font-medium text-sm">${esc(p.name)}</div>
+                <div class="text-on-surface-variant text-xs mt-0.5">${esc(p.email)}</div>
+              </div>
+            </div>
+          </td>
+          <td class="px-6 py-5 text-on-surface-variant text-sm">${p.watch_count} piece${p.watch_count !== 1 ? 's' : ''}</td>
+          <td class="px-6 py-5 text-on-surface-variant text-sm">${fmt.date(p.created_at.split(' ')[0])}</td>
+          <td class="px-6 py-5">
+            <div class="flex items-center justify-end gap-1">
+              <button onclick="openProfileDetail(${p.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+                <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+              </button>
+              <button onclick="openEditProfile(${p.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+                <span class="material-symbols-outlined text-[18px]">edit</span>
+              </button>
+            </div>
+          </td>
+        </tr>`).join('')
+    : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients in this shop yet. <button onclick="openAddProfile(${id})" class="text-primary underline ml-1">Add first client</button></td></tr>`;
+
+  document.getElementById('addClientForShopBtn').onclick = () => openAddProfile(id);
+}
+
+function openAddShop() {
+  document.getElementById('shopId').value      = '';
+  document.getElementById('shopName').value    = '';
+  document.getElementById('shopAddress').value = '';
+  document.getElementById('shopFormError').classList.add('hidden');
+  document.getElementById('shopModalTitle').textContent = 'Add Shop';
+  document.getElementById('shopModal').classList.remove('hidden');
+  document.getElementById('shopName').focus();
+}
+
+async function openEditShop(id) {
+  const shop = await api('GET', `/api/shops/${id}`);
+  document.getElementById('shopId').value      = shop.id;
+  document.getElementById('shopName').value    = shop.name;
+  document.getElementById('shopAddress').value = shop.address || '';
+  document.getElementById('shopFormError').classList.add('hidden');
+  document.getElementById('shopModalTitle').textContent = 'Edit Shop';
+  document.getElementById('shopModal').classList.remove('hidden');
+  document.getElementById('shopName').focus();
+}
+
+function closeShopModal() { document.getElementById('shopModal').classList.add('hidden'); }
+document.getElementById('closeShopModal').addEventListener('click', closeShopModal);
+document.getElementById('cancelShopModal').addEventListener('click', closeShopModal);
+document.getElementById('shopModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeShopModal(); });
+
+document.getElementById('saveShopBtn').addEventListener('click', async () => {
+  const id      = document.getElementById('shopId').value;
+  const name    = document.getElementById('shopName').value.trim();
+  const address = document.getElementById('shopAddress').value.trim();
+  const errEl   = document.getElementById('shopFormError');
+  errEl.classList.add('hidden');
+  if (!name) { errEl.textContent = 'Shop name is required'; errEl.classList.remove('hidden'); return; }
+  try {
+    if (id) {
+      await api('PUT', `/api/shops/${id}`, { name, address });
+    } else {
+      await api('POST', '/api/shops', { name, address });
+    }
+    closeShopModal();
+    if (currentPage === 'shops')       loadShops();
+    if (currentPage === 'shop-detail') openShopDetail(currentShopId);
+  } catch (e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  }
+});
+
+function confirmDeleteShop(id, name) {
+  showConfirm(`Delete shop "${name}"? Clients will become unassigned but not deleted.`, async () => {
+    await api('DELETE', `/api/shops/${id}`);
+    showPage('shops');
+  });
+}
+
+document.getElementById('addShopBtn').addEventListener('click', openAddShop);
+document.getElementById('backToShops').addEventListener('click', () => showPage('shops'));
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 showPage('dashboard');

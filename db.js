@@ -7,14 +7,31 @@ const bcrypt = require('bcrypt');
 const { DB_PATH } = require('./config');
 const db = new DatabaseSync(DB_PATH);
 
+const SHOPS_SEED = [
+  { name: 'UNIÖN SUIZA',                 address: 'Via Augusta 1\n08006 Barcelona, Spain' },
+  { name: 'BEYER CHRONOMETRIE AG',        address: 'Bahnhofstrasse 31\n8001 Zurich, Switzerland' },
+  { name: 'ZIGERLI+IFF AG',               address: 'Spitalgasse 14\n3011 Bern, Switzerland' },
+  { name: 'HUBER UHREN SCHMUCK ANSTALT',  address: '1m Städtle 34\n9490 Vaduz, Liechtenstein' },
+  { name: 'PATEK PHILIPPE SALONS GENÈVE', address: 'Rue du Rhône 41\n1204 Geneva, Switzerland' },
+  { name: 'PATEK PHILIPPE SALONS LONDON', address: '16 New Bond Street\nW1S 3SU London, United Kingdom' },
+  { name: 'JAMIESON & CARRY',             address: '142, Union Street\nAB10 1GF Aberdeen, United Kingdom' },
+];
+
 function init() {
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
 
     CREATE TABLE IF NOT EXISTS admin (
-      id          INTEGER PRIMARY KEY,
+      id            INTEGER PRIMARY KEY,
       password_hash TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS shops (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL,
+      address    TEXT,
+      created_at DATETIME DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS profiles (
@@ -52,7 +69,7 @@ function init() {
     );
   `);
 
-  // Migrate: add columns introduced after initial schema
+  // Migrate profiles columns
   const cols = db.prepare("PRAGMA table_info(profiles)").all().map(r => r.name);
   if (!cols.includes('subscriber_id')) db.exec("ALTER TABLE profiles ADD COLUMN subscriber_id TEXT");
   if (!cols.includes('pp_urn'))        db.exec("ALTER TABLE profiles ADD COLUMN pp_urn TEXT");
@@ -65,11 +82,29 @@ function init() {
   if (!cols.includes('postal_code'))   db.exec("ALTER TABLE profiles ADD COLUMN postal_code TEXT");
   if (!cols.includes('city'))          db.exec("ALTER TABLE profiles ADD COLUMN city TEXT");
   if (!cols.includes('country'))       db.exec("ALTER TABLE profiles ADD COLUMN country TEXT");
+  const shopIdMissing = !cols.includes('shop_id');
+  if (shopIdMissing)                   db.exec("ALTER TABLE profiles ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL");
 
+  // Migrate watches columns
   const wcols = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
-  if (!wcols.includes('image_path'))       db.exec("ALTER TABLE watches ADD COLUMN image_path TEXT");
-  if (!wcols.includes('movement_number'))  db.exec("ALTER TABLE watches ADD COLUMN movement_number TEXT");
-  if (!wcols.includes('case_number'))      db.exec("ALTER TABLE watches ADD COLUMN case_number TEXT");
+  if (!wcols.includes('image_path'))      db.exec("ALTER TABLE watches ADD COLUMN image_path TEXT");
+  if (!wcols.includes('movement_number')) db.exec("ALTER TABLE watches ADD COLUMN movement_number TEXT");
+  if (!wcols.includes('case_number'))     db.exec("ALTER TABLE watches ADD COLUMN case_number TEXT");
+
+  // Seed shops if none exist
+  const shopCount = db.prepare('SELECT COUNT(*) as c FROM shops').get().c;
+  if (shopCount === 0) {
+    const insertShop = db.prepare('INSERT INTO shops (name, address) VALUES (?, ?)');
+    SHOPS_SEED.forEach(s => insertShop.run(s.name, s.address));
+  }
+
+  // On first shop_id migration: assign all existing profiles to UNIÖN SUIZA
+  if (shopIdMissing) {
+    const unionSuiza = db.prepare("SELECT id FROM shops WHERE name = 'UNIÖN SUIZA'").get();
+    if (unionSuiza) {
+      db.prepare("UPDATE profiles SET shop_id = ? WHERE shop_id IS NULL").run(unionSuiza.id);
+    }
+  }
 
   // Seed admin row if missing
   const row = db.prepare('SELECT id FROM admin WHERE id = 1').get();
@@ -89,39 +124,91 @@ function setAdminPassword(hash) {
   db.prepare('UPDATE admin SET password_hash = ? WHERE id = 1').run(hash);
 }
 
-// ── Profiles ───────────────────────────────────────────────────────────────
+// ── Shops ──────────────────────────────────────────────────────────────────
 
-function listProfiles() {
+function listShops() {
+  return db.prepare(`
+    SELECT s.*, COUNT(p.id) AS client_count
+    FROM shops s
+    LEFT JOIN profiles p ON p.shop_id = s.id
+    GROUP BY s.id
+    ORDER BY s.name ASC
+  `).all();
+}
+
+function getShop(id) {
+  return db.prepare('SELECT * FROM shops WHERE id = ?').get(id);
+}
+
+function createShop({ name, address }) {
+  const result = db.prepare('INSERT INTO shops (name, address) VALUES (?, ?)').run(name, address ?? null);
+  return result.lastInsertRowid;
+}
+
+function updateShop(id, updates) {
+  const fields = [], values = [];
+  if (updates.name    !== undefined) { fields.push('name = ?');    values.push(updates.name); }
+  if (updates.address !== undefined) { fields.push('address = ?'); values.push(updates.address); }
+  if (!fields.length) return;
+  values.push(id);
+  db.prepare(`UPDATE shops SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+function deleteShop(id) {
+  db.prepare('DELETE FROM shops WHERE id = ?').run(id);
+}
+
+function listProfilesForShop(shopId) {
   return db.prepare(`
     SELECT p.*, COUNT(w.id) AS watch_count
     FROM profiles p
     LEFT JOIN watches w ON w.profile_id = p.id
+    WHERE p.shop_id = ?
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+  `).all(shopId);
+}
+
+// ── Profiles ───────────────────────────────────────────────────────────────
+
+function listProfiles() {
+  return db.prepare(`
+    SELECT p.*, COUNT(w.id) AS watch_count, s.name AS shop_name
+    FROM profiles p
+    LEFT JOIN watches w ON w.profile_id = p.id
+    LEFT JOIN shops s ON s.id = p.shop_id
     GROUP BY p.id
     ORDER BY p.created_at DESC
   `).all();
 }
 
 function getProfile(id) {
-  return db.prepare('SELECT * FROM profiles WHERE id = ?').get(id);
+  return db.prepare(`
+    SELECT p.*, s.name AS shop_name
+    FROM profiles p
+    LEFT JOIN shops s ON s.id = p.shop_id
+    WHERE p.id = ?
+  `).get(id);
 }
 
 function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-                          title, first_name, last_name, gender, dob, postal_code, city, country }) {
+                          title, first_name, last_name, gender, dob, postal_code, city, country, shop_id }) {
   const result = db.prepare(`
     INSERT INTO profiles
       (name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-       title, first_name, last_name, gender, dob, postal_code, city, country)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       title, first_name, last_name, gender, dob, postal_code, city, country, shop_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(name, email, address ?? null, subscriber_id ?? null, pp_urn ?? null,
          photo_path ?? null, id_card_path ?? null,
          title ?? null, first_name ?? null, last_name ?? null,
-         gender ?? null, dob ?? null, postal_code ?? null, city ?? null, country ?? null);
+         gender ?? null, dob ?? null, postal_code ?? null, city ?? null, country ?? null,
+         shop_id ?? null);
   return result.lastInsertRowid;
 }
 
 function updateProfile(id, updates) {
   const FIELDS = ['name','email','address','subscriber_id','pp_urn','photo_path','id_card_path',
-                  'title','first_name','last_name','gender','dob','postal_code','city','country'];
+                  'title','first_name','last_name','gender','dob','postal_code','city','country','shop_id'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {
@@ -244,6 +331,7 @@ function getStats() {
 module.exports = {
   init,
   getAdminHash, setAdminPassword,
+  listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop,
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,
   listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,

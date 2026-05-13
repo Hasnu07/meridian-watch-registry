@@ -1,0 +1,88 @@
+/* ── Meridian Quiet Luxury — custom overrides for Tailwind CDN ─────────── */
+
+/* Material Symbols font variation */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  font-size: 20px;
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+/* Glass surfaces */
+.glass-surface {
+  background: rgba(22, 27, 34, 0.75);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.glass-panel {
+  background: rgba(22, 27, 34, 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Dashed gold upload zone */
+.upload-zone {
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='10' ry='10' stroke='%23f2ca50' stroke-width='1' stroke-dasharray='6%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  border-radius: 10px;
+}
+
+/* Custom thin scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(242, 202, 80, 0.18); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(242, 202, 80, 0.35); }
+
+/* Autofill override */
+input:-webkit-autofill,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 100px #1f1b13 inset;
+  -webkit-text-fill-color: #eae1d4;
+  caret-color: #eae1d4;
+}
+
+/* Sidebar active nav item */
+.nav-active {
+  color: #f2ca50 !important;
+  background-color: rgba(242, 202, 80, 0.06);
+  border-left: 2px solid #f2ca50;
+}
+.nav-inactive {
+  color: #bec7d2;
+  border-left: 2px solid transparent;
+}
+
+/* Playfair Display shorthand */
+.font-playfair { font-family: 'Playfair Display', serif; }
+
+/* Table row hover */
+.tbl-row { transition: background-color 0.15s ease; }
+.tbl-row:hover { background-color: rgba(242, 202, 80, 0.04); }
+
+/* ID card hover reveal */
+.id-card-wrap .id-card-overlay { opacity: 0; transition: opacity 0.35s ease; }
+.id-card-wrap:hover .id-card-overlay { opacity: 1; }
+.id-card-wrap:hover img { filter: grayscale(0) !important; opacity: 1 !important; }
+
+/* Fade-in animation for pages */
+.page-enter { animation: fadeUp 0.2s ease forwards; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Select element custom arrow */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2399907c' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 2rem;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  background: rgba(11, 14, 20, 0.82);
+  backdrop-filter: blur(8px);
+}

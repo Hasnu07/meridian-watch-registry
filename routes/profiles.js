@@ -57,7 +57,7 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: msg });
     }
     const { name, email, address, subscriber_id, pp_urn,
-            title, first_name, last_name, gender, dob, postal_code, city, country } = req.body;
+            title, first_name, last_name, gender, dob, postal_code, city, country, shop_id } = req.body;
     if (!name || !email) return res.status(400).json({ error: 'name and email required' });
 
     try {
@@ -75,6 +75,7 @@ router.post('/', (req, res) => {
         postal_code:   postal_code  || null,
         city:          city         || null,
         country:       country      || null,
+        shop_id:       shop_id      ? Number(shop_id) : null,
       });
       res.status(201).json(db.getProfile(id));
     } catch (e) {
@@ -109,6 +110,9 @@ router.put('/:id', (req, res, next) => {
     TEXT_FIELDS.forEach(f => {
       if (req.body[f] !== undefined) updates[f] = req.body[f] || null;
     });
+    if (req.body.shop_id !== undefined) {
+      updates.shop_id = req.body.shop_id ? Number(req.body.shop_id) : null;
+    }
 
     if (req.files?.photo?.[0]) {
       unlinkOld(profile.photo_path);
