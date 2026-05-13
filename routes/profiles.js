@@ -152,6 +152,17 @@ router.delete('/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// DELETE /api/profiles/:id/id-card  — remove just the ID card file
+router.delete('/:id/id-card', async (req, res) => {
+  const profile = db.getProfile(req.params.id);
+  if (!profile) return res.status(404).json({ error: 'Not found' });
+  if (profile.id_card_path) {
+    await storage.deleteFile(profile.id_card_path);
+    db.updateProfile(req.params.id, { id_card_path: null });
+  }
+  res.json({ ok: true });
+});
+
 // GET /api/profiles/:id/watches
 router.get('/:id/watches', (req, res) => {
   if (!db.getProfile(req.params.id)) return res.status(404).json({ error: 'Not found' });

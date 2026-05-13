@@ -1145,9 +1145,13 @@ function renderMembershipCard(client, m) {
               ${m.address ? `<div><span class="text-[10px] text-on-surface-variant/70">Address</span><p class="text-sm text-on-surface">${esc(m.address)}</p></div>` : ''}
             </div>
             ${m.id_card_path ? `
-              <div class="mt-3">
+              <div class="mt-3 flex items-center gap-2">
                 <button onclick="openLightbox('${m.id_card_path}')" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-primary border border-primary/20 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-all">
                   <span class="material-symbols-outlined text-[14px]">badge</span> View ID Document
+                </button>
+                <button onclick="confirmDeleteIdCard(${m.id})" title="Delete ID card"
+                        class="flex items-center gap-1 text-[10px] uppercase tracking-widest text-error border border-error/20 px-2.5 py-1.5 rounded-lg hover:bg-error/10 transition-all">
+                  <span class="material-symbols-outlined text-[14px]">delete</span>
                 </button>
               </div>` : ''}
           </div>
@@ -1157,6 +1161,11 @@ function renderMembershipCard(client, m) {
             <span class="material-symbols-outlined text-[14px]">add_circle</span> Add Watch
           </button>
           <button onclick="openEditProfile(${m.id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary px-3 py-2 border border-primary/20 rounded-lg hover:bg-primary/10 transition-all">Edit</button>
+          <button onclick="confirmDeleteMembership(${m.id}, '${esc(m.shop_name || 'this shop').replace(/'/g,"\\'")}')"
+                  title="Remove shop presence"
+                  class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors border border-transparent hover:border-error/20">
+            <span class="material-symbols-outlined text-[16px]">person_remove</span>
+          </button>
         </div>
       </div>
       <!-- Watches -->
@@ -1267,6 +1276,20 @@ function confirmDeleteClient(id, name) {
   showConfirm(`Delete master client "${name}"? Their shop memberships and watches will also be deleted.`, async () => {
     await api('DELETE', `/api/clients/${id}`);
     showPage('profiles');
+  });
+}
+
+function confirmDeleteIdCard(profileId) {
+  showConfirm('Remove this ID document? The file will be permanently deleted.', async () => {
+    await api('DELETE', `/api/profiles/${profileId}/id-card`);
+    openClientDetail(currentClientId);
+  });
+}
+
+function confirmDeleteMembership(profileId, shopName) {
+  showConfirm(`Remove presence at "${shopName}"? All watches at this location will also be deleted.`, async () => {
+    await api('DELETE', `/api/profiles/${profileId}`);
+    openClientDetail(currentClientId);
   });
 }
 
