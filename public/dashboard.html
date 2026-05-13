@@ -2439,7 +2439,7 @@ async function openShopDetail(id) {
 function clientRow(p) {
   const openFn = p.client_id ? `openClientDetail(${p.client_id})` : `openProfileDetail(${p.id})`;
   return `
-    <tr class="tbl-row">
+    <tr class="tbl-row" id="client-row-${p.id}">
       <td class="px-6 py-5">
         <div class="flex items-center gap-4">
           ${avatarHtml(p.name, p.photo_path)}
@@ -2449,7 +2449,15 @@ function clientRow(p) {
           </div>
         </div>
       </td>
-      <td class="px-6 py-5 text-on-surface-variant text-sm">${p.watch_count} piece${p.watch_count !== 1 ? 's' : ''}</td>
+      <td class="px-6 py-5">
+        <button onclick="toggleWatchExpand(${p.id})"
+                id="watch-expand-btn-${p.id}"
+                class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide px-3 py-1.5 rounded-lg border border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 transition-all">
+          <span class="material-symbols-outlined text-[14px]">watch</span>
+          ${p.watch_count} piece${p.watch_count !== 1 ? 's' : ''}
+          <span class="material-symbols-outlined text-[14px] transition-transform duration-200" id="watch-expand-icon-${p.id}">expand_more</span>
+        </button>
+      </td>
       <td class="px-6 py-5 text-on-surface-variant text-sm">${fmt.date(p.created_at.split(' ')[0])}</td>
       <td class="px-6 py-5">
         <div class="flex items-center justify-end gap-1">
@@ -2464,7 +2472,98 @@ function clientRow(p) {
           </button>
         </div>
       </td>
+    </tr>
+    <tr id="watches-expand-${p.id}" class="hidden">
+      <td colspan="4" class="px-0 pt-0 pb-1">
+        <div id="watches-expand-content-${p.id}" style="background:rgba(255,255,255,0.012); border-top:1px solid rgba(255,255,255,0.06)">
+          <div class="px-10 py-4 text-on-surface-variant text-sm italic">Loading…</div>
+        </div>
+      </td>
     </tr>`;
+}
+
+async function toggleWatchExpand(profileId) {
+  const row    = document.getElementById(`watches-expand-${profileId}`);
+  const icon   = document.getElementById(`watch-expand-icon-${profileId}`);
+  const isOpen = !row.classList.contains('hidden');
+
+  if (isOpen) {
+    row.classList.add('hidden');
+    icon.style.transform = '';
+    return;
+  }
+
+  row.classList.remove('hidden');
+  icon.style.transform = 'rotate(180deg)';
+
+  const content = document.getElementById(`watches-expand-content-${profileId}`);
+  content.innerHTML = `<div class="px-10 py-4 text-on-surface-variant text-sm italic">Loading…</div>`;
+
+  try {
+    const profile = await api('GET', `/api/profiles/${profileId}`);
+    const watches = profile.watches || [];
+
+    if (!watches.length) {
+      content.innerHTML = `
+        <div class="px-10 py-5 flex items-center gap-3 text-on-surface-variant text-sm">
+          <span class="material-symbols-outlined text-[18px]">watch_off</span>
+          No watches registered yet.
+          <button onclick="openAddWatch(${profileId})" class="ml-2 text-primary text-xs font-semibold hover:underline">Add one →</button>
+        </div>`;
+      return;
+    }
+
+    content.innerHTML = `
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead>
+            <tr style="background:rgba(255,255,255,0.025); border-bottom:1px solid rgba(255,255,255,0.07)">
+              <th class="px-10 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+              <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
+              <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
+              <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
+              <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Date</th>
+              <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
+              <th class="px-5 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/[0.04]">
+            ${watches.map(w => `
+            <tr>
+              <td class="px-10 py-3">
+                <div class="flex items-center gap-3">
+                  ${w.image_path
+                    ? `<div class="w-10 h-10 rounded-lg border border-outline-variant/20 overflow-hidden flex-shrink-0 cursor-zoom-in" onclick="openLightbox('${w.image_path}')"><img src="${w.image_path}" class="w-full h-full object-cover"></div>`
+                    : `<div class="w-10 h-10 rounded-lg border border-outline-variant/15 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-outline text-[18px]">watch</span></div>`
+                  }
+                  <div>
+                    <p class="text-on-surface text-sm font-medium leading-tight">${esc(w.model)}</p>
+                    ${w.movement_number || w.case_number ? `<p class="text-on-surface-variant text-xs mt-0.5 font-mono">${[w.movement_number, w.case_number].filter(Boolean).join(' / ')}</p>` : ''}
+                  </div>
+                </div>
+              </td>
+              <td class="px-5 py-3">${sourceBadge(w.source)}</td>
+              <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(w.serial_number || '—')}</td>
+              <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>
+              <td class="px-5 py-3 text-on-surface-variant text-xs">${fmt.date(w.purchase_date)}</td>
+              <td class="px-5 py-3 font-semibold text-primary text-sm">${fmt.money(w.price)}</td>
+              <td class="px-5 py-3">
+                <div class="flex items-center justify-end gap-1">
+                  <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined text-[15px]">edit</span>
+                  </button>
+                  <button onclick="confirmDeleteWatch(${w.id},'${esc(w.model).replace(/'/g,"\\'")}')" class="p1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors">
+                    <span class="material-symbols-outlined text-[15px]">delete</span>
+                  </button>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch (e) {
+    content.innerHTML = `<div class="px-10 py-4 text-error text-sm">Failed to load watches.</div>`;
+  }
 }
 
 // ── Portfolio detail ───────────────────────────────────────────────────────
