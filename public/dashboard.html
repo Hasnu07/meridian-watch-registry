@@ -1923,7 +1923,10 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
       await api('POST', `/api/profiles/${profileId}/watches`, fd);
     }
     closeWatchModal();
-    if (currentPage === 'profile-detail') openProfileDetail(currentProfileId);
+    if (currentPage === 'profile-detail')   openProfileDetail(currentProfileId);
+    else if (currentPage === 'client-detail')   openClientDetail(currentClientId);
+    else if (currentPage === 'portfolio-detail') openPortfolioDetail(currentPortfolioId);
+    else if (currentPage === 'shop-detail')      openShopDetail(currentShopId);
     else if (currentPage === 'watches')   loadWatches(document.getElementById('watchSearch').value, document.getElementById('watchSourceFilter').value);
     else if (currentPage === 'dashboard') loadDashboard();
   } catch (e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
@@ -1964,7 +1967,10 @@ function confirmDeleteProfile(id, name, goBack) {
 function confirmDeleteWatch(id, model) {
   showConfirm(`Delete watch "${model}"? This cannot be undone.`, async () => {
     await api('DELETE', `/api/watches/${id}`);
-    if (currentPage === 'profile-detail') openProfileDetail(currentProfileId);
+    if (currentPage === 'profile-detail')    openProfileDetail(currentProfileId);
+    else if (currentPage === 'client-detail')    openClientDetail(currentClientId);
+    else if (currentPage === 'portfolio-detail') openPortfolioDetail(currentPortfolioId);
+    else if (currentPage === 'shop-detail')      openShopDetail(currentShopId);
     else if (currentPage === 'watches')   loadWatches(document.getElementById('watchSearch').value, document.getElementById('watchSourceFilter').value);
     else if (currentPage === 'dashboard') loadDashboard();
   });
@@ -2287,10 +2293,13 @@ function clientRow(p) {
       <td class="px-6 py-5 text-on-surface-variant text-sm">${fmt.date(p.created_at.split(' ')[0])}</td>
       <td class="px-6 py-5">
         <div class="flex items-center justify-end gap-1">
-          <button onclick="${openFn}" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+          <button onclick="openAddWatch(${p.id})" title="Add Watch" class="p-2 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[18px]">add_circle</span>
+          </button>
+          <button onclick="${openFn}" title="View" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
             <span class="material-symbols-outlined text-[18px]">open_in_new</span>
           </button>
-          <button onclick="openEditProfile(${p.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+          <button onclick="openEditProfile(${p.id})" title="Edit" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
             <span class="material-symbols-outlined text-[18px]">edit</span>
           </button>
         </div>
