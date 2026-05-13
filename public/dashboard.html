@@ -1730,7 +1730,8 @@ function esc(s) {
 
 async function loadShops() {
   const shops = await api('GET', '/api/shops');
-  document.getElementById('shopsGrid').innerHTML = shops.length ? shops.map(shop => `
+  const portfoliosPerShop = await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)));
+  document.getElementById('shopsGrid').innerHTML = shops.length ? shops.map((shop, i) => `
     <div class="glass-surface rounded-xl p-6 hover:border-primary/20 border border-transparent transition-all cursor-pointer group"
          onclick="openShopDetail(${shop.id})">
       <div class="flex items-start justify-between mb-4">
@@ -1750,9 +1751,15 @@ async function loadShops() {
       </div>
       <h3 class="font-playfair text-lg font-semibold text-on-surface mb-1">${esc(shop.name)}</h3>
       <p class="text-xs text-on-surface-variant leading-relaxed mb-4 whitespace-pre-line min-h-[2.5rem]">${esc(shop.address || '')}</p>
-      <div class="flex items-center gap-2 pt-4 border-t border-outline-variant/10">
-        <span class="material-symbols-outlined text-primary text-[16px]">group</span>
-        <span class="text-sm text-on-surface-variant">${shop.client_count} client${shop.client_count !== 1 ? 's' : ''}</span>
+      <div class="flex items-center gap-4 pt-4 border-t border-outline-variant/10">
+        <div class="flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-primary text-[16px]">folder_special</span>
+          <span class="text-sm text-on-surface-variant">${portfoliosPerShop[i].length} portfolio${portfoliosPerShop[i].length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-primary text-[16px]">group</span>
+          <span class="text-sm text-on-surface-variant">${shop.client_count} client${shop.client_count !== 1 ? 's' : ''}</span>
+        </div>
       </div>
     </div>
   `).join('') : `<div class="col-span-3 glass-surface rounded-xl p-12 text-center text-on-surface-variant text-sm">No shops configured yet.</div>`;
