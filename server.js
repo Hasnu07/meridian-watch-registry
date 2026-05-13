@@ -42,6 +42,7 @@ function requireAuth(req, res, next) {
 app.use('/api/auth', require('./routes/auth'));
 
 app.use('/api/shops',                             requireAuth, require('./routes/shops'));
+app.use('/api/portfolios',                        requireAuth, require('./routes/portfolios'));
 app.use('/api/_restore',                          require('./routes/restore')); // TEMP — remove after use
 app.use('/api/profiles',                          requireAuth, require('./routes/profiles'));
 app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes/company-docs'));

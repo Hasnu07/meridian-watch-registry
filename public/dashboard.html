@@ -107,6 +107,9 @@
         <button id="addShopBtn" class="hidden bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
           <span class="material-symbols-outlined text-[16px]">add_business</span> Add Shop
         </button>
+        <button id="addPortfolioBtn" class="hidden bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+          <span class="material-symbols-outlined text-[16px]">create_new_folder</span> Add Portfolio
+        </button>
         <button id="addWatchTopBtn" class="hidden bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
           <span class="material-symbols-outlined text-[16px]">add_circle</span> Add Watch
         </button>
@@ -216,13 +219,19 @@
             <span class="material-symbols-outlined text-[16px]">arrow_back</span> Back to Shops
           </button>
         </div>
-        <div class="p-10">
-          <div id="shopDetailHeader" class="mb-8"></div>
+        <div class="p-10 space-y-8">
+          <div id="shopDetailHeader" class="mb-2"></div>
+          <!-- Portfolios grid -->
+          <div>
+            <h3 class="font-playfair text-2xl text-on-surface mb-4">Portfolios</h3>
+            <div id="portfoliosGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          </div>
+          <!-- Individual clients -->
           <div class="glass-surface rounded-xl overflow-hidden">
             <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
-              <h3 class="font-playfair text-xl text-on-surface">Clients</h3>
-              <button id="addClientForShopBtn" class="bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
-                <span class="material-symbols-outlined text-[16px]">person_add</span> Add Client
+              <h3 class="font-playfair text-xl text-on-surface">Individual Clients</h3>
+              <button id="addClientForShopBtn" class="bg-primary/10 text-primary border border-primary/20 text-xs font-semibold px-5 py-2.5 rounded-lg hover:bg-primary/20 active:scale-95 transition-all flex items-center gap-2">
+                <span class="material-symbols-outlined text-[16px]">person_add</span> Add Individual Client
               </button>
             </div>
             <div class="overflow-x-auto">
@@ -236,6 +245,39 @@
                   </tr>
                 </thead>
                 <tbody id="shopClientsBody" class="divide-y divide-white/[0.04]"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Portfolio Detail ───────────────────────────────────────── -->
+      <div id="page-portfolio-detail" class="hidden flex-1 flex flex-col">
+        <div class="px-10 pt-8 pb-0">
+          <button id="backToShopFromPortfolio" class="flex items-center gap-1.5 text-xs uppercase tracking-widest text-outline hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[16px]">arrow_back</span> Back to Shop
+          </button>
+        </div>
+        <div class="p-10">
+          <div id="portfolioDetailHeader" class="mb-8"></div>
+          <div class="glass-surface rounded-xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
+              <h3 class="font-playfair text-xl text-on-surface">Clients</h3>
+              <button id="addClientForPortfolioBtn" class="bg-primary text-on-primary text-xs font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+                <span class="material-symbols-outlined text-[16px]">person_add</span> Add Client
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead>
+                  <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                    <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                    <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Watches</th>
+                    <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Added</th>
+                    <th class="px-6 py-4"></th>
+                  </tr>
+                </thead>
+                <tbody id="portfolioClientsBody" class="divide-y divide-white/[0.04]"></tbody>
               </table>
             </div>
           </div>
@@ -428,12 +470,20 @@
     <div class="p-6 overflow-y-auto space-y-5">
       <input type="hidden" id="profileId">
 
-      <!-- ── Shop ── -->
-      <div>
-        <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Shop</label>
-        <select id="pShopId" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
-          <option value="">— No shop assigned —</option>
-        </select>
+      <!-- ── Shop + Portfolio ── -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Shop</label>
+          <select id="pShopId" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+            <option value="">— No shop assigned —</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Portfolio</label>
+          <select id="pPortfolioId" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+            <option value="">— Individual Client —</option>
+          </select>
+        </div>
       </div>
 
       <!-- ── Contact ── -->
@@ -730,6 +780,31 @@
   </div>
 </div>
 
+<!-- ═══ PORTFOLIO MODAL ══════════════════════════════════════════════════ -->
+<div id="portfolioModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-sm bg-[#161B22] border border-white/10 rounded-xl shadow-2xl">
+    <div class="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 id="portfolioModalTitle" class="font-playfair text-2xl text-primary">Add Portfolio</h2>
+      <button id="closePortfolioModal" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="portfolioId">
+      <input type="hidden" id="portfolioShopId">
+      <div>
+        <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Portfolio Name *</label>
+        <input type="text" id="portfolioName" placeholder="e.g. Salva" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+      </div>
+      <div id="portfolioFormError" class="hidden px-4 py-3 rounded-lg bg-error-container/20 border border-error/20 text-error text-sm"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+      <button id="cancelPortfolioModal" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button id="savePortfolioBtn" class="bg-primary text-on-primary font-semibold px-8 py-3 rounded-lg text-sm hover:brightness-110 active:scale-[0.98] transition-all">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ LIGHTBOX ═════════════════════════════════════════════════════════ -->
 <div id="lightbox" class="fixed inset-0 z-[200] hidden flex items-center justify-center cursor-zoom-out" style="background:rgba(0,0,0,.88);backdrop-filter:blur(8px)">
   <img id="lightboxImg" src="" alt="ID document" class="max-w-[92vw] max-h-[92vh] rounded-xl shadow-2xl">
@@ -767,7 +842,7 @@ const fmt = {
 let currentPage = 'dashboard';
 let currentProfileId = null;
 let currentShopId = null;
-const PAGES = ['dashboard','shops','shop-detail','profiles','profile-detail','watches','messages','settings'];
+const PAGES = ['dashboard','shops','shop-detail','portfolio-detail','profiles','profile-detail','watches','messages','settings'];
 
 function showPage(name) {
   PAGES.forEach(p => {
@@ -788,15 +863,17 @@ function showPage(name) {
     }
   });
 
-  const titles = { dashboard:'Vault', shops:'Shops', 'shop-detail':'Shop Detail', profiles:'Clients', 'profile-detail':'Client Detail', watches:'Watches', messages:'Messages', settings:'Settings' };
+  const titles = { dashboard:'Vault', shops:'Shops', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'profile-detail':'Client Detail', watches:'Watches', messages:'Messages', settings:'Settings' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
 
-  const showAddProfile = name === 'profiles';
-  const showAddWatch   = name === 'watches';
-  const showAddShop    = name === 'shops';
+  const showAddProfile   = name === 'profiles';
+  const showAddWatch     = name === 'watches';
+  const showAddShop      = name === 'shops';
+  const showAddPortfolio = name === 'shop-detail';
   document.getElementById('addProfileBtn').classList.toggle('hidden', !showAddProfile);
   document.getElementById('addWatchTopBtn').classList.toggle('hidden', !showAddWatch);
   document.getElementById('addShopBtn').classList.toggle('hidden', !showAddShop);
+  document.getElementById('addPortfolioBtn').classList.toggle('hidden', !showAddPortfolio);
   document.getElementById('globalSearchWrap').classList.toggle('hidden', name === 'settings');
 
   currentPage = name;
@@ -1242,14 +1319,30 @@ function clearRegFields() {
   });
 }
 
-async function populateShopDropdown(selectedId) {
+async function populateShopDropdown(selectedShopId, selectedPortfolioId) {
   const shops = await api('GET', '/api/shops');
-  const sel = document.getElementById('pShopId');
-  sel.innerHTML = '<option value="">— No shop assigned —</option>' +
-    shops.map(s => `<option value="${s.id}"${s.id == selectedId ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+  const shopSel = document.getElementById('pShopId');
+  shopSel.innerHTML = '<option value="">— No shop assigned —</option>' +
+    shops.map(s => `<option value="${s.id}"${s.id == selectedShopId ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+  await populatePortfolioDropdown(selectedShopId, selectedPortfolioId);
 }
 
-function openAddProfile(presetShopId) {
+async function populatePortfolioDropdown(shopId, selectedPortfolioId) {
+  const sel = document.getElementById('pPortfolioId');
+  if (!shopId) {
+    sel.innerHTML = '<option value="">— Individual Client —</option>';
+    return;
+  }
+  const portfolios = await api('GET', `/api/portfolios?shop_id=${shopId}`);
+  sel.innerHTML = '<option value="">— Individual Client —</option>' +
+    portfolios.map(pt => `<option value="${pt.id}"${pt.id == selectedPortfolioId ? ' selected' : ''}>${esc(pt.name)}</option>`).join('');
+}
+
+document.getElementById('pShopId').addEventListener('change', function() {
+  populatePortfolioDropdown(this.value, null);
+});
+
+function openAddProfile(presetShopId, presetPortfolioId) {
   ['profileId','pName','pEmail','pAddress','pSubscriberId','pPpUrn'].forEach(id => document.getElementById(id).value = '');
   clearRegFields();
   document.getElementById('pPhoto').value            = '';
@@ -1260,7 +1353,7 @@ function openAddProfile(presetShopId) {
   resetPhotoPreview(null);
   document.getElementById('profileModalTitle').textContent = 'Add Client';
   document.getElementById('profileFormError').classList.add('hidden');
-  populateShopDropdown(presetShopId || null);
+  populateShopDropdown(presetShopId || null, presetPortfolioId || null);
   document.getElementById('profileModal').classList.remove('hidden');
 }
 
@@ -1288,7 +1381,7 @@ async function openEditProfile(id) {
   resetPhotoPreview(p.photo_path || null);
   document.getElementById('profileModalTitle').textContent = 'Edit Client';
   document.getElementById('profileFormError').classList.add('hidden');
-  populateShopDropdown(p.shop_id || null);
+  populateShopDropdown(p.shop_id || null, p.portfolio_id || null);
   document.getElementById('currentIdCard').innerHTML = p.id_card_path
     ? `<p class="text-xs text-on-surface-variant">Current: <a href="${p.id_card_path}" target="_blank" class="text-primary underline">${p.id_card_path.split('/').pop()}</a> — upload new to replace</p>`
     : '';
@@ -1338,6 +1431,7 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
   fd.append('city',          document.getElementById('pCity').value.trim());
   fd.append('country',       document.getElementById('pCountry').value.trim());
   fd.append('shop_id',       document.getElementById('pShopId').value);
+  fd.append('portfolio_id',  document.getElementById('pPortfolioId').value);
   const photoFile  = document.getElementById('pPhoto').files[0];
   const idCardFile = document.getElementById('pIdCard').files[0];
   if (photoFile)  fd.append('photo',   photoFile);
@@ -1349,9 +1443,11 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
   try {
     id ? await api('PUT', `/api/profiles/${id}`, fd) : await api('POST', '/api/profiles', fd);
     closeProfileModal();
-    if (currentPage === 'profiles')                                    loadProfiles();
-    else if (currentPage === 'dashboard')                              loadDashboard();
-    else if (currentPage === 'profile-detail' && currentProfileId == id) openProfileDetail(id);
+    if (currentPage === 'profiles')                                       loadProfiles();
+    else if (currentPage === 'dashboard')                                 loadDashboard();
+    else if (currentPage === 'shop-detail')                               openShopDetail(currentShopId);
+    else if (currentPage === 'portfolio-detail')                          openPortfolioDetail(currentPortfolioId);
+    else if (currentPage === 'profile-detail' && currentProfileId == id)  openProfileDetail(id);
   } catch (e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
   }
@@ -1670,7 +1766,11 @@ async function loadShops() {
 async function openShopDetail(id) {
   currentShopId = id;
   showPage('shop-detail');
-  const shop = await api('GET', `/api/shops/${id}`);
+  const [shop, portfolios, indClients] = await Promise.all([
+    api('GET', `/api/shops/${id}`),
+    api('GET', `/api/portfolios?shop_id=${id}`),
+    api('GET', `/api/shops/${id}/individual-clients`),
+  ]);
 
   document.getElementById('shopDetailHeader').innerHTML = `
     <div class="flex items-start justify-between gap-4 flex-wrap">
@@ -1683,35 +1783,156 @@ async function openShopDetail(id) {
     </div>
   `;
 
-  const clients = shop.profiles || [];
-  document.getElementById('shopClientsBody').innerHTML = clients.length
-    ? clients.map(p => `
-        <tr class="tbl-row">
-          <td class="px-6 py-5">
-            <div class="flex items-center gap-4">
-              ${avatarHtml(p.name, p.photo_path)}
-              <div>
-                <div class="text-on-surface font-medium text-sm">${esc(p.name)}</div>
-                <div class="text-on-surface-variant text-xs mt-0.5">${esc(p.email)}</div>
-              </div>
-            </div>
-          </td>
-          <td class="px-6 py-5 text-on-surface-variant text-sm">${p.watch_count} piece${p.watch_count !== 1 ? 's' : ''}</td>
-          <td class="px-6 py-5 text-on-surface-variant text-sm">${fmt.date(p.created_at.split(' ')[0])}</td>
-          <td class="px-6 py-5">
-            <div class="flex items-center justify-end gap-1">
-              <button onclick="openProfileDetail(${p.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
-                <span class="material-symbols-outlined text-[18px]">open_in_new</span>
-              </button>
-              <button onclick="openEditProfile(${p.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
-                <span class="material-symbols-outlined text-[18px]">edit</span>
-              </button>
-            </div>
-          </td>
-        </tr>`).join('')
-    : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients in this shop yet. <button onclick="openAddProfile(${id})" class="text-primary underline ml-1">Add first client</button></td></tr>`;
+  // Portfolios grid
+  document.getElementById('portfoliosGrid').innerHTML = portfolios.length
+    ? portfolios.map(pt => `
+      <div class="glass-surface rounded-xl p-6 hover:border-primary/20 border border-transparent transition-all cursor-pointer group"
+           onclick="openPortfolioDetail(${pt.id})">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-primary">folder_special</span>
+          </div>
+          <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onclick="event.stopPropagation(); openEditPortfolio(${pt.id},'${esc(pt.name).replace(/'/g,"\\'")}')"
+                    class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors" title="Rename">
+              <span class="material-symbols-outlined text-[16px]">edit</span>
+            </button>
+            <button onclick="event.stopPropagation(); confirmDeletePortfolio(${pt.id},'${esc(pt.name).replace(/'/g,"\\'")}')"
+                    class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors" title="Delete">
+              <span class="material-symbols-outlined text-[16px]">delete</span>
+            </button>
+          </div>
+        </div>
+        <h3 class="font-playfair text-lg font-semibold text-on-surface mb-1">${esc(pt.name)}</h3>
+        <div class="flex items-center gap-2 pt-4 border-t border-outline-variant/10">
+          <span class="material-symbols-outlined text-primary text-[16px]">group</span>
+          <span class="text-sm text-on-surface-variant">${pt.client_count} client${pt.client_count !== 1 ? 's' : ''}</span>
+        </div>
+      </div>`).join('')
+    : `<div class="glass-surface rounded-xl p-10 text-center text-on-surface-variant text-sm border border-dashed border-outline-variant/20 col-span-3">
+         No portfolios yet — <button onclick="openAddPortfolio(${id})" class="text-primary underline">create one</button>
+       </div>`;
 
-  document.getElementById('addClientForShopBtn').onclick = () => openAddProfile(id);
+  // Individual clients
+  document.getElementById('shopClientsBody').innerHTML = indClients.length
+    ? indClients.map(p => clientRow(p)).join('')
+    : `<tr><td colspan="4" class="px-6 py-10 text-center text-on-surface-variant text-sm">No individual clients.</td></tr>`;
+
+  document.getElementById('addClientForShopBtn').onclick = () => openAddProfile(id, null);
+  document.getElementById('addPortfolioBtn').onclick = () => openAddPortfolio(id);
+}
+
+function clientRow(p) {
+  return `
+    <tr class="tbl-row">
+      <td class="px-6 py-5">
+        <div class="flex items-center gap-4">
+          ${avatarHtml(p.name, p.photo_path)}
+          <div>
+            <div class="text-on-surface font-medium text-sm">${esc(p.name)}</div>
+            <div class="text-on-surface-variant text-xs mt-0.5">${esc(p.email)}</div>
+          </div>
+        </div>
+      </td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${p.watch_count} piece${p.watch_count !== 1 ? 's' : ''}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${fmt.date(p.created_at.split(' ')[0])}</td>
+      <td class="px-6 py-5">
+        <div class="flex items-center justify-end gap-1">
+          <button onclick="openProfileDetail(${p.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+          </button>
+          <button onclick="openEditProfile(${p.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[18px]">edit</span>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+// ── Portfolio detail ───────────────────────────────────────────────────────
+let currentPortfolioId = null;
+
+async function openPortfolioDetail(id) {
+  currentPortfolioId = id;
+  showPage('portfolio-detail');
+  const portfolio = await api('GET', `/api/portfolios/${id}`);
+
+  document.getElementById('portfolioDetailHeader').innerHTML = `
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1">
+          <button onclick="openShopDetail(${portfolio.shop_id})" class="hover:underline">${esc(portfolio.shop_name)}</button> · Portfolio
+        </p>
+        <h2 class="font-playfair text-4xl font-semibold text-on-surface">${esc(portfolio.name)}</h2>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openEditPortfolio(${id},'${esc(portfolio.name).replace(/'/g,"\\'")}')"
+                class="text-[10px] font-semibold uppercase tracking-widest text-primary px-4 py-2 border border-primary/30 rounded-lg hover:bg-primary/10 transition-all">Rename</button>
+        <button onclick="confirmDeletePortfolio(${id},'${esc(portfolio.name).replace(/'/g,"\\'")}')"
+                class="text-[10px] font-semibold uppercase tracking-widest text-error px-4 py-2 border border-error/20 rounded-lg hover:bg-error/10 transition-all">Delete</button>
+      </div>
+    </div>
+  `;
+
+  const clients = portfolio.clients || [];
+  document.getElementById('portfolioClientsBody').innerHTML = clients.length
+    ? clients.map(p => clientRow(p)).join('')
+    : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients in this portfolio yet.</td></tr>`;
+
+  document.getElementById('addClientForPortfolioBtn').onclick = () => openAddProfile(portfolio.shop_id, id);
+  document.getElementById('backToShopFromPortfolio').onclick = () => openShopDetail(portfolio.shop_id);
+}
+
+// ── Portfolio modal ────────────────────────────────────────────────────────
+function openAddPortfolio(shopId) {
+  document.getElementById('portfolioId').value      = '';
+  document.getElementById('portfolioShopId').value  = shopId;
+  document.getElementById('portfolioName').value    = '';
+  document.getElementById('portfolioFormError').classList.add('hidden');
+  document.getElementById('portfolioModalTitle').textContent = 'Add Portfolio';
+  document.getElementById('portfolioModal').classList.remove('hidden');
+  document.getElementById('portfolioName').focus();
+}
+
+function openEditPortfolio(id, name) {
+  document.getElementById('portfolioId').value      = id;
+  document.getElementById('portfolioName').value    = name;
+  document.getElementById('portfolioFormError').classList.add('hidden');
+  document.getElementById('portfolioModalTitle').textContent = 'Rename Portfolio';
+  document.getElementById('portfolioModal').classList.remove('hidden');
+  document.getElementById('portfolioName').focus();
+}
+
+function closePortfolioModal() { document.getElementById('portfolioModal').classList.add('hidden'); }
+document.getElementById('closePortfolioModal').addEventListener('click', closePortfolioModal);
+document.getElementById('cancelPortfolioModal').addEventListener('click', closePortfolioModal);
+
+document.getElementById('savePortfolioBtn').addEventListener('click', async () => {
+  const id      = document.getElementById('portfolioId').value;
+  const shopId  = document.getElementById('portfolioShopId').value;
+  const name    = document.getElementById('portfolioName').value.trim();
+  const errEl   = document.getElementById('portfolioFormError');
+  errEl.classList.add('hidden');
+  if (!name) { errEl.textContent = 'Portfolio name is required'; errEl.classList.remove('hidden'); return; }
+  try {
+    if (id) {
+      await api('PUT', `/api/portfolios/${id}`, { name });
+    } else {
+      await api('POST', '/api/portfolios', { name, shop_id: shopId });
+    }
+    closePortfolioModal();
+    if (currentPage === 'shop-detail')       openShopDetail(currentShopId);
+    if (currentPage === 'portfolio-detail')  openPortfolioDetail(currentPortfolioId);
+  } catch (e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  }
+});
+
+function confirmDeletePortfolio(id, name) {
+  showConfirm(`Delete portfolio "${name}"? Its clients will become individual clients of the shop.`, async () => {
+    await api('DELETE', `/api/portfolios/${id}`);
+    openShopDetail(currentShopId);
+  });
 }
 
 function openAddShop() {

@@ -18,15 +18,26 @@ router.get('/', (req, res) => {
     if (!shop) return res.status(500).json({ error: 'UNIÖN SUIZA shop not found — run /api/shops first' });
     const shopId = shop.id;
 
-    // Clear existing profiles (cascades to watches, company_docs)
+    // Clear existing profiles and portfolios
     db.exec("DELETE FROM profiles");
+    db.exec("DELETE FROM portfolios");
+
+    // Get BEYER shop id
+    const beyer = db.prepare("SELECT id FROM shops WHERE name = 'BEYER CHRONOMETRIE AG'").get();
+    const beyerId = beyer ? beyer.id : null;
+
+    // Insert portfolios
+    const insPortfolio = db.prepare('INSERT INTO portfolios (name, shop_id, created_at) VALUES (?,?,?)');
+    const salvaRow  = insPortfolio.run('Salva',  shopId,  '2026-05-12 11:30:00');
+    const robinRow  = insPortfolio.run('Robin',  beyerId, '2026-05-12 11:30:00');
+    const salvaId   = Number(salvaRow.lastInsertRowid);
 
     // Insert profiles
     const insProfile = db.prepare(`
       INSERT INTO profiles
         (name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-         title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `);
 
     const PROFILES = [
@@ -36,20 +47,20 @@ router.get('/', (req, res) => {
         id_card_path: 'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778670313/Id-Card-Rodriguez_o09bcu.png',
         title: 'Mr.', first_name: 'Jesús', last_name: 'Rodríguez Martínez',
         gender: 'M', dob: 'April 14, 1985', postal_code: '03205', city: 'Elche', country: 'Spain',
-        created_at: '2026-05-12 11:34:24' },
+        portfolio_id: salvaId, created_at: '2026-05-12 11:34:24' },
       { old_id: 5, name: 'Irenene Rodriguez Martinez', email: 'irenenerodriguez4995@gmail.com',
         address: 'AVDA. DE NOVELDA', subscriber_id: null, pp_urn: '251577',
         photo_path: null, id_card_path: null,
         title: 'Mrs.', first_name: 'Irene', last_name: 'Rodriguez Martinez',
         gender: 'F', dob: null, postal_code: '03205', city: 'Elche', country: 'Spain',
-        created_at: '2026-05-12 12:04:32' },
+        portfolio_id: salvaId, created_at: '2026-05-12 12:04:32' },
       { old_id: 6, name: 'Ummay Rabab Abbas', email: 'ummayrabababbas@gmail.com',
         address: 'Creek harbour Dubai', subscriber_id: null, pp_urn: null,
         photo_path:   'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778670234/Screenshot_2026-05-12_195115_xoqeui.jpg',
         id_card_path: 'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778670280/71dde4ab-b875-4e7d-8189-3fbd4646de60_afxvwz.jpg',
         title: 'Ms.', first_name: null, last_name: null,
         gender: null, dob: null, postal_code: null, city: null, country: null,
-        created_at: '2026-05-12 12:07:28' },
+        portfolio_id: salvaId, created_at: '2026-05-12 12:07:28' },
     ];
 
     const idMap = {};
@@ -59,7 +70,7 @@ router.get('/', (req, res) => {
         p.photo_path, p.id_card_path,
         p.title, p.first_name, p.last_name,
         p.gender, p.dob, p.postal_code, p.city, p.country,
-        shopId, p.created_at
+        shopId, p.portfolio_id, p.created_at
       );
       idMap[p.old_id] = Number(r.lastInsertRowid);
     }
@@ -96,7 +107,7 @@ router.get('/', (req, res) => {
     );
 
     db.close();
-    res.json({ ok: true, profiles_inserted: PROFILES.length, watches_inserted: WATCHES.length, company_docs_inserted: 1, id_map: idMap });
+    res.json({ ok: true, profiles_inserted: PROFILES.length, watches_inserted: WATCHES.length, company_docs_inserted: 1, portfolios_created: 2, id_map: idMap });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

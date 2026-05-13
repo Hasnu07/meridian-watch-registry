@@ -60,6 +60,13 @@ function init() {
       created_at       DATETIME DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS portfolios (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL,
+      shop_id    INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS company_docs (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -84,6 +91,7 @@ function init() {
   if (!cols.includes('country'))       db.exec("ALTER TABLE profiles ADD COLUMN country TEXT");
   const shopIdMissing = !cols.includes('shop_id');
   if (shopIdMissing)                   db.exec("ALTER TABLE profiles ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL");
+  if (!cols.includes('portfolio_id'))  db.exec("ALTER TABLE profiles ADD COLUMN portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE SET NULL");
 
   // Migrate watches columns
   const wcols = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
@@ -160,13 +168,73 @@ function deleteShop(id) {
 
 function listProfilesForShop(shopId) {
   return db.prepare(`
-    SELECT p.*, COUNT(w.id) AS watch_count
+    SELECT p.*, COUNT(w.id) AS watch_count,
+           pt.name AS portfolio_name
     FROM profiles p
     LEFT JOIN watches w ON w.profile_id = p.id
+    LEFT JOIN portfolios pt ON pt.id = p.portfolio_id
     WHERE p.shop_id = ?
     GROUP BY p.id
     ORDER BY p.created_at DESC
   `).all(shopId);
+}
+
+function listIndividualProfilesForShop(shopId) {
+  return db.prepare(`
+    SELECT p.*, COUNT(w.id) AS watch_count
+    FROM profiles p
+    LEFT JOIN watches w ON w.profile_id = p.id
+    WHERE p.shop_id = ? AND p.portfolio_id IS NULL
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+  `).all(shopId);
+}
+
+// ── Portfolios ─────────────────────────────────────────────────────────────
+
+function listPortfolios(shopId) {
+  return db.prepare(`
+    SELECT pt.*, COUNT(p.id) AS client_count
+    FROM portfolios pt
+    LEFT JOIN profiles p ON p.portfolio_id = pt.id
+    WHERE pt.shop_id = ?
+    GROUP BY pt.id
+    ORDER BY pt.name ASC
+  `).all(shopId);
+}
+
+function getPortfolio(id) {
+  return db.prepare(`
+    SELECT pt.*, s.name AS shop_name
+    FROM portfolios pt
+    LEFT JOIN shops s ON s.id = pt.shop_id
+    WHERE pt.id = ?
+  `).get(id);
+}
+
+function createPortfolio({ name, shop_id }) {
+  const result = db.prepare('INSERT INTO portfolios (name, shop_id) VALUES (?, ?)').run(name, Number(shop_id));
+  return result.lastInsertRowid;
+}
+
+function updatePortfolio(id, { name }) {
+  if (!name) return;
+  db.prepare('UPDATE portfolios SET name = ? WHERE id = ?').run(name, id);
+}
+
+function deletePortfolio(id) {
+  db.prepare('DELETE FROM portfolios WHERE id = ?').run(id);
+}
+
+function listProfilesForPortfolio(portfolioId) {
+  return db.prepare(`
+    SELECT p.*, COUNT(w.id) AS watch_count
+    FROM profiles p
+    LEFT JOIN watches w ON w.profile_id = p.id
+    WHERE p.portfolio_id = ?
+    GROUP BY p.id
+    ORDER BY p.created_at DESC
+  `).all(portfolioId);
 }
 
 // ── Profiles ───────────────────────────────────────────────────────────────
@@ -192,23 +260,23 @@ function getProfile(id) {
 }
 
 function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-                          title, first_name, last_name, gender, dob, postal_code, city, country, shop_id }) {
+                          title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id }) {
   const result = db.prepare(`
     INSERT INTO profiles
       (name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-       title, first_name, last_name, gender, dob, postal_code, city, country, shop_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(name, email, address ?? null, subscriber_id ?? null, pp_urn ?? null,
          photo_path ?? null, id_card_path ?? null,
          title ?? null, first_name ?? null, last_name ?? null,
          gender ?? null, dob ?? null, postal_code ?? null, city ?? null, country ?? null,
-         shop_id ?? null);
+         shop_id ?? null, portfolio_id ?? null);
   return result.lastInsertRowid;
 }
 
 function updateProfile(id, updates) {
   const FIELDS = ['name','email','address','subscriber_id','pp_urn','photo_path','id_card_path',
-                  'title','first_name','last_name','gender','dob','postal_code','city','country','shop_id'];
+                  'title','first_name','last_name','gender','dob','postal_code','city','country','shop_id','portfolio_id'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {
@@ -331,7 +399,8 @@ function getStats() {
 module.exports = {
   init,
   getAdminHash, setAdminPassword,
-  listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop,
+  listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
+  listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio,
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,
   listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,

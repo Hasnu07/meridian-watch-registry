@@ -29,6 +29,13 @@ router.get('/:id', (req, res) => {
   res.json({ ...shop, profiles: db.listProfilesForShop(req.params.id) });
 });
 
+// GET /api/shops/:id/individual-clients
+router.get('/:id/individual-clients', (req, res) => {
+  const shop = db.getShop(req.params.id);
+  if (!shop) return res.status(404).json({ error: 'Not found' });
+  res.json(db.listIndividualProfilesForShop(req.params.id));
+});
+
 // PUT /api/shops/:id
 router.put('/:id', (req, res) => {
   const shop = db.getShop(req.params.id);
