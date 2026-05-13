@@ -32,7 +32,8 @@ router.get('/', (req, res) => {
     const PROFILES = [
       { old_id: 2, name: 'Rodriguez Martine Jesus', email: 'rodriguezmartinejesus23@gmail.com',
         address: 'AVDA. DE NOVELDA 37', subscriber_id: '659383/SPA', pp_urn: '249496',
-        photo_path: null, id_card_path: null,
+        photo_path:   'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778669461/meridian/profiles/photos/file.jpg',
+        id_card_path: 'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778669463/meridian/profiles/id-cards/file.png',
         title: 'Mr.', first_name: 'Jesús', last_name: 'Rodríguez Martínez',
         gender: 'M', dob: 'April 14, 1985', postal_code: '03205', city: 'Elche', country: 'Spain',
         created_at: '2026-05-12 11:34:24' },
@@ -44,7 +45,8 @@ router.get('/', (req, res) => {
         created_at: '2026-05-12 12:04:32' },
       { old_id: 6, name: 'Ummay Rabab Abbas', email: 'ummayrabababbas@gmail.com',
         address: 'Creek harbour Dubai', subscriber_id: null, pp_urn: null,
-        photo_path: null, id_card_path: null,
+        photo_path:   'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778669464/meridian/profiles/photos/file.jpg',
+        id_card_path: 'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778669465/meridian/profiles/id-cards/file.jpg',
         title: 'Ms.', first_name: null, last_name: null,
         gender: null, dob: null, postal_code: null, city: null, country: null,
         created_at: '2026-05-12 12:07:28' },
@@ -71,9 +73,9 @@ router.get('/', (req, res) => {
     `);
 
     const WATCHES = [
-      { old_profile: 2, model: 'Nautilus 7118/1200R-001',             serial_number: '7839152/6846200',  source: 'Company', purchase_date: null, price: null, reference_number: null, notes: 'Subscriber ID: 659383/SPA\nPP URN: 249496',                        image_path: null, movement_number: null, case_number: null, created_at: '2026-05-12 11:36:21' },
-      { old_profile: 2, model: 'Calatrava 4997/200R-001',             serial_number: '7764081/6788023',  source: 'Company', purchase_date: null, price: null, reference_number: null, notes: 'Subscriber ID: 659383/SPA\nPP URN: 249496 | Patek Identification', image_path: null, movement_number: null, case_number: null, created_at: '2026-05-12 11:37:23' },
-      { old_profile: 5, model: 'Patek Philippe Twenty~4 7300/1200A-011', serial_number: '730O/1200A-011', source: 'Company', purchase_date: null, price: null, reference_number: '7300/1200A-011', notes: null, image_path: null, movement_number: null, case_number: null, created_at: '2026-05-12 12:06:04' },
+      { old_profile: 2, model: 'Nautilus 7118/1200R-001',                serial_number: '7839152/6846200', source: 'Company', purchase_date: null, price: null, reference_number: null,           notes: 'Subscriber ID: 659383/SPA\nPP URN: 249496',                        image_path: 'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778669466/meridian/watches/file.jpg', movement_number: null, case_number: null, created_at: '2026-05-12 11:36:21' },
+      { old_profile: 2, model: 'Calatrava 4997/200R-001',                serial_number: '7764081/6788023', source: 'Company', purchase_date: null, price: null, reference_number: null,           notes: 'Subscriber ID: 659383/SPA\nPP URN: 249496 | Patek Identification', image_path: 'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778669467/meridian/watches/file.jpg', movement_number: null, case_number: null, created_at: '2026-05-12 11:37:23' },
+      { old_profile: 5, model: 'Patek Philippe Twenty~4 7300/1200A-011', serial_number: '730O/1200A-011',  source: 'Company', purchase_date: null, price: null, reference_number: '7300/1200A-011', notes: null,                                                               image_path: 'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778669468/meridian/watches/file.jpg', movement_number: null, case_number: null, created_at: '2026-05-12 12:06:04' },
     ];
 
     for (const w of WATCHES) {
@@ -84,8 +86,17 @@ router.get('/', (req, res) => {
       );
     }
 
+    // Restore company docs
+    db.exec("DELETE FROM company_docs");
+    db.prepare("INSERT INTO company_docs (profile_id, shop_name, doc_path, created_at) VALUES (?,?,?,?)").run(
+      idMap[2],
+      'UNIÖN SUIZA',
+      'https://res.cloudinary.com/dlgqomrmf/image/upload/v1778669470/meridian/company-docs/file.pdf',
+      '2026-05-12 11:42:07'
+    );
+
     db.close();
-    res.json({ ok: true, profiles_inserted: PROFILES.length, watches_inserted: WATCHES.length, id_map: idMap });
+    res.json({ ok: true, profiles_inserted: PROFILES.length, watches_inserted: WATCHES.length, company_docs_inserted: 1, id_map: idMap });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
