@@ -2,35 +2,20 @@
 
 const express = require('express');
 const path    = require('path');
-const fs      = require('fs');
 const multer  = require('multer');
 const db      = require('../db');
-const { UPLOADS_DIR } = require('../config');
+const storage = require('../lib/storage');
 
 const router = express.Router({ mergeParams: true });
 
-const storage = multer.diskStorage({
-  destination: UPLOADS_DIR,
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `cdoc_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
-
 const upload = multer({
-  storage,
-  limits: { fileSize: 20 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
     cb(null, allowed.includes(path.extname(file.originalname).toLowerCase()));
   },
 });
-
-function unlinkOld(storedPath) {
-  if (storedPath?.startsWith('/uploads/')) {
-    fs.unlink(path.join(UPLOADS_DIR, path.basename(storedPath)), () => {});
-  }
-}
 
 // GET /api/profiles/:id/company-docs
 router.get('/', (req, res) => {
@@ -40,7 +25,7 @@ router.get('/', (req, res) => {
 
 // POST /api/profiles/:id/company-docs
 router.post('/', (req, res) => {
-  upload.single('document')(req, res, (err) => {
+  upload.single('document')(req, res, async (err) => {
     if (err) {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 20 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
@@ -50,21 +35,26 @@ router.post('/', (req, res) => {
     if (!shop_name?.trim()) return res.status(400).json({ error: 'shop_name is required' });
     if (!req.file) return res.status(400).json({ error: 'Document file is required' });
 
-    const docId = db.createCompanyDoc(req.params.id, {
-      shop_name: shop_name.trim(),
-      doc_path:  `/uploads/${req.file.filename}`,
-    });
-    res.status(201).json(db.getCompanyDoc(docId));
+    try {
+      const docUrl = await storage.uploadFile(req.file, 'meridian/company-docs');
+      const docId = db.createCompanyDoc(req.params.id, {
+        shop_name: shop_name.trim(),
+        doc_path:  docUrl,
+      });
+      res.status(201).json(db.getCompanyDoc(docId));
+    } catch (e) {
+      return res.status(500).json({ error: e.message || 'Upload failed' });
+    }
   });
 });
 
 // DELETE /api/profiles/:id/company-docs/:docId
-router.delete('/:docId', (req, res) => {
+router.delete('/:docId', async (req, res) => {
   const doc = db.getCompanyDoc(req.params.docId);
   if (!doc || String(doc.profile_id) !== String(req.params.id)) {
     return res.status(404).json({ error: 'Not found' });
   }
-  unlinkOld(doc.doc_path);
+  await storage.deleteFile(doc.doc_path);
   db.deleteCompanyDoc(req.params.docId);
   res.json({ ok: true });
 });

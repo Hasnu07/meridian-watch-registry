@@ -2,47 +2,26 @@
 
 const express = require('express');
 const path    = require('path');
-const fs      = require('fs');
 const multer  = require('multer');
 const db      = require('../db');
-const { UPLOADS_DIR } = require('../config');
+const storage = require('../lib/storage');
 
 const router = express.Router();
 
 const ALLOWED = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
 
-const storage = multer.diskStorage({
-  destination: UPLOADS_DIR,
-  filename: (req, file, cb) => {
-    const ext  = path.extname(file.originalname).toLowerCase();
-    const name = `${file.fieldname}_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
-    cb(null, name);
-  },
-});
-
 const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, ALLOWED.includes(path.extname(file.originalname).toLowerCase())),
 });
 
-// handles photo + id_card for profiles, and image for watches under profiles
 const profileUpload = upload.fields([
   { name: 'photo',   maxCount: 1 },
   { name: 'id_card', maxCount: 1 },
 ]);
 
 const watchUpload = upload.single('image');
-
-function filePath(file) {
-  return file ? `/uploads/${file.filename}` : undefined;
-}
-
-function unlinkOld(storedPath) {
-  if (storedPath?.startsWith('/uploads/')) {
-    fs.unlink(path.join(UPLOADS_DIR, path.basename(storedPath)), () => {});
-  }
-}
 
 // GET /api/profiles
 router.get('/', (req, res) => {
@@ -51,7 +30,7 @@ router.get('/', (req, res) => {
 
 // POST /api/profiles
 router.post('/', (req, res) => {
-  profileUpload(req, res, (err) => {
+  profileUpload(req, res, async (err) => {
     if (err) {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
@@ -61,12 +40,15 @@ router.post('/', (req, res) => {
     if (!name || !email) return res.status(400).json({ error: 'name and email required' });
 
     try {
+      const photoUrl   = req.files?.photo?.[0]   ? await storage.uploadFile(req.files.photo[0],   'meridian/profiles/photos')   : null;
+      const idCardUrl  = req.files?.id_card?.[0] ? await storage.uploadFile(req.files.id_card[0], 'meridian/profiles/id-cards') : null;
+
       const id = db.createProfile({
         name, email, address,
         subscriber_id: subscriber_id || null,
         pp_urn:        pp_urn        || null,
-        photo_path:    filePath(req.files?.photo?.[0]),
-        id_card_path:  filePath(req.files?.id_card?.[0]),
+        photo_path:    photoUrl,
+        id_card_path:  idCardUrl,
         title:         title        || null,
         first_name:    first_name   || null,
         last_name:     last_name    || null,
@@ -93,8 +75,8 @@ router.get('/:id', (req, res) => {
 });
 
 // PUT /api/profiles/:id
-router.put('/:id', (req, res, next) => {
-  profileUpload(req, res, (err) => {
+router.put('/:id', (req, res) => {
+  profileUpload(req, res, async (err) => {
     if (err) {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
@@ -114,16 +96,16 @@ router.put('/:id', (req, res, next) => {
       updates.shop_id = req.body.shop_id ? Number(req.body.shop_id) : null;
     }
 
-    if (req.files?.photo?.[0]) {
-      unlinkOld(profile.photo_path);
-      updates.photo_path = filePath(req.files.photo[0]);
-    }
-    if (req.files?.id_card?.[0]) {
-      unlinkOld(profile.id_card_path);
-      updates.id_card_path = filePath(req.files.id_card[0]);
-    }
-
     try {
+      if (req.files?.photo?.[0]) {
+        await storage.deleteFile(profile.photo_path);
+        updates.photo_path = await storage.uploadFile(req.files.photo[0], 'meridian/profiles/photos');
+      }
+      if (req.files?.id_card?.[0]) {
+        await storage.deleteFile(profile.id_card_path);
+        updates.id_card_path = await storage.uploadFile(req.files.id_card[0], 'meridian/profiles/id-cards');
+      }
+
       db.updateProfile(req.params.id, updates);
       res.json(db.getProfile(req.params.id));
     } catch (e) {
@@ -134,11 +116,11 @@ router.put('/:id', (req, res, next) => {
 });
 
 // DELETE /api/profiles/:id
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const profile = db.getProfile(req.params.id);
   if (!profile) return res.status(404).json({ error: 'Not found' });
-  unlinkOld(profile.photo_path);
-  unlinkOld(profile.id_card_path);
+  await storage.deleteFile(profile.photo_path);
+  await storage.deleteFile(profile.id_card_path);
   db.deleteProfile(req.params.id);
   res.json({ ok: true });
 });
@@ -149,9 +131,9 @@ router.get('/:id/watches', (req, res) => {
   res.json(db.listWatchesForProfile(req.params.id));
 });
 
-// POST /api/profiles/:id/watches  (multipart — supports watch image)
+// POST /api/profiles/:id/watches
 router.post('/:id/watches', (req, res) => {
-  watchUpload(req, res, (err) => {
+  watchUpload(req, res, async (err) => {
     if (err) {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
@@ -161,12 +143,17 @@ router.post('/:id/watches', (req, res) => {
     if (!model || !source) return res.status(400).json({ error: 'model and source required' });
     if (!['Company', 'Dealer'].includes(source)) return res.status(400).json({ error: 'source must be Company or Dealer' });
 
-    const id = db.createWatch(req.params.id, {
-      ...req.body,
-      price:      req.body.price != null && req.body.price !== '' ? Number(req.body.price) : null,
-      image_path: filePath(req.file),
-    });
-    res.status(201).json(db.getWatch(id));
+    try {
+      const imageUrl = req.file ? await storage.uploadFile(req.file, 'meridian/watches') : null;
+      const id = db.createWatch(req.params.id, {
+        ...req.body,
+        price:      req.body.price != null && req.body.price !== '' ? Number(req.body.price) : null,
+        image_path: imageUrl,
+      });
+      res.status(201).json(db.getWatch(id));
+    } catch (e) {
+      return res.status(500).json({ error: e.message || 'Database error' });
+    }
   });
 });
 
