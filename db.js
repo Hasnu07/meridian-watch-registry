@@ -97,7 +97,7 @@ function init() {
 
   // Migrate portfolios columns
   const ptcols = db.prepare("PRAGMA table_info(portfolios)").all().map(r => r.name);
-  if (!ptcols.includes('share_token')) db.exec("ALTER TABLE portfolios ADD COLUMN share_token TEXT UNIQUE");
+  if (!ptcols.includes('share_token')) db.exec("ALTER TABLE portfolios ADD COLUMN share_token TEXT");
 
   // Migrate watches columns
   const wcols = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
