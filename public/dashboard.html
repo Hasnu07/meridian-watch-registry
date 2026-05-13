@@ -1861,6 +1861,7 @@ async function openPortfolioDetail(id) {
   showPage('portfolio-detail');
   const portfolio = await api('GET', `/api/portfolios/${id}`);
 
+  const clients = portfolio.clients || [];
   const totalPortfolioWatches = clients.reduce((sum, p) => sum + (p.watch_count || 0), 0);
 
   document.getElementById('portfolioDetailHeader').innerHTML = `
@@ -1890,7 +1891,6 @@ async function openPortfolioDetail(id) {
     </div>
   `;
 
-  const clients = portfolio.clients || [];
   document.getElementById('portfolioClientsBody').innerHTML = clients.length
     ? clients.map(p => clientRow(p)).join('')
     : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients in this portfolio yet.</td></tr>`;
