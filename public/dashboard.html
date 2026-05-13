@@ -128,7 +128,7 @@
         <!-- Stats bento -->
         <div class="grid grid-cols-1 max-w-[220px] gap-4 mb-10">
           <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
-            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Portfolios</span>
+            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Shops</span>
             <div><div id="s-shops" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
           </div>
         </div>
@@ -144,7 +144,7 @@
                 <tr class="bg-surface-container-low border-b border-outline-variant/10">
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Shop</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Address</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Clients</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Portfolios</th>
                   <th class="px-6 py-4"></th>
                 </tr>
               </thead>
@@ -882,9 +882,10 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 // ── Dashboard ──────────────────────────────────────────────────────────────
 async function loadDashboard() {
   const shops = await api('GET', '/api/shops');
-  const portfolioCounts = await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)));
-  const totalPortfolios = portfolioCounts.reduce((sum, pts) => sum + pts.length, 0);
-  document.getElementById('s-shops').textContent = totalPortfolios.toLocaleString();
+  document.getElementById('s-shops').textContent = shops.length.toLocaleString();
+  const portfoliosPerShop = await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)));
+  const portfolioMap = {};
+  shops.forEach((s, i) => { portfolioMap[s.id] = portfoliosPerShop[i].length; });
   document.getElementById('recentShops').innerHTML = shops.length ? shops.map(s => `
     <tr class="tbl-row cursor-pointer" onclick="openShopDetail(${s.id})">
       <td class="px-6 py-5">
@@ -896,7 +897,7 @@ async function loadDashboard() {
         </div>
       </td>
       <td class="px-6 py-5 text-on-surface-variant text-xs whitespace-pre-line leading-relaxed">${esc(s.address || '—')}</td>
-      <td class="px-6 py-5 text-on-surface-variant text-sm">${s.client_count} client${s.client_count !== 1 ? 's' : ''}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${portfolioMap[s.id] || 0} portfolio${(portfolioMap[s.id] || 0) !== 1 ? 's' : ''}</td>
       <td class="px-6 py-5 text-right">
         <button onclick="event.stopPropagation(); openShopDetail(${s.id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline px-3 py-1 border border-transparent hover:border-primary/20 rounded transition-all">View</button>
       </td>
