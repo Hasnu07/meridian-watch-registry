@@ -132,7 +132,7 @@ function listShops() {
     FROM shops s
     LEFT JOIN profiles p ON p.shop_id = s.id
     GROUP BY s.id
-    ORDER BY s.name ASC
+    ORDER BY client_count DESC, s.name ASC
   `).all();
 }
 
