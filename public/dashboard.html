@@ -126,26 +126,10 @@
           <p class="text-on-surface-variant text-sm mt-2">Overview of your Meridian horology portfolio and client registry.</p>
         </div>
         <!-- Stats bento -->
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
+        <div class="grid grid-cols-1 max-w-[220px] gap-4 mb-10">
           <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
-            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Clients</span>
-            <div><div id="s-profiles" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
-          </div>
-          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
-            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Watches</span>
-            <div><div id="s-watches" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
-          </div>
-          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
-            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Company Pieces</span>
-            <div><div id="s-company" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
-          </div>
-          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
-            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Dealer Pieces</span>
-            <div><div id="s-dealer" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
-          </div>
-          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px] border-primary/20">
-            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-primary">Portfolio Value</span>
-            <div><div id="s-value" class="text-2xl font-playfair font-medium text-on-surface">—</div></div>
+            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Shops</span>
+            <div><div id="s-shops" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
           </div>
         </div>
         <!-- Recent shops -->
@@ -897,14 +881,8 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 async function loadDashboard() {
-  const stats = await api('GET', '/api/stats');
-  document.getElementById('s-profiles').textContent = stats.total_profiles.toLocaleString();
-  document.getElementById('s-watches').textContent  = stats.total_watches.toLocaleString();
-  document.getElementById('s-company').textContent  = stats.company_watches.toLocaleString();
-  document.getElementById('s-dealer').textContent   = stats.dealer_watches.toLocaleString();
-  document.getElementById('s-value').textContent    = fmt.money(stats.total_value);
-
   const shops = await api('GET', '/api/shops');
+  document.getElementById('s-shops').textContent = shops.length.toLocaleString();
   document.getElementById('recentShops').innerHTML = shops.length ? shops.map(s => `
     <tr class="tbl-row cursor-pointer" onclick="openShopDetail(${s.id})">
       <td class="px-6 py-5">
