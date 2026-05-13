@@ -69,6 +69,13 @@ function init() {
       created_at  DATETIME DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS clients (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL,
+      photo_path TEXT,
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS company_docs (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -94,6 +101,17 @@ function init() {
   const shopIdMissing = !cols.includes('shop_id');
   if (shopIdMissing)                   db.exec("ALTER TABLE profiles ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL");
   if (!cols.includes('portfolio_id'))  db.exec("ALTER TABLE profiles ADD COLUMN portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE SET NULL");
+  if (!cols.includes('client_id')) {
+    db.exec("ALTER TABLE profiles ADD COLUMN client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL");
+    // Backfill: create a master client record for every existing profile
+    const orphans = db.prepare("SELECT id, name, photo_path FROM profiles").all();
+    const insClient  = db.prepare("INSERT INTO clients (name, photo_path) VALUES (?, ?)");
+    const linkClient = db.prepare("UPDATE profiles SET client_id = ? WHERE id = ?");
+    for (const p of orphans) {
+      const cid = insClient.run(p.name, p.photo_path).lastInsertRowid;
+      linkClient.run(cid, p.id);
+    }
+  }
 
   // Migrate portfolios columns
   const ptcols = db.prepare("PRAGMA table_info(portfolios)").all().map(r => r.name);
@@ -117,6 +135,19 @@ function init() {
     const unionSuiza = db.prepare("SELECT id FROM shops WHERE name = 'UNIÖN SUIZA'").get();
     if (unionSuiza) {
       db.prepare("UPDATE profiles SET shop_id = ? WHERE shop_id IS NULL").run(unionSuiza.id);
+    }
+  }
+
+  // Always backfill: create master client for any profile still missing client_id
+  {
+    const orphans2 = db.prepare("SELECT id, name, photo_path FROM profiles WHERE client_id IS NULL").all();
+    if (orphans2.length) {
+      const insC2 = db.prepare("INSERT INTO clients (name, photo_path) VALUES (?, ?)");
+      const lnkC2 = db.prepare("UPDATE profiles SET client_id = ? WHERE id = ?");
+      for (const p of orphans2) {
+        const cid = insC2.run(p.name, p.photo_path).lastInsertRowid;
+        lnkC2.run(cid, p.id);
+      }
     }
   }
 
@@ -265,6 +296,64 @@ function listProfilesForPortfolio(portfolioId) {
   `).all(portfolioId);
 }
 
+// ── Master Clients ─────────────────────────────────────────────────────────
+
+function listClients() {
+  return db.prepare(`
+    SELECT c.*, COUNT(DISTINCT p.id) AS membership_count, COUNT(DISTINCT w.id) AS watch_count
+    FROM clients c
+    LEFT JOIN profiles p ON p.client_id = c.id
+    LEFT JOIN watches w  ON w.profile_id = p.id
+    GROUP BY c.id
+    ORDER BY c.name ASC
+  `).all();
+}
+
+function getClient(id) {
+  return db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+}
+
+function getClientWithMemberships(id) {
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  if (!client) return null;
+  const memberships = db.prepare(`
+    SELECT p.*, s.name AS shop_name, s.id AS shop_id_val, pt.name AS portfolio_name
+    FROM profiles p
+    LEFT JOIN shops s      ON s.id  = p.shop_id
+    LEFT JOIN portfolios pt ON pt.id = p.portfolio_id
+    WHERE p.client_id = ?
+    ORDER BY p.created_at ASC
+  `).all(id);
+  memberships.forEach(m => {
+    m.watches      = db.prepare('SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
+    m.company_docs = db.prepare('SELECT * FROM company_docs WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
+  });
+  return { ...client, memberships };
+}
+
+function createClient({ name, photo_path }) {
+  const result = db.prepare('INSERT INTO clients (name, photo_path) VALUES (?, ?)').run(name, photo_path ?? null);
+  return result.lastInsertRowid;
+}
+
+function updateClient(id, updates) {
+  const fields = [], values = [];
+  if (updates.name       !== undefined) { fields.push('name = ?');       values.push(updates.name); }
+  if (updates.photo_path !== undefined) { fields.push('photo_path = ?'); values.push(updates.photo_path); }
+  if (!fields.length) return;
+  values.push(id);
+  db.prepare(`UPDATE clients SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  // Keep denormalised copies on profiles in sync
+  if (updates.name       !== undefined) db.prepare("UPDATE profiles SET name       = ? WHERE client_id = ?").run(updates.name, id);
+  if (updates.photo_path !== undefined) db.prepare("UPDATE profiles SET photo_path = ? WHERE client_id = ?").run(updates.photo_path, id);
+}
+
+function deleteClient(id) {
+  // Delete all profile memberships (which cascade-deletes their watches via FK)
+  db.prepare('DELETE FROM profiles WHERE client_id = ?').run(id);
+  db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+}
+
 // ── Profiles ───────────────────────────────────────────────────────────────
 
 function listProfiles() {
@@ -288,23 +377,23 @@ function getProfile(id) {
 }
 
 function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-                          title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id }) {
+                          title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id, client_id }) {
   const result = db.prepare(`
     INSERT INTO profiles
       (name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-       title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id, client_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(name, email, address ?? null, subscriber_id ?? null, pp_urn ?? null,
          photo_path ?? null, id_card_path ?? null,
          title ?? null, first_name ?? null, last_name ?? null,
          gender ?? null, dob ?? null, postal_code ?? null, city ?? null, country ?? null,
-         shop_id ?? null, portfolio_id ?? null);
+         shop_id ?? null, portfolio_id ?? null, client_id ?? null);
   return result.lastInsertRowid;
 }
 
 function updateProfile(id, updates) {
   const FIELDS = ['name','email','address','subscriber_id','pp_urn','photo_path','id_card_path',
-                  'title','first_name','last_name','gender','dob','postal_code','city','country','shop_id','portfolio_id'];
+                  'title','first_name','last_name','gender','dob','postal_code','city','country','shop_id','portfolio_id','client_id'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {
@@ -429,6 +518,7 @@ module.exports = {
   getAdminHash, setAdminPassword,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
+  listClients, getClient, getClientWithMemberships, createClient, updateClient, deleteClient,
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,
   listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,

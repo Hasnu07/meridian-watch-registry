@@ -36,15 +36,35 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: msg });
     }
     const { name, email, address, subscriber_id, pp_urn,
-            title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id } = req.body;
-    if (!name || !email) return res.status(400).json({ error: 'name and email required' });
+            title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id, client_id } = req.body;
+
+    // If linking to an existing master client, name + photo come from that record
+    let resolvedName      = name;
+    let resolvedPhotoPath = null;
+    if (client_id) {
+      const master = db.getClient(Number(client_id));
+      if (!master) return res.status(400).json({ error: 'Master client not found' });
+      resolvedName      = master.name;
+      resolvedPhotoPath = master.photo_path;
+    }
+    if (!resolvedName || !email) return res.status(400).json({ error: 'name and email required' });
 
     try {
-      const photoUrl   = req.files?.photo?.[0]   ? await storage.uploadFile(req.files.photo[0],   'meridian/profiles/photos')   : null;
+      const photoUrl   = !client_id && req.files?.photo?.[0]
+        ? await storage.uploadFile(req.files.photo[0], 'meridian/profiles/photos')
+        : resolvedPhotoPath;
       const idCardUrl  = req.files?.id_card?.[0] ? await storage.uploadFile(req.files.id_card[0], 'meridian/profiles/id-cards') : null;
 
+      // Auto-create master client record when creating a standalone profile (no existing client_id)
+      let resolvedClientId = client_id ? Number(client_id) : null;
+      if (!resolvedClientId) {
+        resolvedClientId = db.createClient({ name: resolvedName, photo_path: photoUrl });
+      }
+
       const id = db.createProfile({
-        name, email, address,
+        name:          resolvedName,
+        email,
+        address,
         subscriber_id: subscriber_id || null,
         pp_urn:        pp_urn        || null,
         photo_path:    photoUrl,
@@ -59,6 +79,7 @@ router.post('/', (req, res) => {
         country:       country      || null,
         shop_id:       shop_id      ? Number(shop_id)      : null,
         portfolio_id:  portfolio_id ? Number(portfolio_id) : null,
+        client_id:     resolvedClientId,
       });
       res.status(201).json(db.getProfile(id));
     } catch (e) {
@@ -87,9 +108,11 @@ router.put('/:id', (req, res) => {
     if (!profile) return res.status(404).json({ error: 'Not found' });
 
     const updates = {};
-    const TEXT_FIELDS = ['name','email','address','subscriber_id','pp_urn',
-                         'title','first_name','last_name','gender','dob',
-                         'postal_code','city','country'];
+    // If profile is linked to a master client, name + photo are managed there — skip them here
+    const isLinked = !!profile.client_id;
+    const TEXT_FIELDS = isLinked
+      ? ['email','address','subscriber_id','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country']
+      : ['name','email','address','subscriber_id','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country'];
     TEXT_FIELDS.forEach(f => {
       if (req.body[f] !== undefined) updates[f] = req.body[f] || null;
     });
@@ -101,7 +124,7 @@ router.put('/:id', (req, res) => {
     }
 
     try {
-      if (req.files?.photo?.[0]) {
+      if (!isLinked && req.files?.photo?.[0]) {
         await storage.deleteFile(profile.photo_path);
         updates.photo_path = await storage.uploadFile(req.files.photo[0], 'meridian/profiles/photos');
       }
