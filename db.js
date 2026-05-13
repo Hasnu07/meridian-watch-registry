@@ -194,9 +194,12 @@ function listIndividualProfilesForShop(shopId) {
 
 function listPortfolios(shopId) {
   return db.prepare(`
-    SELECT pt.*, COUNT(p.id) AS client_count
+    SELECT pt.*,
+           COUNT(DISTINCT p.id) AS client_count,
+           COUNT(DISTINCT w.id) AS watch_count
     FROM portfolios pt
     LEFT JOIN profiles p ON p.portfolio_id = pt.id
+    LEFT JOIN watches w ON w.profile_id = p.id
     WHERE pt.shop_id = ?
     GROUP BY pt.id
     ORDER BY pt.name ASC
