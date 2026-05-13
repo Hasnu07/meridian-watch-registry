@@ -145,23 +145,23 @@
             <div><div id="s-value" class="text-2xl font-playfair font-medium text-on-surface">—</div></div>
           </div>
         </div>
-        <!-- Recent clients -->
+        <!-- Recent shops -->
         <div class="glass-surface rounded-xl overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
-            <h3 class="font-playfair text-xl text-on-surface">Recent Clients</h3>
-            <button class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline transition-all" data-page="profiles">View All Clients</button>
+            <h3 class="font-playfair text-xl text-on-surface">Shops</h3>
+            <button class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline transition-all" data-page="shops">View All Shops</button>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left">
               <thead>
                 <tr class="bg-surface-container-low border-b border-outline-variant/10">
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Watches</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Added</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Shop</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Address</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Clients</th>
                   <th class="px-6 py-4"></th>
                 </tr>
               </thead>
-              <tbody id="recentProfiles" class="divide-y divide-white/[0.04]"></tbody>
+              <tbody id="recentShops" class="divide-y divide-white/[0.04]"></tbody>
             </table>
           </div>
         </div>
@@ -827,25 +827,24 @@ async function loadDashboard() {
   document.getElementById('s-dealer').textContent   = stats.dealer_watches.toLocaleString();
   document.getElementById('s-value').textContent    = fmt.money(stats.total_value);
 
-  const profiles = await api('GET', '/api/profiles');
-  document.getElementById('recentProfiles').innerHTML = profiles.slice(0, 8).map(p => `
-    <tr class="tbl-row">
+  const shops = await api('GET', '/api/shops');
+  document.getElementById('recentShops').innerHTML = shops.length ? shops.map(s => `
+    <tr class="tbl-row cursor-pointer" onclick="openShopDetail(${s.id})">
       <td class="px-6 py-5">
-        <div class="flex items-center gap-4">
-          ${avatarHtml(p.name, p.photo_path)}
-          <div>
-            <div class="text-on-surface font-medium text-sm">${esc(p.name)}</div>
-            <div class="text-on-surface-variant text-xs mt-0.5">${esc(p.email)}</div>
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-primary text-[18px]">store</span>
           </div>
+          <span class="text-on-surface font-medium text-sm">${esc(s.name)}</span>
         </div>
       </td>
-      <td class="px-6 py-5 text-on-surface-variant text-sm">${p.watch_count} piece${p.watch_count !== 1 ? 's' : ''}</td>
-      <td class="px-6 py-5 text-on-surface-variant text-sm">${fmt.date(p.created_at.split(' ')[0])}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-xs whitespace-pre-line leading-relaxed">${esc(s.address || '—')}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${s.client_count} client${s.client_count !== 1 ? 's' : ''}</td>
       <td class="px-6 py-5 text-right">
-        <button onclick="openProfileDetail(${p.id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline px-3 py-1 border border-transparent hover:border-primary/20 rounded transition-all">View</button>
+        <button onclick="event.stopPropagation(); openShopDetail(${s.id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline px-3 py-1 border border-transparent hover:border-primary/20 rounded transition-all">View</button>
       </td>
     </tr>
-  `).join('') || `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients yet. <button onclick="openAddProfile()" class="text-primary underline ml-1">Add your first client</button></td></tr>`;
+  `).join('') : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No shops yet.</td></tr>`;
 }
 
 // ── Profiles ───────────────────────────────────────────────────────────────
