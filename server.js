@@ -48,6 +48,21 @@ app.use('/api/profiles',                          requireAuth, require('./routes
 app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes/company-docs'));
 app.use('/api/watches',                           requireAuth, require('./routes/watches'));
 
+// ── Public portfolio share ────────────────────────────────────────────────
+app.get('/p/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'portfolio-share.html'));
+});
+
+app.get('/api/share/:token', (req, res) => {
+  const portfolio = db.getPortfolioByToken(req.query.token || req.params.token);
+  if (!portfolio) return res.status(404).json({ error: 'Invalid or expired link' });
+  const clients = db.listProfilesForPortfolio(portfolio.id).map(p => ({
+    ...p,
+    watches: db.listWatchesForProfile(p.id),
+  }));
+  res.json({ portfolio, clients });
+});
+
 // Stats endpoint
 app.get('/api/stats', requireAuth, (req, res) => {
   res.json(db.getStats());

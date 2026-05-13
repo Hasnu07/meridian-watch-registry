@@ -61,10 +61,11 @@ function init() {
     );
 
     CREATE TABLE IF NOT EXISTS portfolios (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      name       TEXT NOT NULL,
-      shop_id    INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
-      created_at DATETIME DEFAULT (datetime('now'))
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL,
+      shop_id     INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+      share_token TEXT UNIQUE,
+      created_at  DATETIME DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS company_docs (
@@ -92,6 +93,10 @@ function init() {
   const shopIdMissing = !cols.includes('shop_id');
   if (shopIdMissing)                   db.exec("ALTER TABLE profiles ADD COLUMN shop_id INTEGER REFERENCES shops(id) ON DELETE SET NULL");
   if (!cols.includes('portfolio_id'))  db.exec("ALTER TABLE profiles ADD COLUMN portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE SET NULL");
+
+  // Migrate portfolios columns
+  const ptcols = db.prepare("PRAGMA table_info(portfolios)").all().map(r => r.name);
+  if (!ptcols.includes('share_token')) db.exec("ALTER TABLE portfolios ADD COLUMN share_token TEXT UNIQUE");
 
   // Migrate watches columns
   const wcols = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
@@ -227,6 +232,19 @@ function updatePortfolio(id, { name }) {
 
 function deletePortfolio(id) {
   db.prepare('DELETE FROM portfolios WHERE id = ?').run(id);
+}
+
+function setPortfolioToken(id, token) {
+  db.prepare('UPDATE portfolios SET share_token = ? WHERE id = ?').run(token, id);
+}
+
+function getPortfolioByToken(token) {
+  return db.prepare(`
+    SELECT pt.*, s.name AS shop_name
+    FROM portfolios pt
+    LEFT JOIN shops s ON s.id = pt.shop_id
+    WHERE pt.share_token = ?
+  `).get(token);
 }
 
 function listProfilesForPortfolio(portfolioId) {
@@ -403,7 +421,7 @@ module.exports = {
   init,
   getAdminHash, setAdminPassword,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
-  listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio,
+  listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,
   listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,

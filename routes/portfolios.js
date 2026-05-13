@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const crypto  = require('crypto');
 const db      = require('../db');
 
 const router = express.Router();
@@ -40,6 +41,15 @@ router.delete('/:id', (req, res) => {
   if (!db.getPortfolio(req.params.id)) return res.status(404).json({ error: 'Not found' });
   db.deletePortfolio(req.params.id);
   res.json({ ok: true });
+});
+
+// POST /api/portfolios/:id/generate-link  — create/rotate share token
+router.post('/:id/generate-link', (req, res) => {
+  const portfolio = db.getPortfolio(req.params.id);
+  if (!portfolio) return res.status(404).json({ error: 'Not found' });
+  const token = crypto.randomBytes(32).toString('hex');
+  db.setPortfolioToken(req.params.id, token);
+  res.json({ token, url: `/p/${token}` });
 });
 
 module.exports = router;

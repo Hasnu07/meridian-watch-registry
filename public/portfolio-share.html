@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meridian — Portfolio</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            background:                  '#16130b',
+            'surface-container-low':     '#1f1b13',
+            'surface-container':         '#231f17',
+            'surface-container-high':    '#2d2a21',
+            'surface-container-highest': '#38342b',
+            'surface-variant':           '#38342b',
+            'outline-variant':           '#4d4635',
+            outline:                     '#99907c',
+            primary:                     '#f2ca50',
+            'on-primary':                '#3c2f00',
+            'on-surface':                '#eae1d4',
+            'on-surface-variant':        '#d0c5af',
+            error:                       '#ffb4ab',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .font-playfair { font-family: 'Playfair Display', serif; }
+    .glass-surface { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+    .tbl-row { transition: background .15s; }
+    .tbl-row:hover { background: rgba(255,255,255,0.03); }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-['Inter'] antialiased min-h-screen">
+
+  <!-- Header -->
+  <header class="border-b border-outline-variant/15 px-8 py-5 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-playfair font-semibold text-primary tracking-wide">Meridian</h1>
+      <p class="text-[9px] uppercase tracking-[0.3em] text-outline mt-0.5">Elite Horology</p>
+    </div>
+    <span class="text-[10px] uppercase tracking-widest text-outline border border-outline-variant/30 px-3 py-1.5 rounded-full">Confidential</span>
+  </header>
+
+  <!-- Loading -->
+  <div id="loadingState" class="flex flex-col items-center justify-center py-32">
+    <div class="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
+    <p class="text-on-surface-variant text-sm">Loading portfolio…</p>
+  </div>
+
+  <!-- Error -->
+  <div id="errorState" class="hidden flex flex-col items-center justify-center py-32 text-center px-8">
+    <span class="material-symbols-outlined text-outline text-5xl mb-4">link_off</span>
+    <h2 class="font-playfair text-2xl text-on-surface mb-2">Invalid Link</h2>
+    <p class="text-on-surface-variant text-sm">This link is invalid or has been revoked.</p>
+  </div>
+
+  <!-- Content -->
+  <div id="content" class="hidden max-w-[1100px] mx-auto px-8 py-10">
+
+    <!-- Portfolio header -->
+    <div class="mb-8">
+      <p id="shopLabel" class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1"></p>
+      <h2 id="portfolioName" class="font-playfair text-5xl font-semibold text-on-surface"></h2>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 gap-4 max-w-xs mb-10">
+      <div class="glass-surface rounded-xl p-4 flex flex-col gap-1">
+        <span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">Clients</span>
+        <span id="statClients" class="font-playfair text-2xl text-on-surface">—</span>
+      </div>
+      <div class="glass-surface rounded-xl p-4 flex flex-col gap-1">
+        <span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">Watches</span>
+        <span id="statWatches" class="font-playfair text-2xl text-on-surface">—</span>
+      </div>
+    </div>
+
+    <!-- Clients -->
+    <div id="clientsList" class="space-y-6"></div>
+
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="fixed inset-0 z-50 hidden items-center justify-center cursor-zoom-out" style="background:rgba(0,0,0,.88);backdrop-filter:blur(8px)" onclick="this.classList.add('hidden');this.classList.remove('flex')">
+    <img id="lightboxImg" src="" class="max-w-[92vw] max-h-[92vh] rounded-xl shadow-2xl">
+  </div>
+
+<script>
+const token = location.pathname.split('/p/')[1];
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmt(v) {
+  return v != null && v !== '' ? '$' + Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : null;
+}
+function fmtDate(d) {
+  return d ? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : null;
+}
+function initials(n) {
+  return (n||'').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
+function openLightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  const lb = document.getElementById('lightbox');
+  lb.classList.remove('hidden'); lb.classList.add('flex');
+}
+
+async function load() {
+  try {
+    const res = await fetch(`/api/share/${token}`);
+    if (!res.ok) throw new Error();
+    const { portfolio, clients } = await res.json();
+
+    document.title = `Meridian — ${portfolio.name}`;
+    document.getElementById('shopLabel').textContent = portfolio.shop_name + ' · Portfolio';
+    document.getElementById('portfolioName').textContent = portfolio.name;
+
+    const totalWatches = clients.reduce((s, p) => s + p.watches.length, 0);
+    document.getElementById('statClients').textContent = clients.length;
+    document.getElementById('statWatches').textContent = totalWatches;
+
+    document.getElementById('clientsList').innerHTML = clients.length ? clients.map(p => `
+      <div class="glass-surface rounded-2xl overflow-hidden">
+        <!-- Client header -->
+        <div class="px-7 py-6 flex items-start gap-5 border-b border-outline-variant/10">
+          ${p.photo_path
+            ? `<div class="w-14 h-14 rounded-full border border-outline-variant/30 overflow-hidden flex-shrink-0"><img src="${esc(p.photo_path)}" class="w-full h-full object-cover" onclick="openLightbox('${esc(p.photo_path)}')" style="cursor:zoom-in"></div>`
+            : `<div class="w-14 h-14 rounded-full bg-surface-variant flex items-center justify-center text-primary font-semibold text-lg flex-shrink-0">${esc(initials(p.name))}</div>`
+          }
+          <div class="flex-1">
+            <h3 class="font-playfair text-2xl text-on-surface">${esc(p.name)}</h3>
+            <p class="text-on-surface-variant text-sm mt-0.5">${esc(p.email)}</p>
+            <div class="flex flex-wrap gap-x-8 gap-y-2 mt-3">
+              ${p.subscriber_id ? `<div><span class="text-[10px] uppercase tracking-widest text-outline">Subscriber ID</span><p class="text-sm font-mono text-on-surface">${esc(p.subscriber_id)}</p></div>` : ''}
+              ${p.pp_urn ? `<div><span class="text-[10px] uppercase tracking-widest text-outline">PP URN</span><p class="text-sm font-mono text-on-surface">${esc(p.pp_urn)}</p></div>` : ''}
+              ${p.address ? `<div><span class="text-[10px] uppercase tracking-widest text-outline">Address</span><p class="text-sm text-on-surface">${esc(p.address)}</p></div>` : ''}
+            </div>
+          </div>
+        </div>
+        <!-- Watches -->
+        ${p.watches.length ? `
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="border-b border-outline-variant/10" style="background:rgba(255,255,255,0.02)">
+                <th class="px-7 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
+                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
+                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
+                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Purchase</th>
+                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-white/[0.04]">
+              ${p.watches.map(w => `
+              <tr class="tbl-row">
+                <td class="px-7 py-5">
+                  <div class="flex items-center gap-3">
+                    ${w.image_path
+                      ? `<div class="w-12 h-12 rounded-lg border border-outline-variant/20 overflow-hidden flex-shrink-0 cursor-zoom-in" onclick="openLightbox('${esc(w.image_path)}')"><img src="${esc(w.image_path)}" class="w-full h-full object-cover"></div>`
+                      : `<div class="w-12 h-12 rounded-lg border border-outline-variant/15 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-outline text-xl">watch</span></div>`
+                    }
+                    <div>
+                      <p class="text-on-surface font-medium text-sm">${esc(w.model)}</p>
+                      ${w.notes ? `<p class="text-on-surface-variant text-xs mt-0.5 max-w-[260px] truncate">${esc(w.notes)}</p>` : ''}
+                    </div>
+                  </div>
+                </td>
+                <td class="px-6 py-5">
+                  ${w.source === 'Company'
+                    ? `<span class="px-3 py-1 border border-primary/50 text-primary text-[10px] font-semibold uppercase tracking-wider rounded-full">Company</span>`
+                    : `<span class="px-3 py-1 border border-outline-variant/40 text-on-surface-variant text-[10px] font-semibold uppercase tracking-wider rounded-full">Dealer</span>`
+                  }
+                </td>
+                <td class="px-6 py-5 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
+                <td class="px-6 py-5 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
+                <td class="px-6 py-5 text-on-surface-variant text-sm">${fmtDate(w.purchase_date) || '—'}</td>
+                <td class="px-6 py-5 font-semibold text-primary text-sm">${fmt(w.price) || '—'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : `<p class="px-7 py-5 text-on-surface-variant text-sm">No watches recorded.</p>`}
+      </div>
+    `).join('') : `<p class="text-center text-on-surface-variant py-16">No clients in this portfolio.</p>`;
+
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('content').classList.remove('hidden');
+  } catch {
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('errorState').classList.remove('hidden');
+  }
+}
+
+load();
+</script>
+</body>
+</html>
