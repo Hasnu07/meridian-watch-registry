@@ -215,7 +215,7 @@
             <span class="material-symbols-outlined text-[16px]">arrow_back</span> Back to Clients
           </button>
         </div>
-        <div class="p-10 space-y-8 max-w-[1280px] w-full">
+        <div class="p-10 space-y-8 max-w-[1280px] w-full mx-auto">
           <div id="clientDetailHeader"></div>
           <div id="clientMemberships" class="space-y-6"></div>
         </div>
@@ -1126,81 +1126,120 @@ async function openClientDetail(id) {
 function renderMembershipCard(client, m) {
   const shopLabel = [m.shop_name, m.portfolio_name].filter(Boolean).join(' · ');
   const watches   = m.watches || [];
-  const docs      = m.company_docs || [];
+
+  function field(label, value, mono) {
+    return `<div class="flex flex-col gap-0.5">
+      <span class="text-[10px] uppercase tracking-[0.15em] text-outline font-semibold">${label}</span>
+      <span class="text-sm ${mono ? 'font-mono' : ''} text-on-surface">${value ? esc(value) : '<span class="text-outline/50">—</span>'}</span>
+    </div>`;
+  }
+
+  const fullName = [m.title, m.first_name, m.last_name].filter(Boolean).join(' ') || null;
+  const fullAddr = [m.address, m.postal_code ? m.postal_code + (m.city ? ' ' + m.city : '') : m.city, m.country].filter(Boolean).join(', ') || null;
 
   return `
     <div class="glass-surface rounded-2xl overflow-hidden">
-      <!-- Membership header -->
-      <div class="px-7 py-5 flex items-start justify-between gap-4 border-b border-outline-variant/10">
-        <div class="flex items-start gap-3">
-          <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <span class="material-symbols-outlined text-primary text-[18px]">store</span>
+
+      <!-- ── Card header ── -->
+      <div class="px-8 py-5 flex items-center justify-between gap-4 border-b border-outline-variant/10" style="background:rgba(255,255,255,0.015)">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-primary">store</span>
           </div>
           <div>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-outline font-semibold mb-0.5">${esc(shopLabel || 'Unassigned')}</p>
-            <div class="flex flex-wrap gap-x-8 gap-y-1.5 mt-2">
-              ${m.email ? `<div><span class="text-[10px] text-on-surface-variant/70">Email</span><p class="text-sm text-on-surface">${esc(m.email)}</p></div>` : ''}
-              ${m.subscriber_id ? `<div><span class="text-[10px] text-on-surface-variant/70">Subscriber ID</span><p class="text-sm font-mono text-on-surface">${esc(m.subscriber_id)}</p></div>` : ''}
-              ${m.pp_urn ? `<div><span class="text-[10px] text-on-surface-variant/70">PP URN</span><p class="text-sm font-mono text-on-surface">${esc(m.pp_urn)}</p></div>` : ''}
-              ${m.address ? `<div><span class="text-[10px] text-on-surface-variant/70">Address</span><p class="text-sm text-on-surface">${esc(m.address)}</p></div>` : ''}
-            </div>
-            ${m.id_card_path ? `
-              <div class="mt-3 flex items-center gap-2">
-                <button onclick="openLightbox('${m.id_card_path}')" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-primary border border-primary/20 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-all">
-                  <span class="material-symbols-outlined text-[14px]">badge</span> View ID Document
-                </button>
-                <button onclick="confirmDeleteIdCard(${m.id})" title="Delete ID card"
-                        class="flex items-center gap-1 text-[10px] uppercase tracking-widest text-error border border-error/20 px-2.5 py-1.5 rounded-lg hover:bg-error/10 transition-all">
-                  <span class="material-symbols-outlined text-[14px]">delete</span>
-                </button>
-              </div>` : ''}
+            <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold">${esc(shopLabel || 'Unassigned')}</p>
+            <p class="text-on-surface-variant text-xs mt-0.5">${watches.length} watch${watches.length !== 1 ? 'es' : ''} · added ${fmt.date(m.created_at.split(' ')[0])}</p>
           </div>
         </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <button onclick="openAddWatch(${m.id})" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant px-3 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all flex items-center gap-1">
+        <div class="flex items-center gap-2">
+          <button onclick="openAddWatch(${m.id})" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant px-4 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all flex items-center gap-1.5">
             <span class="material-symbols-outlined text-[14px]">add_circle</span> Add Watch
           </button>
-          <button onclick="openEditProfile(${m.id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary px-3 py-2 border border-primary/20 rounded-lg hover:bg-primary/10 transition-all">Edit</button>
-          <button onclick="confirmDeleteMembership(${m.id}, '${esc(m.shop_name || 'this shop').replace(/'/g,"\\'")}')"
+          <button onclick="openEditProfile(${m.id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary px-4 py-2 border border-primary/20 rounded-lg hover:bg-primary/10 transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[14px]">edit</span> Edit
+          </button>
+          <button onclick="confirmDeleteMembership(${m.id},'${esc(m.shop_name||'this shop').replace(/'/g,"\\'")}' )"
                   title="Remove shop presence"
-                  class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors border border-transparent hover:border-error/20">
+                  class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors">
             <span class="material-symbols-outlined text-[16px]">person_remove</span>
           </button>
         </div>
       </div>
-      <!-- Watches -->
+
+      <!-- ── Contact + Registry IDs ── -->
+      <div class="px-8 py-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-10 gap-y-5 border-b border-outline-variant/10">
+        ${field('Email', m.email)}
+        ${field('Subscriber ID', m.subscriber_id, true)}
+        ${field('PP URN', m.pp_urn, true)}
+        ${field('Full Name', fullName)}
+        ${field('Gender', m.gender === 'M' ? 'Male' : m.gender === 'F' ? 'Female' : m.gender)}
+        ${field('Date of Birth', m.dob)}
+        ${field('Address', fullAddr)}
+        ${field('City', m.city)}
+        ${field('Country', m.country)}
+      </div>
+
+      <!-- ── ID Document ── -->
+      <div class="px-8 py-5 flex items-center gap-4 border-b border-outline-variant/10">
+        <p class="text-[10px] uppercase tracking-[0.15em] text-outline font-semibold w-28 flex-shrink-0">ID Document</p>
+        ${m.id_card_path ? `
+          <div class="flex items-center gap-3">
+            <div class="w-16 h-12 rounded-lg overflow-hidden border border-outline-variant/20 flex-shrink-0 cursor-zoom-in" onclick="openLightbox('${m.id_card_path}')">
+              <img src="${m.id_card_path}" class="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity">
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <button onclick="openLightbox('${m.id_card_path}')" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-primary border border-primary/20 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-all w-fit">
+                <span class="material-symbols-outlined text-[13px]">visibility</span> View Full Size
+              </button>
+              <button onclick="confirmDeleteIdCard(${m.id})" class="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-error border border-error/20 px-3 py-1.5 rounded-lg hover:bg-error/10 transition-all w-fit">
+                <span class="material-symbols-outlined text-[13px]">delete</span> Remove
+              </button>
+            </div>
+          </div>
+        ` : `
+          <button onclick="openEditProfile(${m.id})" class="flex items-center gap-2 text-xs text-outline hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[16px]">upload_file</span> No document on file — click Edit to upload
+          </button>
+        `}
+      </div>
+
+      <!-- ── Watches ── -->
       ${watches.length ? `
       <div class="overflow-x-auto">
         <table class="w-full text-left">
           <thead>
             <tr class="border-b border-outline-variant/10" style="background:rgba(255,255,255,0.02)">
-              <th class="px-7 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+              <th class="px-8 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
               <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
               <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
-              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Purchase</th>
+              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
+              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Purchase Date</th>
               <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
+              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Notes</th>
               <th class="px-6 py-3"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/[0.04]">
             ${watches.map(w => `
             <tr class="tbl-row">
-              <td class="px-7 py-4">
+              <td class="px-8 py-4">
                 <div class="flex items-center gap-3">
                   ${w.image_path
-                    ? `<div class="w-10 h-10 rounded-lg border border-outline-variant/20 overflow-hidden flex-shrink-0 cursor-zoom-in" onclick="openLightbox('${w.image_path}')"><img src="${w.image_path}" class="w-full h-full object-cover"></div>`
-                    : `<div class="w-10 h-10 rounded-lg border border-outline-variant/15 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-outline text-[18px]">watch</span></div>`
+                    ? `<div class="w-12 h-12 rounded-lg border border-outline-variant/20 overflow-hidden flex-shrink-0 cursor-zoom-in" onclick="openLightbox('${w.image_path}')"><img src="${w.image_path}" class="w-full h-full object-cover"></div>`
+                    : `<div class="w-12 h-12 rounded-lg border border-outline-variant/15 flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-outline text-[20px]">watch</span></div>`
                   }
                   <div>
-                    <p class="text-on-surface text-sm font-medium">${esc(w.model)}</p>
-                    ${w.notes ? `<p class="text-on-surface-variant text-xs mt-0.5 max-w-[200px] truncate">${esc(w.notes)}</p>` : ''}
+                    <p class="text-on-surface text-sm font-medium leading-tight">${esc(w.model)}</p>
+                    ${w.movement_number || w.case_number ? `<p class="text-on-surface-variant text-xs mt-0.5 font-mono">${[w.movement_number, w.case_number].filter(Boolean).join(' / ')}</p>` : ''}
                   </div>
                 </div>
               </td>
               <td class="px-6 py-4">${sourceBadge(w.source)}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
+              <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
               <td class="px-6 py-4 font-semibold text-primary text-sm">${fmt.money(w.price)}</td>
+              <td class="px-6 py-4 text-on-surface-variant text-xs max-w-[180px] truncate">${esc(w.notes || '—')}</td>
               <td class="px-6 py-4">
                 <div class="flex items-center justify-end gap-1">
                   <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
@@ -1214,7 +1253,12 @@ function renderMembershipCard(client, m) {
             </tr>`).join('')}
           </tbody>
         </table>
-      </div>` : `<p class="px-7 py-5 text-on-surface-variant text-sm">No watches at this location.</p>`}
+      </div>` : `
+      <div class="px-8 py-6 flex items-center gap-3 text-on-surface-variant text-sm">
+        <span class="material-symbols-outlined text-[18px]">watch_off</span>
+        No watches at this location yet.
+        <button onclick="openAddWatch(${m.id})" class="ml-2 text-primary text-xs font-semibold hover:underline">Add one →</button>
+      </div>`}
     </div>`;
 }
 
