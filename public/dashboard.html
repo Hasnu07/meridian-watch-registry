@@ -1753,14 +1753,31 @@ async function openShopDetail(id) {
     api('GET', `/api/shops/${id}/individual-clients`),
   ]);
 
+  const allClients = shop.profiles || [];
+  const totalWatches = allClients.reduce((sum, p) => sum + (p.watch_count || 0), 0);
+
   document.getElementById('shopDetailHeader').innerHTML = `
-    <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
       <div>
         <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1">Authorised Retailer</p>
         <h2 class="font-playfair text-4xl font-semibold text-on-surface">${esc(shop.name)}</h2>
         ${shop.address ? `<p class="text-on-surface-variant text-sm mt-2 whitespace-pre-line">${esc(shop.address)}</p>` : ''}
       </div>
       <button onclick="openEditShop(${id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary px-4 py-2 border border-primary/30 rounded-lg hover:bg-primary/10 transition-all">Edit Shop</button>
+    </div>
+    <div class="grid grid-cols-3 gap-4 max-w-lg">
+      <div class="glass-surface rounded-xl p-4 flex flex-col gap-1">
+        <span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">Portfolios</span>
+        <span class="font-playfair text-2xl text-on-surface">${portfolios.length}</span>
+      </div>
+      <div class="glass-surface rounded-xl p-4 flex flex-col gap-1">
+        <span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">Clients</span>
+        <span class="font-playfair text-2xl text-on-surface">${allClients.length}</span>
+      </div>
+      <div class="glass-surface rounded-xl p-4 flex flex-col gap-1">
+        <span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">Watches</span>
+        <span class="font-playfair text-2xl text-on-surface">${totalWatches}</span>
+      </div>
     </div>
   `;
 
