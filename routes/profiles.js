@@ -201,7 +201,7 @@ router.post('/:id/watches', (req, res) => {
         price:      req.body.price      != null && req.body.price      !== '' ? Number(req.body.price)      : null,
         list_price: req.body.list_price != null && req.body.list_price !== '' ? Number(req.body.list_price) : null,
         sale_price: req.body.sale_price != null && req.body.sale_price !== '' ? Number(req.body.sale_price) : null,
-        status:     req.body.status || 'pipeline',
+        status:     ['wishlist','purchased','sold'].includes(req.body.status) ? req.body.status : 'wishlist',
         image_path: imageUrl,
       });
       res.status(201).json(db.getWatch(id));

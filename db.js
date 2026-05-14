@@ -123,11 +123,14 @@ function init() {
   if (!pcols2.includes('client_capital'))   db.exec("ALTER TABLE profiles ADD COLUMN client_capital   REAL DEFAULT 0");
   if (!pcols2.includes('client_remaining')) db.exec("ALTER TABLE profiles ADD COLUMN client_remaining REAL DEFAULT 0");
 
-  // Migrate watches — list/sale price + pipeline/sold status
+  // Migrate watches — list/sale price + status + currency
   const wcols2 = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
   if (!wcols2.includes('list_price'))  db.exec("ALTER TABLE watches ADD COLUMN list_price REAL");
   if (!wcols2.includes('sale_price'))  db.exec("ALTER TABLE watches ADD COLUMN sale_price REAL");
-  if (!wcols2.includes('status'))      db.exec("ALTER TABLE watches ADD COLUMN status TEXT DEFAULT 'pipeline'");
+  if (!wcols2.includes('status'))      db.exec("ALTER TABLE watches ADD COLUMN status TEXT DEFAULT 'wishlist'");
+  if (!wcols2.includes('currency'))    db.exec("ALTER TABLE watches ADD COLUMN currency TEXT DEFAULT 'CHF'");
+  // Rename legacy 'pipeline' status to 'wishlist'
+  db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
   // Migrate clients columns — add master_id if missing
   const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(r => r.name);
@@ -495,13 +498,13 @@ function getWatch(id) {
 
 function createWatch(profileId, { model, serial_number, source, purchase_date, price,
                                    reference_number, notes, image_path, movement_number, case_number,
-                                   list_price, sale_price, status }) {
+                                   list_price, sale_price, status, currency }) {
   const result = db.prepare(`
     INSERT INTO watches
       (profile_id, model, serial_number, source, purchase_date, price,
        reference_number, notes, image_path, movement_number, case_number,
-       list_price, sale_price, status)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       list_price, sale_price, status, currency)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     profileId, model, serial_number ?? null, source,
     purchase_date ?? null, price != null ? Number(price) : null,
@@ -509,7 +512,8 @@ function createWatch(profileId, { model, serial_number, source, purchase_date, p
     movement_number ?? null, case_number ?? null,
     list_price != null ? Number(list_price) : null,
     sale_price != null ? Number(sale_price) : null,
-    status ?? 'pipeline'
+    status ?? 'wishlist',
+    currency ?? 'CHF'
   );
   return result.lastInsertRowid;
 }
@@ -517,7 +521,7 @@ function createWatch(profileId, { model, serial_number, source, purchase_date, p
 function updateWatch(id, updates) {
   const FIELDS = ['model','serial_number','source','purchase_date','price',
                   'reference_number','notes','image_path','movement_number','case_number',
-                  'list_price','sale_price','status'];
+                  'list_price','sale_price','status','currency'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {

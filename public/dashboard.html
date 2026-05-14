@@ -437,10 +437,27 @@
             <p id="wv-dealer" class="font-playfair text-xl text-on-surface">—</p>
           </div>
         </div>
+        <!-- Wishlist Waiting sub-section -->
+        <div id="wishlistWaitingSection" class="glass-surface rounded-2xl overflow-hidden mb-6 hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary text-[18px]">hourglass_top</span>
+            <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant">Wishlist — Days Waiting</p>
+          </div>
+          <div id="wishlistWaitingBody" class="divide-y divide-white/[0.04]"></div>
+        </div>
+
         <!-- Table -->
         <div class="glass-surface rounded-xl overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
-            <h3 class="font-playfair text-xl text-on-surface">All Timepieces</h3>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3 class="font-playfair text-xl text-on-surface mr-2">Timepieces</h3>
+              <div id="watchStatusTabs" class="flex gap-1.5">
+                <button data-status="" class="watch-status-tab text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all bg-primary/15 border-primary/40 text-primary">All</button>
+                <button data-status="wishlist" class="watch-status-tab text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30">Wishlist</button>
+                <button data-status="purchased" class="watch-status-tab text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30">Purchased</button>
+                <button data-status="sold" class="watch-status-tab text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30">Sold</button>
+              </div>
+            </div>
             <div class="flex items-center gap-3">
               <div class="flex items-center gap-2 glass-panel rounded-lg px-3 py-2 border border-outline-variant/20">
                 <span class="material-symbols-outlined text-primary text-[16px]">filter_list</span>
@@ -462,10 +479,11 @@
                 <tr class="bg-surface-container-low border-b border-outline-variant/10">
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Purchase Date</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Date</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">List Price</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
                   <th class="px-6 py-4"></th>
                 </tr>
@@ -800,15 +818,19 @@
     <div class="p-6 overflow-y-auto space-y-4">
       <input type="hidden" id="watchId">
       <input type="hidden" id="watchProfileId">
-      <input type="hidden" id="wStatus" value="pipeline">
+      <input type="hidden" id="wStatus" value="wishlist">
 
       <!-- ── Status toggle ── -->
       <div>
         <label class="block text-xs uppercase tracking-widest text-outline mb-2">Status</label>
         <div class="flex gap-2">
-          <button type="button" id="wStatusPipelineBtn" onclick="setWatchStatus('pipeline')"
+          <button type="button" id="wStatusWishlistBtn" onclick="setWatchStatus('wishlist')"
                   class="flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all bg-primary/15 border-primary/40 text-primary">
-            <span class="material-symbols-outlined text-[14px] align-middle mr-1">pending</span> Pipeline
+            <span class="material-symbols-outlined text-[14px] align-middle mr-1">bookmark</span> Wishlist
+          </button>
+          <button type="button" id="wStatusPurchasedBtn" onclick="setWatchStatus('purchased')"
+                  class="flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30">
+            <span class="material-symbols-outlined text-[14px] align-middle mr-1">inventory_2</span> Purchased
           </button>
           <button type="button" id="wStatusSoldBtn" onclick="setWatchStatus('sold')"
                   class="flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30">
@@ -851,23 +873,25 @@
         </div>
         <div>
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">List Price</label>
-          <input type="number" id="wListPrice" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          <div class="flex gap-2">
+            <select id="wCurrency" class="bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all flex-shrink-0">
+              <option value="CHF">CHF</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+            </select>
+            <input type="number" id="wListPrice" step="0.01" min="0" placeholder="0.00" class="flex-1 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          </div>
         </div>
         <div id="wSalePriceWrap" class="hidden">
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Sale Price</label>
-          <input type="number" id="wSalePrice" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          <div class="flex gap-2">
+            <span id="wCurrencyLabel" class="bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-3 text-on-surface-variant text-sm flex-shrink-0 flex items-center">CHF</span>
+            <input type="number" id="wSalePrice" step="0.01" min="0" placeholder="0.00" class="flex-1 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          </div>
         </div>
         <div>
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Reference / Invoice #</label>
           <input type="text" id="wRef" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
-        </div>
-        <div>
-          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Movement Number</label>
-          <input type="text" id="wMovement" placeholder="e.g. 7839152" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
-        </div>
-        <div>
-          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Case Number</label>
-          <input type="text" id="wCase" placeholder="e.g. 6846200" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
         <div class="md:col-span-2">
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Notes</label>
@@ -1106,9 +1130,7 @@ async function api(method, url, data) {
 
 const fmt = {
   date:     d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—',
-  money:    v => v != null && v !== '' ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) : '—',
-  initials: n => (n||'').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2),
-};
+  money:    v => v != null && v !== '' ? '
 
 // ── Routing ────────────────────────────────────────────────────────────────
 let currentPage = 'dashboard';
@@ -1229,7 +1251,7 @@ async function loadMainKpi() {
       myShare:       (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss,
       clientShare:   ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss,
       soldCount:     watches.filter(w => w.status === 'sold').length,
-      pipelineCount: watches.filter(w => w.status === 'pipeline').length,
+      pipelineCount: watches.filter(w => w.status === 'wishlist' || w.status === 'purchased').length,
       capitalDeployed: (prof.my_capital || 0) + (prof.client_capital || 0),
       available:       (prof.my_remaining || 0) + (prof.client_remaining || 0),
     };
@@ -2025,6 +2047,7 @@ document.getElementById('backToProfiles').addEventListener('click', () => {
 // ── Watches page ───────────────────────────────────────────────────────────
 let allWatches = [];
 let watchPage  = 1;
+let watchStatusFilter = '';
 
 async function loadWatches(q, source) {
   const stats = await api('GET', '/api/stats');
@@ -2039,14 +2062,43 @@ async function loadWatches(q, source) {
   allWatches = await api('GET', `/api/watches?${params}`);
   watchPage  = 1;
   renderWatches();
+  renderWishlistWaiting();
 }
 
 function renderWatches() {
-  const total = allWatches.length;
-  const slice = allWatches.slice((watchPage - 1) * PER_PAGE, watchPage * PER_PAGE);
+  const filtered = watchStatusFilter ? allWatches.filter(w => w.status === watchStatusFilter) : allWatches;
+  const total = filtered.length;
+  const slice = filtered.slice((watchPage - 1) * PER_PAGE, watchPage * PER_PAGE);
   document.getElementById('watchesBody').innerHTML = slice.map(w => watchRow(w, false)).join('')
-    || `<tr><td colspan="8" class="px-6 py-16 text-center text-on-surface-variant text-sm">No watches found.</td></tr>`;
+    || `<tr><td colspan="9" class="px-6 py-16 text-center text-on-surface-variant text-sm">No watches found.</td></tr>`;
   renderPagination('watchesPagination', watchPage, total, PER_PAGE, n => { watchPage = n; renderWatches(); });
+}
+
+function renderWishlistWaiting() {
+  const wishlist = allWatches.filter(w => w.status === 'wishlist');
+  const section = document.getElementById('wishlistWaitingSection');
+  if (!wishlist.length) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  const now = Date.now();
+  document.getElementById('wishlistWaitingBody').innerHTML = wishlist.map(w => {
+    const added  = new Date(w.created_at).getTime();
+    const days   = Math.floor((now - added) / 86400000);
+    const urgency = days >= 30 ? 'text-error' : days >= 14 ? 'text-amber-400' : 'text-on-surface-variant';
+    return `
+    <div class="px-6 py-4 flex items-center gap-4">
+      <div class="w-10 h-10 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
+        ${w.image_path ? `<img src="${w.image_path}" class="w-full h-full object-cover">` : '<span class="material-symbols-outlined text-outline text-[18px]">watch</span>'}
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+        <p class="text-xs text-on-surface-variant">${esc(w.client_name || '—')}</p>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="font-playfair text-2xl font-semibold ${urgency}">${days}</p>
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">days waiting</p>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function sourceBadge(source) {
@@ -2064,8 +2116,9 @@ function avatarHtml(name, photoPath, size = 'sm') {
 }
 
 function statusBadge(status) {
-  if (status === 'sold') return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>Sold</span>`;
-  return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>Pipeline</span>`;
+  if (status === 'sold')      return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>Sold</span>`;
+  if (status === 'purchased') return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20"><span class="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>Purchased</span>`;
+  return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>Wishlist</span>`;
 }
 
 function plBadge(listPrice, salePrice) {
@@ -2084,17 +2137,19 @@ function watchRow(w, detail) {
     <td class="px-6 py-6">
       <button onclick="openProfileDetail(${w.profile_id})" class="text-on-surface-variant text-sm hover:text-primary transition-colors">${esc(w.client_name || '—')}</button>
     </td>`;
+  const cur = w.currency || 'CHF';
   const detailPriceCols = detail ? `
       <td class="px-6 py-6">${statusBadge(w.status)}</td>
       <td class="px-6 py-6">${sourceBadge(w.source)}</td>
       <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.money(w.list_price)}</td>
-      <td class="px-6 py-6 text-primary font-semibold text-sm">${w.status === 'sold' ? fmt.money(w.sale_price) : '<span class="text-outline">—</span>'}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
+      <td class="px-6 py-6 text-primary font-semibold text-sm">${w.status === 'sold' ? fmt.price(w.sale_price, cur) : '<span class="text-outline">—</span>'}</td>
       <td class="px-6 py-6">${plBadge(w.list_price, w.status === 'sold' ? w.sale_price : null)}</td>` : `
+      <td class="px-6 py-6">${statusBadge(w.status)}</td>
       <td class="px-6 py-6">${sourceBadge(w.source)}</td>
       <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
-      <td class="px-6 py-6 font-semibold text-primary text-sm">${fmt.money(w.list_price ?? w.price)}</td>
+      <td class="px-6 py-6 font-semibold text-primary text-sm">${fmt.price(w.list_price ?? w.price, cur)}</td>
       <td class="px-6 py-6 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>`;
   return `
     <tr class="tbl-row">
@@ -2133,6 +2188,17 @@ document.getElementById('watchSearch').addEventListener('input', e => {
 });
 document.getElementById('watchSourceFilter').addEventListener('change', e => {
   watchPage = 1; loadWatches(document.getElementById('watchSearch').value.trim(), e.target.value);
+});
+document.getElementById('watchStatusTabs').addEventListener('click', e => {
+  const btn = e.target.closest('.watch-status-tab');
+  if (!btn) return;
+  watchStatusFilter = btn.dataset.status;
+  document.querySelectorAll('.watch-status-tab').forEach(b => {
+    b.className = 'watch-status-tab text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all ' +
+      (b === btn ? 'bg-primary/15 border-primary/40 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30');
+  });
+  watchPage = 1;
+  renderWatches();
 });
 document.getElementById('addWatchTopBtn').addEventListener('click', () => openAddWatch(null));
 
@@ -2491,17 +2557,18 @@ function resetWatchImgPreview(src) {
   }
 }
 
-// ── Watch status toggle ────────────────────────────────────────────────────
+// ── Watch status toggle ────────────────────────────────────────
 function setWatchStatus(status) {
   document.getElementById('wStatus').value = status;
-  const isPipeline = status === 'pipeline';
-  document.getElementById('wStatusPipelineBtn').className =
-    'flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all ' +
-    (isPipeline ? 'bg-primary/15 border-primary/40 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30');
-  document.getElementById('wStatusSoldBtn').className =
-    'flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all ' +
-    (!isPipeline ? 'bg-primary/15 border-primary/40 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30');
-  document.getElementById('wSalePriceWrap').classList.toggle('hidden', isPipeline);
+  ['wishlist','purchased','sold'].forEach(s => {
+    const idMap = {wishlist:'wStatusWishlistBtn',purchased:'wStatusPurchasedBtn',sold:'wStatusSoldBtn'};
+    const btn = document.getElementById(idMap[s]);
+    if (!btn) return;
+    btn.className = 'flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all ' + (s === status ? 'bg-primary/15 border-primary/40 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30');
+  });
+  document.getElementById('wSalePriceWrap').classList.toggle('hidden', status !== 'sold');
+  const curLabel = document.getElementById('wCurrencyLabel');
+  if (curLabel) curLabel.textContent = document.getElementById('wCurrency')?.value || 'CHF';
 }
 
 // ── Watch "from system" search ─────────────────────────────────────────────
@@ -2532,8 +2599,10 @@ function prefillWatchFromSystem(w) {
   document.getElementById('wModel').value    = w.model        || '';
   document.getElementById('wSerial').value   = w.serial_number|| '';
   document.getElementById('wRef').value      = w.reference_number || '';
-  document.getElementById('wMovement').value = w.movement_number  || '';
-  document.getElementById('wCase').value     = w.case_number      || '';
+  const pfCur = document.getElementById('wCurrency');
+  if (pfCur && w.currency) pfCur.value = w.currency;
+  const pfLbl = document.getElementById('wCurrencyLabel');
+  if (pfLbl) pfLbl.textContent = (pfCur && pfCur.value) || 'CHF';
   document.getElementById('wListPrice').value= w.list_price != null ? w.list_price : '';
   document.getElementById('wSource').value   = w.source       || '';
   document.getElementById('wSystemSearch').value = '';
@@ -2541,16 +2610,20 @@ function prefillWatchFromSystem(w) {
 }
 
 function openAddWatch(profileId) {
-  ['watchId','wModel','wSerial','wDate','wRef','wNotes','wMovement','wCase','wListPrice','wSalePrice','wSystemSearch'].forEach(id => {
+  ['watchId','wModel','wSerial','wDate','wRef','wNotes','wListPrice','wSalePrice','wSystemSearch'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  const curSel = document.getElementById('wCurrency');
+  if (curSel) curSel.value = 'CHF';
+  const curLbl = document.getElementById('wCurrencyLabel');
+  if (curLbl) curLbl.textContent = 'CHF';
   document.getElementById('watchProfileId').value = profileId || '';
   document.getElementById('wSource').value = '';
   document.getElementById('wImage').value  = '';
   document.getElementById('watchImgChosen').classList.add('hidden');
   document.getElementById('wSystemResults').classList.add('hidden');
   resetWatchImgPreview(null);
-  setWatchStatus('pipeline');
+  setWatchStatus('wishlist');
   document.getElementById('watchModalTitle').textContent = 'Add Watch';
   document.getElementById('watchFormError').classList.add('hidden');
   document.getElementById('watchModal').classList.remove('hidden');
@@ -2572,6 +2645,10 @@ async function openEditWatch(id) {
   document.getElementById('wMovement').value  = wt.movement_number  || '';
   document.getElementById('wCase').value      = wt.case_number      || '';
   document.getElementById('wNotes').value     = wt.notes            || '';
+  const ewCur = document.getElementById('wCurrency');
+  if (ewCur) ewCur.value = wt.currency || 'CHF';
+  const ewCurLbl = document.getElementById('wCurrencyLabel');
+  if (ewCurLbl) ewCurLbl.textContent = wt.currency || 'CHF';
   document.getElementById('wImage').value     = '';
   document.getElementById('watchImgChosen').classList.add('hidden');
   document.getElementById('wSystemResults').classList.add('hidden');
@@ -2598,6 +2675,11 @@ function closeWatchModal() { document.getElementById('watchModal').classList.add
 document.getElementById('closeWatchModal').addEventListener('click', closeWatchModal);
 document.getElementById('cancelWatchModal').addEventListener('click', closeWatchModal);
 
+document.getElementById('wCurrency')?.addEventListener('change', function() {
+  const lbl = document.getElementById('wCurrencyLabel');
+  if (lbl) lbl.textContent = this.value;
+});
+
 document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   const id        = document.getElementById('watchId').value;
   const profileId = document.getElementById('watchProfileId').value;
@@ -2618,8 +2700,7 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   fd.append('list_price',       document.getElementById('wListPrice').value);
   fd.append('sale_price',       document.getElementById('wSalePrice').value);
   fd.append('reference_number', document.getElementById('wRef').value.trim());
-  fd.append('movement_number',  document.getElementById('wMovement').value.trim());
-  fd.append('case_number',      document.getElementById('wCase').value.trim());
+  fd.append('currency', document.getElementById('wCurrency')?.value || 'CHF');
   fd.append('notes',            document.getElementById('wNotes').value.trim());
   const imgFile = document.getElementById('wImage').files[0];
   if (imgFile) fd.append('image', imgFile);
