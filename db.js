@@ -467,9 +467,11 @@ function listWatchesForProfile(profileId) {
 
 function listAllWatches({ q, source, profile_id } = {}) {
   let sql = `
-    SELECT w.*, p.name AS client_name, p.email AS client_email
+    SELECT w.*, p.name AS client_name, p.email AS client_email,
+           s.name AS shop_name
     FROM watches w
     JOIN profiles p ON p.id = w.profile_id
+    LEFT JOIN shops s ON s.id = p.shop_id
     WHERE 1=1
   `;
   const params = [];

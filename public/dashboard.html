@@ -479,6 +479,7 @@
                 <tr class="bg-surface-container-low border-b border-outline-variant/10">
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Shop</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
                   <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
@@ -2141,6 +2142,7 @@ function watchRow(w, detail) {
       <button onclick="openProfileDetail(${w.profile_id})" class="text-on-surface-variant text-sm hover:text-primary transition-colors">${esc(w.client_name || '—')}</button>
     </td>`;
   const cur = w.currency || 'CHF';
+  const shopCell = detail ? '' : `<td class="px-6 py-6 text-on-surface-variant text-sm">${esc(w.shop_name || '—')}</td>`;
   const detailPriceCols = detail ? `
       <td class="px-6 py-6">${statusBadge(w.status)}</td>
       <td class="px-6 py-6">${sourceBadge(w.source)}</td>
@@ -2168,6 +2170,7 @@ function watchRow(w, detail) {
         </div>
       </td>
       ${clientCell}
+      ${shopCell}
       ${detailPriceCols}
       <td class="px-6 py-6">
         <div class="flex items-center justify-end gap-1.5">
