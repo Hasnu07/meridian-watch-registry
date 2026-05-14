@@ -36,7 +36,10 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: msg });
     }
     const { name, email, address, pp_urn,
-            title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id, client_id } = req.body;
+            title, first_name, last_name, gender, dob, postal_code, city, country,
+            shop_id, portfolio_id, client_id,
+            profit_split_me, loss_split_me,
+            my_capital, my_remaining, client_capital, client_remaining } = req.body;
 
     // If linking to an existing master client, name + photo come from that record
     let resolvedName      = name;
@@ -77,9 +80,15 @@ router.post('/', (req, res) => {
         postal_code:   postal_code  || null,
         city:          city         || null,
         country:       country      || null,
-        shop_id:       shop_id      ? Number(shop_id)      : null,
-        portfolio_id:  portfolio_id ? Number(portfolio_id) : null,
-        client_id:     resolvedClientId,
+        shop_id:          shop_id      ? Number(shop_id)      : null,
+        portfolio_id:     portfolio_id ? Number(portfolio_id) : null,
+        client_id:        resolvedClientId,
+        profit_split_me:  profit_split_me  != null ? Number(profit_split_me)  : 100,
+        loss_split_me:    loss_split_me    != null ? Number(loss_split_me)    : 100,
+        my_capital:       my_capital       != null ? Number(my_capital)       : 0,
+        my_remaining:     my_remaining     != null ? Number(my_remaining)     : 0,
+        client_capital:   client_capital   != null ? Number(client_capital)   : 0,
+        client_remaining: client_remaining != null ? Number(client_remaining) : 0,
       });
       res.status(201).json(db.getProfile(id));
     } catch (e) {
@@ -113,6 +122,10 @@ router.put('/:id', (req, res) => {
     const TEXT_FIELDS = isLinked
       ? ['email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country']
       : ['name','email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country'];
+    const NUM_FIELDS = ['profit_split_me','loss_split_me','my_capital','my_remaining','client_capital','client_remaining'];
+    NUM_FIELDS.forEach(f => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f] !== '' ? Number(req.body[f]) : null;
+    });
     TEXT_FIELDS.forEach(f => {
       if (req.body[f] !== undefined) updates[f] = req.body[f] || null;
     });
@@ -185,7 +198,10 @@ router.post('/:id/watches', (req, res) => {
       const imageUrl = req.file ? await storage.uploadFile(req.file, 'meridian/watches') : null;
       const id = db.createWatch(req.params.id, {
         ...req.body,
-        price:      req.body.price != null && req.body.price !== '' ? Number(req.body.price) : null,
+        price:      req.body.price      != null && req.body.price      !== '' ? Number(req.body.price)      : null,
+        list_price: req.body.list_price != null && req.body.list_price !== '' ? Number(req.body.list_price) : null,
+        sale_price: req.body.sale_price != null && req.body.sale_price !== '' ? Number(req.body.sale_price) : null,
+        status:     req.body.status || 'pipeline',
         image_path: imageUrl,
       });
       res.status(201).json(db.getWatch(id));

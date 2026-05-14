@@ -114,6 +114,21 @@ function init() {
     }
   }
 
+  // Migrate profiles — trading terms + capital
+  const pcols2 = db.prepare("PRAGMA table_info(profiles)").all().map(r => r.name);
+  if (!pcols2.includes('profit_split_me'))  db.exec("ALTER TABLE profiles ADD COLUMN profit_split_me  INTEGER DEFAULT 100");
+  if (!pcols2.includes('loss_split_me'))    db.exec("ALTER TABLE profiles ADD COLUMN loss_split_me    INTEGER DEFAULT 100");
+  if (!pcols2.includes('my_capital'))       db.exec("ALTER TABLE profiles ADD COLUMN my_capital       REAL DEFAULT 0");
+  if (!pcols2.includes('my_remaining'))     db.exec("ALTER TABLE profiles ADD COLUMN my_remaining     REAL DEFAULT 0");
+  if (!pcols2.includes('client_capital'))   db.exec("ALTER TABLE profiles ADD COLUMN client_capital   REAL DEFAULT 0");
+  if (!pcols2.includes('client_remaining')) db.exec("ALTER TABLE profiles ADD COLUMN client_remaining REAL DEFAULT 0");
+
+  // Migrate watches — list/sale price + pipeline/sold status
+  const wcols2 = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
+  if (!wcols2.includes('list_price'))  db.exec("ALTER TABLE watches ADD COLUMN list_price REAL");
+  if (!wcols2.includes('sale_price'))  db.exec("ALTER TABLE watches ADD COLUMN sale_price REAL");
+  if (!wcols2.includes('status'))      db.exec("ALTER TABLE watches ADD COLUMN status TEXT DEFAULT 'pipeline'");
+
   // Migrate clients columns — add master_id if missing
   const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(r => r.name);
   if (!clientCols.includes('master_id')) {
@@ -399,23 +414,32 @@ function getProfile(id) {
 }
 
 function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-                          title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id, client_id }) {
+                          title, first_name, last_name, gender, dob, postal_code, city, country,
+                          shop_id, portfolio_id, client_id,
+                          profit_split_me, loss_split_me,
+                          my_capital, my_remaining, client_capital, client_remaining }) {
   const result = db.prepare(`
     INSERT INTO profiles
       (name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
-       title, first_name, last_name, gender, dob, postal_code, city, country, shop_id, portfolio_id, client_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       title, first_name, last_name, gender, dob, postal_code, city, country,
+       shop_id, portfolio_id, client_id,
+       profit_split_me, loss_split_me, my_capital, my_remaining, client_capital, client_remaining)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(name, email, address ?? null, subscriber_id ?? null, pp_urn ?? null,
          photo_path ?? null, id_card_path ?? null,
          title ?? null, first_name ?? null, last_name ?? null,
          gender ?? null, dob ?? null, postal_code ?? null, city ?? null, country ?? null,
-         shop_id ?? null, portfolio_id ?? null, client_id ?? null);
+         shop_id ?? null, portfolio_id ?? null, client_id ?? null,
+         profit_split_me ?? 100, loss_split_me ?? 100,
+         my_capital ?? 0, my_remaining ?? 0, client_capital ?? 0, client_remaining ?? 0);
   return result.lastInsertRowid;
 }
 
 function updateProfile(id, updates) {
   const FIELDS = ['name','email','address','subscriber_id','pp_urn','photo_path','id_card_path',
-                  'title','first_name','last_name','gender','dob','postal_code','city','country','shop_id','portfolio_id','client_id'];
+                  'title','first_name','last_name','gender','dob','postal_code','city','country',
+                  'shop_id','portfolio_id','client_id',
+                  'profit_split_me','loss_split_me','my_capital','my_remaining','client_capital','client_remaining'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {
@@ -470,30 +494,37 @@ function getWatch(id) {
 }
 
 function createWatch(profileId, { model, serial_number, source, purchase_date, price,
-                                   reference_number, notes, image_path, movement_number, case_number }) {
+                                   reference_number, notes, image_path, movement_number, case_number,
+                                   list_price, sale_price, status }) {
   const result = db.prepare(`
     INSERT INTO watches
       (profile_id, model, serial_number, source, purchase_date, price,
-       reference_number, notes, image_path, movement_number, case_number)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+       reference_number, notes, image_path, movement_number, case_number,
+       list_price, sale_price, status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     profileId, model, serial_number ?? null, source,
     purchase_date ?? null, price != null ? Number(price) : null,
     reference_number ?? null, notes ?? null, image_path ?? null,
-    movement_number ?? null, case_number ?? null
+    movement_number ?? null, case_number ?? null,
+    list_price != null ? Number(list_price) : null,
+    sale_price != null ? Number(sale_price) : null,
+    status ?? 'pipeline'
   );
   return result.lastInsertRowid;
 }
 
 function updateWatch(id, updates) {
   const FIELDS = ['model','serial_number','source','purchase_date','price',
-                  'reference_number','notes','image_path','movement_number','case_number'];
+                  'reference_number','notes','image_path','movement_number','case_number',
+                  'list_price','sale_price','status'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {
     if (updates[f] !== undefined) {
       fields.push(`${f} = ?`);
-      values.push(f === 'price' ? (updates[f] != null && updates[f] !== '' ? Number(updates[f]) : null) : updates[f]);
+      const numericFields = ['price','list_price','sale_price'];
+      values.push(numericFields.includes(f) ? (updates[f] != null && updates[f] !== '' ? Number(updates[f]) : null) : updates[f]);
     }
   }
   if (!fields.length) return;

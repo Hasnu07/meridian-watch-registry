@@ -316,7 +316,9 @@
           <!-- Main column -->
           <div class="flex-1 overflow-y-auto p-10">
             <!-- Hero header -->
-            <section id="profileDetailHeader" class="mb-10"></section>
+            <section id="profileDetailHeader" class="mb-8"></section>
+            <!-- P&L section -->
+            <section id="profilePnlSection" class="mb-8"></section>
             <!-- Watches -->
             <section>
               <div class="flex items-end justify-between mb-5">
@@ -330,12 +332,12 @@
                   <thead>
                     <tr class="bg-surface-container border-b border-outline-variant/15">
                       <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status</th>
                       <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
                       <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
-                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Purchase Date</th>
-                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
-                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
-                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Notes</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">List Price</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Sale Price</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">P&amp;L</th>
                       <th class="px-6 py-4"></th>
                     </tr>
                   </thead>
@@ -619,6 +621,65 @@
         </div>
       </div>
 
+      <!-- ── Trading Terms ── -->
+      <div class="border-t border-outline-variant/10 pt-4">
+        <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-4">Trading Terms</p>
+
+        <!-- Profit split -->
+        <div class="glass-surface rounded-xl p-4 mb-3">
+          <div class="flex justify-between items-center mb-3">
+            <span class="text-xs text-on-surface-variant uppercase tracking-wider">Profit Split</span>
+            <span class="text-xs text-outline font-mono">
+              <span class="text-primary" id="profitMeLabel">100%</span> Me ·
+              <span id="profitClientLabel">0%</span> Client
+            </span>
+          </div>
+          <input type="range" id="pProfitSplitMe" min="0" max="100" step="5" value="100"
+                 class="w-full accent-primary cursor-pointer" oninput="updateSplitBars()">
+          <div class="flex h-1.5 rounded-full overflow-hidden mt-2 gap-px">
+            <div id="profitMeBar"     class="bg-primary transition-all"      style="width:100%"></div>
+            <div id="profitClientBar" class="bg-white/20 transition-all"     style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- Loss split -->
+        <div class="glass-surface rounded-xl p-4 mb-4">
+          <div class="flex justify-between items-center mb-3">
+            <span class="text-xs text-on-surface-variant uppercase tracking-wider">Loss Split</span>
+            <span class="text-xs text-outline font-mono">
+              <span class="text-primary" id="lossMeLabel">100%</span> Me ·
+              <span id="lossClientLabel">0%</span> Client
+            </span>
+          </div>
+          <input type="range" id="pLossSplitMe" min="0" max="100" step="5" value="100"
+                 class="w-full accent-primary cursor-pointer" oninput="updateSplitBars()">
+          <div class="flex h-1.5 rounded-full overflow-hidden mt-2 gap-px">
+            <div id="lossMeBar"     class="bg-primary transition-all"   style="width:100%"></div>
+            <div id="lossClientBar" class="bg-white/20 transition-all"  style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- Capital -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">My Capital Deployed</label>
+            <input type="number" id="pMyCapital" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">My Remaining</label>
+            <input type="number" id="pMyRemaining" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Client Capital</label>
+            <input type="number" id="pClientCapital" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Client Remaining</label>
+            <input type="number" id="pClientRemaining" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+          </div>
+        </div>
+      </div>
+
       <!-- ── Documents ── -->
       <div class="border-t border-outline-variant/10 pt-4">
         <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-3">Documents &amp; Photo</p>
@@ -678,6 +739,34 @@
     <div class="p-6 overflow-y-auto space-y-4">
       <input type="hidden" id="watchId">
       <input type="hidden" id="watchProfileId">
+      <input type="hidden" id="wStatus" value="pipeline">
+
+      <!-- ── Status toggle ── -->
+      <div>
+        <label class="block text-xs uppercase tracking-widest text-outline mb-2">Status</label>
+        <div class="flex gap-2">
+          <button type="button" id="wStatusPipelineBtn" onclick="setWatchStatus('pipeline')"
+                  class="flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all bg-primary/15 border-primary/40 text-primary">
+            <span class="material-symbols-outlined text-[14px] align-middle mr-1">pending</span> Pipeline
+          </button>
+          <button type="button" id="wStatusSoldBtn" onclick="setWatchStatus('sold')"
+                  class="flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30">
+            <span class="material-symbols-outlined text-[14px] align-middle mr-1">check_circle</span> Sold
+          </button>
+        </div>
+      </div>
+
+      <!-- ── From System search ── -->
+      <div>
+        <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">From System</label>
+        <div class="relative">
+          <input type="text" id="wSystemSearch" placeholder="Search existing watches to pre-fill…"
+                 class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg pl-9 pr-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[16px]">search</span>
+        </div>
+        <div id="wSystemResults" class="hidden mt-1 bg-[#0B0E14] border border-outline-variant/30 rounded-lg overflow-hidden max-h-48 overflow-y-auto"></div>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="md:col-span-2">
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Model *</label>
@@ -700,8 +789,12 @@
           <input type="date" id="wDate" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
         <div>
-          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Price</label>
-          <input type="number" id="wPrice" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">List Price</label>
+          <input type="number" id="wListPrice" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div id="wSalePriceWrap" class="hidden">
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Sale Price</label>
+          <input type="number" id="wSalePrice" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
         <div>
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Reference / Invoice #</label>
@@ -1499,7 +1592,130 @@ async function openProfileDetail(id) {
   `;
 
   document.getElementById('addWatchForProfileBtn').onclick = () => openAddWatch(id);
+  renderProfilePnl(profile);
   renderProfileWatches(profile.watches);
+}
+
+function computePnl(profile) {
+  const watches     = profile.watches || [];
+  const profitSplit = profile.profit_split_me ?? 100;
+  const lossSplit   = profile.loss_split_me  ?? 100;
+  let grossProfit = 0, grossLoss = 0;
+  for (const w of watches) {
+    if (w.status !== 'sold' || w.list_price == null || w.sale_price == null) continue;
+    const diff = w.sale_price - w.list_price;
+    if (diff > 0) grossProfit += diff;
+    else          grossLoss  += diff;
+  }
+  return {
+    profitSplit, lossSplit,
+    grossProfit, grossLoss,
+    myShare:       (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss,
+    clientShare:   ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss,
+    soldCount:     watches.filter(w => w.status === 'sold').length,
+    pipelineCount: watches.filter(w => w.status === 'pipeline').length,
+    capitalDeployed: (profile.my_capital || 0) + (profile.client_capital || 0),
+    available:       (profile.my_remaining || 0) + (profile.client_remaining || 0),
+  };
+}
+
+function renderProfilePnl(profile) {
+  const p   = computePnl(profile);
+  const m   = v => v == null ? '—' : fmt.money(v);
+  const sgn = v => v > 0 ? '+' : '';
+  const cls = v => v >= 0 ? 'text-emerald-400' : 'text-error';
+
+  document.getElementById('profilePnlSection').innerHTML = `
+    <div class="space-y-4">
+
+      <!-- Split Rules -->
+      <div class="glass-surface rounded-2xl p-6">
+        <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-5">Split Rules</p>
+
+        <div class="mb-5">
+          <div class="flex justify-between items-baseline mb-2">
+            <span class="text-sm text-on-surface">Profits</span>
+            <span class="text-xs text-on-surface-variant">
+              <span class="text-emerald-400">●</span> Me ${p.profitSplit}%
+              &nbsp;
+              <span class="text-purple-400">●</span> Client ${100 - p.profitSplit}%
+            </span>
+          </div>
+          <div class="h-2.5 rounded-full overflow-hidden bg-surface-container-highest flex">
+            <div class="bg-emerald-500 h-full transition-all duration-500" style="width:${p.profitSplit}%"></div>
+            <div class="bg-purple-500 h-full transition-all duration-500" style="width:${100 - p.profitSplit}%"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-baseline mb-2">
+            <span class="text-sm text-on-surface">Losses</span>
+            <span class="text-xs text-on-surface-variant">
+              <span class="text-emerald-400">●</span> Me ${p.lossSplit}%
+              &nbsp;
+              <span class="text-purple-400">●</span> Client ${100 - p.lossSplit}%
+            </span>
+          </div>
+          <div class="h-2.5 rounded-full overflow-hidden bg-surface-container-highest flex">
+            <div class="bg-emerald-500 h-full transition-all duration-500" style="width:${p.lossSplit}%"></div>
+            <div class="bg-purple-500 h-full transition-all duration-500" style="width:${100 - p.lossSplit}%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="glass-surface rounded-xl p-4">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Capital Deployed</p>
+          <p class="font-playfair text-2xl text-on-surface">${m(p.capitalDeployed)}</p>
+        </div>
+        <div class="glass-surface rounded-xl p-4">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Available</p>
+          <p class="font-playfair text-2xl text-on-surface">${m(p.available)}</p>
+        </div>
+        <div class="glass-surface rounded-xl p-4">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Sold</p>
+          <p class="font-playfair text-2xl text-on-surface">${p.soldCount}</p>
+        </div>
+        <div class="glass-surface rounded-xl p-4">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Pipeline</p>
+          <p class="font-playfair text-2xl text-on-surface">${p.pipelineCount}</p>
+        </div>
+      </div>
+
+      <!-- P&L Breakdown -->
+      <div class="glass-surface rounded-2xl p-6">
+        <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-5">Rules Applied to P&amp;L</p>
+        <div class="space-y-3 text-sm">
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Gross profit (sold)</span>
+            <span class="${cls(p.grossProfit)} font-medium">${sgn(p.grossProfit)}${m(p.grossProfit)}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Gross loss (sold)</span>
+            <span class="${cls(p.grossLoss)} font-medium">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${m(p.grossLoss)}</span>
+          </div>
+          <div class="border-t border-outline-variant/15 pt-4 space-y-4">
+            <div class="flex justify-between items-baseline gap-4">
+              <div>
+                <span class="text-on-surface font-medium">My share</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.profitSplit}% × ${m(p.grossProfit)} + ${p.lossSplit}% × ${m(p.grossLoss)}</span>
+              </div>
+              <span class="${cls(p.myShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.myShare)}${m(p.myShare)}</span>
+            </div>
+            <div class="flex justify-between items-baseline gap-4">
+              <div>
+                <span class="text-on-surface font-medium">Client share</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${100 - p.profitSplit}% × ${m(p.grossProfit)} + ${100 - p.lossSplit}% × ${m(p.grossLoss)}</span>
+              </div>
+              <span class="${cls(p.clientShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.clientShare)}${m(p.clientShare)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  `;
 }
 
 function renderProfileWatches(watches) {
@@ -1646,6 +1862,19 @@ function avatarHtml(name, photoPath, size = 'sm') {
   return `<div class="${dim} rounded-full bg-surface-variant flex items-center justify-center text-primary font-semibold flex-shrink-0">${initials}</div>`;
 }
 
+function statusBadge(status) {
+  if (status === 'sold') return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>Sold</span>`;
+  return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>Pipeline</span>`;
+}
+
+function plBadge(listPrice, salePrice) {
+  if (listPrice == null || salePrice == null) return '<span class="text-outline text-xs">—</span>';
+  const diff = salePrice - listPrice;
+  const cls  = diff >= 0 ? 'text-emerald-400' : 'text-red-400';
+  const sign = diff >= 0 ? '+' : '';
+  return `<span class="text-xs font-semibold font-mono ${cls}">${sign}${fmt.money(diff)}</span>`;
+}
+
 function watchRow(w, detail) {
   const thumb = w.image_path
     ? `<img src="${w.image_path}" class="w-full h-full object-cover" alt="${esc(w.model)}" onclick="openLightbox('${w.image_path}')" style="cursor:zoom-in">`
@@ -1654,7 +1883,18 @@ function watchRow(w, detail) {
     <td class="px-6 py-6">
       <button onclick="openProfileDetail(${w.profile_id})" class="text-on-surface-variant text-sm hover:text-primary transition-colors">${esc(w.client_name || '—')}</button>
     </td>`;
-  const notesCell = detail ? `<td class="px-6 py-6 text-on-surface-variant text-xs max-w-[160px] truncate">${esc(w.notes || '—')}</td>` : '';
+  const detailPriceCols = detail ? `
+      <td class="px-6 py-6">${statusBadge(w.status)}</td>
+      <td class="px-6 py-6">${sourceBadge(w.source)}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.money(w.list_price)}</td>
+      <td class="px-6 py-6 text-primary font-semibold text-sm">${w.status === 'sold' ? fmt.money(w.sale_price) : '<span class="text-outline">—</span>'}</td>
+      <td class="px-6 py-6">${plBadge(w.list_price, w.status === 'sold' ? w.sale_price : null)}</td>` : `
+      <td class="px-6 py-6">${sourceBadge(w.source)}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
+      <td class="px-6 py-6 font-semibold text-primary text-sm">${fmt.money(w.list_price ?? w.price)}</td>
+      <td class="px-6 py-6 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>`;
   return `
     <tr class="tbl-row">
       <td class="px-6 py-6">
@@ -1669,12 +1909,7 @@ function watchRow(w, detail) {
         </div>
       </td>
       ${clientCell}
-      <td class="px-6 py-6">${sourceBadge(w.source)}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
-      <td class="px-6 py-6 font-semibold text-primary text-sm">${fmt.money(w.price)}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>
-      ${notesCell}
+      ${detailPriceCols}
       <td class="px-6 py-6">
         <div class="flex items-center justify-end gap-1">
           <button onclick="openEditWatch(${w.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
@@ -1779,7 +2014,10 @@ function setProfileModalClientMode(clientId, clientData) {
 }
 
 function openAddProfile(presetShopId, presetPortfolioId, presetClientId, presetClientData) {
-  ['profileId','pName','pEmail','pAddress','pPpUrn'].forEach(id => document.getElementById(id).value = '');
+  ['profileId','pName','pEmail','pAddress','pPpUrn','pMyCapital','pMyRemaining','pClientCapital','pClientRemaining'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pProfitSplitMe').value = 100;
+  document.getElementById('pLossSplitMe').value   = 100;
+  updateSplitBars();
   clearRegFields();
   document.getElementById('pPhoto').value            = '';
   document.getElementById('pIdCard').value           = '';
@@ -1800,6 +2038,13 @@ async function openEditProfile(id) {
   document.getElementById('pEmail').value            = p.email;
   document.getElementById('pAddress').value          = p.address || '';
   document.getElementById('pPpUrn').value            = p.pp_urn || '';
+  document.getElementById('pProfitSplitMe').value    = p.profit_split_me  ?? 100;
+  document.getElementById('pLossSplitMe').value      = p.loss_split_me    ?? 100;
+  document.getElementById('pMyCapital').value        = p.my_capital       ?? '';
+  document.getElementById('pMyRemaining').value      = p.my_remaining     ?? '';
+  document.getElementById('pClientCapital').value    = p.client_capital   ?? '';
+  document.getElementById('pClientRemaining').value  = p.client_remaining ?? '';
+  updateSplitBars();
   document.getElementById('pTitle').value      = p.title      || '';
   document.getElementById('pFirstName').value  = p.first_name || '';
   document.getElementById('pLastName').value   = p.last_name  || '';
@@ -1856,6 +2101,20 @@ function closeProfileModal() { document.getElementById('profileModal').classList
 document.getElementById('closeProfileModal').addEventListener('click', closeProfileModal);
 document.getElementById('cancelProfileModal').addEventListener('click', closeProfileModal);
 document.getElementById('clearSelectedClient').addEventListener('click', () => setProfileModalClientMode(null, null));
+
+// ── Split bar live update ──────────────────────────────────────────────────
+function updateSplitBars() {
+  const p = Number(document.getElementById('pProfitSplitMe').value);
+  const l = Number(document.getElementById('pLossSplitMe').value);
+  document.getElementById('profitMeLabel').textContent    = p + '%';
+  document.getElementById('profitClientLabel').textContent= (100-p) + '%';
+  document.getElementById('lossMeLabel').textContent      = l + '%';
+  document.getElementById('lossClientLabel').textContent  = (100-l) + '%';
+  document.getElementById('profitMeBar').style.width      = p + '%';
+  document.getElementById('profitClientBar').style.width  = (100-p) + '%';
+  document.getElementById('lossMeBar').style.width        = l + '%';
+  document.getElementById('lossClientBar').style.width    = (100-l) + '%';
+}
 
 // ── Master ID lookup in profile modal ─────────────────────────────────────
 
@@ -1977,9 +2236,15 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
   const fd = new FormData();
   if (!clientId) fd.append('name', document.getElementById('pName').value.trim());
   if (clientId)  fd.append('client_id', clientId);
-  fd.append('email',   document.getElementById('pEmail').value.trim());
-  fd.append('address', document.getElementById('pAddress').value.trim());
-  fd.append('pp_urn',  document.getElementById('pPpUrn').value.trim());
+  fd.append('email',            document.getElementById('pEmail').value.trim());
+  fd.append('address',          document.getElementById('pAddress').value.trim());
+  fd.append('pp_urn',           document.getElementById('pPpUrn').value.trim());
+  fd.append('profit_split_me',  document.getElementById('pProfitSplitMe').value);
+  fd.append('loss_split_me',    document.getElementById('pLossSplitMe').value);
+  fd.append('my_capital',       document.getElementById('pMyCapital').value);
+  fd.append('my_remaining',     document.getElementById('pMyRemaining').value);
+  fd.append('client_capital',   document.getElementById('pClientCapital').value);
+  fd.append('client_remaining', document.getElementById('pClientRemaining').value);
   fd.append('title',         document.getElementById('pTitle').value.trim());
   fd.append('first_name',    document.getElementById('pFirstName').value.trim());
   fd.append('last_name',     document.getElementById('pLastName').value.trim());
@@ -2025,14 +2290,66 @@ function resetWatchImgPreview(src) {
   }
 }
 
+// ── Watch status toggle ────────────────────────────────────────────────────
+function setWatchStatus(status) {
+  document.getElementById('wStatus').value = status;
+  const isPipeline = status === 'pipeline';
+  document.getElementById('wStatusPipelineBtn').className =
+    'flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all ' +
+    (isPipeline ? 'bg-primary/15 border-primary/40 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30');
+  document.getElementById('wStatusSoldBtn').className =
+    'flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all ' +
+    (!isPipeline ? 'bg-primary/15 border-primary/40 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30');
+  document.getElementById('wSalePriceWrap').classList.toggle('hidden', isPipeline);
+}
+
+// ── Watch "from system" search ─────────────────────────────────────────────
+let _watchSearchTimer = null;
+document.getElementById('wSystemSearch').addEventListener('input', function() {
+  clearTimeout(_watchSearchTimer);
+  const q = this.value.trim();
+  const res = document.getElementById('wSystemResults');
+  if (!q) { res.classList.add('hidden'); return; }
+  _watchSearchTimer = setTimeout(async () => {
+    const watches = await api('GET', `/api/watches?q=${encodeURIComponent(q)}`);
+    if (!watches.length) { res.innerHTML = '<p class="px-4 py-3 text-xs text-outline">No matches found.</p>'; res.classList.remove('hidden'); return; }
+    res.innerHTML = watches.slice(0,8).map(w => `
+      <button type="button" onclick="prefillWatchFromSystem(${JSON.stringify(w).replace(/"/g,'&quot;')})"
+              class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 text-left transition-colors border-b border-outline-variant/10 last:border-0">
+        ${w.image_path ? `<img src="${w.image_path}" class="w-8 h-8 rounded object-cover flex-shrink-0">` : `<div class="w-8 h-8 rounded bg-surface-variant flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-outline text-[14px]">watch</span></div>`}
+        <div class="flex-1 min-w-0">
+          <p class="text-on-surface text-xs font-medium truncate">${esc(w.model)}</p>
+          <p class="text-outline text-[10px] font-mono">${[w.serial_number, w.reference_number].filter(Boolean).join(' · ') || '—'}</p>
+        </div>
+        ${w.list_price ? `<span class="text-primary text-xs font-semibold flex-shrink-0">${fmt.money(w.list_price)}</span>` : ''}
+      </button>`).join('');
+    res.classList.remove('hidden');
+  }, 250);
+});
+
+function prefillWatchFromSystem(w) {
+  document.getElementById('wModel').value    = w.model        || '';
+  document.getElementById('wSerial').value   = w.serial_number|| '';
+  document.getElementById('wRef').value      = w.reference_number || '';
+  document.getElementById('wMovement').value = w.movement_number  || '';
+  document.getElementById('wCase').value     = w.case_number      || '';
+  document.getElementById('wListPrice').value= w.list_price != null ? w.list_price : '';
+  document.getElementById('wSource').value   = w.source       || '';
+  document.getElementById('wSystemSearch').value = '';
+  document.getElementById('wSystemResults').classList.add('hidden');
+}
+
 function openAddWatch(profileId) {
-  ['watchId','wModel','wSerial','wDate','wRef','wNotes','wMovement','wCase'].forEach(id => document.getElementById(id).value = '');
+  ['watchId','wModel','wSerial','wDate','wRef','wNotes','wMovement','wCase','wListPrice','wSalePrice','wSystemSearch'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
   document.getElementById('watchProfileId').value = profileId || '';
   document.getElementById('wSource').value = '';
-  document.getElementById('wPrice').value  = '';
   document.getElementById('wImage').value  = '';
   document.getElementById('watchImgChosen').classList.add('hidden');
+  document.getElementById('wSystemResults').classList.add('hidden');
   resetWatchImgPreview(null);
+  setWatchStatus('pipeline');
   document.getElementById('watchModalTitle').textContent = 'Add Watch';
   document.getElementById('watchFormError').classList.add('hidden');
   document.getElementById('watchModal').classList.remove('hidden');
@@ -2044,18 +2361,21 @@ async function openEditWatch(id) {
   if (!wt) return;
   document.getElementById('watchId').value        = wt.id;
   document.getElementById('watchProfileId').value = wt.profile_id;
-  document.getElementById('wModel').value    = wt.model;
-  document.getElementById('wSerial').value   = wt.serial_number   || '';
-  document.getElementById('wSource').value   = wt.source;
-  document.getElementById('wDate').value     = wt.purchase_date   || '';
-  document.getElementById('wPrice').value    = wt.price != null   ? wt.price : '';
-  document.getElementById('wRef').value      = wt.reference_number|| '';
-  document.getElementById('wMovement').value = wt.movement_number || '';
-  document.getElementById('wCase').value     = wt.case_number     || '';
-  document.getElementById('wNotes').value    = wt.notes           || '';
-  document.getElementById('wImage').value    = '';
+  document.getElementById('wModel').value     = wt.model;
+  document.getElementById('wSerial').value    = wt.serial_number    || '';
+  document.getElementById('wSource').value    = wt.source;
+  document.getElementById('wDate').value      = wt.purchase_date    || '';
+  document.getElementById('wListPrice').value = wt.list_price != null ? wt.list_price : '';
+  document.getElementById('wSalePrice').value = wt.sale_price != null ? wt.sale_price : '';
+  document.getElementById('wRef').value       = wt.reference_number || '';
+  document.getElementById('wMovement').value  = wt.movement_number  || '';
+  document.getElementById('wCase').value      = wt.case_number      || '';
+  document.getElementById('wNotes').value     = wt.notes            || '';
+  document.getElementById('wImage').value     = '';
   document.getElementById('watchImgChosen').classList.add('hidden');
+  document.getElementById('wSystemResults').classList.add('hidden');
   resetWatchImgPreview(wt.image_path || null);
+  setWatchStatus(wt.status || 'pipeline');
   document.getElementById('watchModalTitle').textContent = 'Edit Watch';
   document.getElementById('watchFormError').classList.add('hidden');
   document.getElementById('watchModal').classList.remove('hidden');
@@ -2091,9 +2411,11 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   const fd = new FormData();
   fd.append('model',            model);
   fd.append('source',           source);
+  fd.append('status',           document.getElementById('wStatus').value);
   fd.append('serial_number',    document.getElementById('wSerial').value.trim());
   fd.append('purchase_date',    document.getElementById('wDate').value);
-  fd.append('price',            document.getElementById('wPrice').value);
+  fd.append('list_price',       document.getElementById('wListPrice').value);
+  fd.append('sale_price',       document.getElementById('wSalePrice').value);
   fd.append('reference_number', document.getElementById('wRef').value.trim());
   fd.append('movement_number',  document.getElementById('wMovement').value.trim());
   fd.append('case_number',      document.getElementById('wCase').value.trim());
