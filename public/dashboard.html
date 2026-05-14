@@ -1130,7 +1130,10 @@ async function api(method, url, data) {
 
 const fmt = {
   date:     d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—',
-  money:    v => v != null && v !== '' ? '
+  money:    v => v != null && v !== '' ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) : '—',
+  price:    (v, cur) => { if (v == null || v === '') return '—'; const s={CHF:'CHF ',EUR:'€',GBP:'£'}; return (s[cur]||((cur||'')+' '))+Number(v).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); },
+  initials: n => (n||'').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2),
+};
 
 // ── Routing ────────────────────────────────────────────────────────────────
 let currentPage = 'dashboard';
