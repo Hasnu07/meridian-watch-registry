@@ -129,6 +129,7 @@ function init() {
   if (!wcols2.includes('sale_price'))  db.exec("ALTER TABLE watches ADD COLUMN sale_price REAL");
   if (!wcols2.includes('status'))      db.exec("ALTER TABLE watches ADD COLUMN status TEXT DEFAULT 'wishlist'");
   if (!wcols2.includes('currency'))    db.exec("ALTER TABLE watches ADD COLUMN currency TEXT DEFAULT 'CHF'");
+  if (!wcols2.includes('sold_to'))     db.exec("ALTER TABLE watches ADD COLUMN sold_to TEXT");
   // Rename legacy 'pipeline' status to 'wishlist'
   db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
@@ -468,6 +469,7 @@ function listWatchesForProfile(profileId) {
 function listAllWatches({ q, source, profile_id } = {}) {
   let sql = `
     SELECT w.*, p.name AS client_name, p.email AS client_email,
+           p.profit_split_me, p.loss_split_me,
            s.name AS shop_name
     FROM watches w
     JOIN profiles p ON p.id = w.profile_id
@@ -523,7 +525,7 @@ function createWatch(profileId, { model, serial_number, source, purchase_date, p
 function updateWatch(id, updates) {
   const FIELDS = ['model','serial_number','source','purchase_date','price',
                   'reference_number','notes','image_path','movement_number','case_number',
-                  'list_price','sale_price','status','currency'];
+                  'list_price','sale_price','status','currency','sold_to'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {
