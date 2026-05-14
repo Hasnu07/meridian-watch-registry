@@ -65,6 +65,10 @@
         <span class="material-symbols-outlined">folder_special</span>
         <span>Portfolios</span>
       </button>
+      <button data-page="main-kpi" class="nav-item nav-inactive w-full flex items-center gap-3 pl-11 pr-4 py-2.5 rounded-r-lg text-xs transition-all hover:text-primary hover:bg-primary/5 text-on-surface-variant">
+        <span class="material-symbols-outlined text-[16px]">analytics</span>
+        <span>Main KPI</span>
+      </button>
       <button data-page="profiles" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
         <span class="material-symbols-outlined">inventory_2</span>
         <span>Clients</span>
@@ -206,6 +210,63 @@
           <p class="text-on-surface-variant text-sm mt-2">All portfolios across every shop.</p>
         </div>
         <div id="allPortfoliosGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+
+      <!-- ── Main KPI ──────────────────────────────────────────────── -->
+      <div id="page-main-kpi" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-8">
+          <h2 class="font-playfair text-5xl font-semibold text-on-surface">Main KPI</h2>
+          <p class="text-on-surface-variant text-sm mt-2">Aggregated P&amp;L and capital overview across all memberships.</p>
+        </div>
+        <!-- Top-level KPI tiles -->
+        <div id="kpiTiles" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8"></div>
+        <!-- My Net P&L highlight -->
+        <div id="kpiNetBar" class="glass-surface rounded-2xl p-6 mb-8 flex flex-col sm:flex-row sm:items-center gap-6"></div>
+        <!-- Per-shop breakdown -->
+        <div class="glass-surface rounded-2xl overflow-hidden mb-8">
+          <div class="px-6 py-4 border-b border-outline-variant/10">
+            <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant">Breakdown by Shop</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Shop</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Members</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Sold</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Pipeline</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Gross Profit</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Gross Loss</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">My Share</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Client Share</th>
+                </tr>
+              </thead>
+              <tbody id="kpiShopTable" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Per-membership breakdown -->
+        <div class="glass-surface rounded-2xl overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/10">
+            <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant">Breakdown by Membership</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Shop</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-center">Split (P/L)</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Capital</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Sold</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Pipeline</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">My Share</th>
+                </tr>
+              </thead>
+              <tbody id="kpiMemberTable" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- ── Client Detail (master identity cross-shop view) ─────────── -->
@@ -1053,7 +1114,7 @@ const fmt = {
 let currentPage = 'dashboard';
 let currentProfileId = null;
 let currentShopId = null;
-const PAGES = ['dashboard','shops','portfolios','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watches','messages','settings'];
+const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watches','messages','settings'];
 
 function showPage(name) {
   PAGES.forEach(p => {
@@ -1074,7 +1135,7 @@ function showPage(name) {
     }
   });
 
-  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', watches:'Watches', messages:'Messages', settings:'Settings' };
+  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', watches:'Watches', messages:'Messages', settings:'Settings' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
 
   const showAddProfile   = name === 'profiles';
@@ -1092,6 +1153,7 @@ function showPage(name) {
   if (name === 'dashboard')  loadDashboard();
   if (name === 'shops')      loadShops();
   if (name === 'portfolios') loadAllPortfolios();
+  if (name === 'main-kpi')   loadMainKpi();
   if (name === 'watches')    loadWatches();
   if (name === 'settings')  resetPasswordForm();
   if (name === 'messages')  loadMsgClients();
@@ -1131,6 +1193,145 @@ async function loadDashboard() {
       </td>
     </tr>
   `).join('') : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No shops yet.</td></tr>`;
+}
+
+// ── Main KPI ───────────────────────────────────────────────────────────────
+async function loadMainKpi() {
+  // Fetch all profiles (has split rules + capital) and all watches in parallel
+  const [profiles, allWatches] = await Promise.all([
+    api('GET', '/api/profiles'),
+    api('GET', '/api/watches'),
+  ]);
+
+  // Group watches by profile_id
+  const watchMap = {};
+  for (const w of allWatches) {
+    if (!watchMap[w.profile_id]) watchMap[w.profile_id] = [];
+    watchMap[w.profile_id].push(w);
+  }
+
+  // Compute per-profile P&L (reuse computePnl logic)
+  const profilePnls = profiles.map(prof => {
+    const watches = watchMap[prof.id] || [];
+    const profitSplit = prof.profit_split_me ?? 100;
+    const lossSplit   = prof.loss_split_me  ?? 100;
+    let grossProfit = 0, grossLoss = 0;
+    for (const w of watches) {
+      if (w.status !== 'sold' || w.list_price == null || w.sale_price == null) continue;
+      const diff = w.sale_price - w.list_price;
+      if (diff > 0) grossProfit += diff; else grossLoss += diff;
+    }
+    return {
+      ...prof,
+      watches,
+      profitSplit, lossSplit,
+      grossProfit, grossLoss,
+      myShare:       (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss,
+      clientShare:   ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss,
+      soldCount:     watches.filter(w => w.status === 'sold').length,
+      pipelineCount: watches.filter(w => w.status === 'pipeline').length,
+      capitalDeployed: (prof.my_capital || 0) + (prof.client_capital || 0),
+      available:       (prof.my_remaining || 0) + (prof.client_remaining || 0),
+    };
+  });
+
+  // Aggregate totals
+  const totals = profilePnls.reduce((acc, p) => {
+    acc.capitalDeployed += p.capitalDeployed;
+    acc.available       += p.available;
+    acc.soldCount       += p.soldCount;
+    acc.pipelineCount   += p.pipelineCount;
+    acc.grossProfit     += p.grossProfit;
+    acc.grossLoss       += p.grossLoss;
+    acc.myShare         += p.myShare;
+    acc.clientShare     += p.clientShare;
+    return acc;
+  }, { capitalDeployed:0, available:0, soldCount:0, pipelineCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0 });
+
+  const m   = v => fmt.money(v);
+  const sgn = v => v > 0 ? '+' : '';
+  const cls = v => v >= 0 ? 'text-emerald-400' : 'text-error';
+
+  // Top KPI tiles
+  document.getElementById('kpiTiles').innerHTML = [
+    { label: 'Capital Deployed', value: m(totals.capitalDeployed), sub: null },
+    { label: 'Available',        value: m(totals.available),       sub: null },
+    { label: 'Sold',             value: totals.soldCount,           sub: 'watches' },
+    { label: 'Pipeline',         value: totals.pipelineCount,       sub: 'watches' },
+    { label: 'Gross Profit',     value: m(totals.grossProfit),      cls: totals.grossProfit >= 0 ? 'text-emerald-400' : 'text-error' },
+    { label: 'Gross Loss',       value: m(totals.grossLoss),        cls: totals.grossLoss >= 0 ? 'text-emerald-400' : 'text-error' },
+  ].map(t => `
+    <div class="glass-surface rounded-xl p-4">
+      <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">${t.label}</p>
+      <p class="font-playfair text-2xl ${t.cls || 'text-on-surface'}">${t.value}</p>
+      ${t.sub ? `<p class="text-[10px] text-on-surface-variant mt-0.5">${t.sub}</p>` : ''}
+    </div>`).join('');
+
+  // Net P&L bar
+  document.getElementById('kpiNetBar').innerHTML = `
+    <div class="flex-1">
+      <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-1">My Net P&amp;L</p>
+      <p class="font-playfair text-5xl font-semibold ${cls(totals.myShare)}">${sgn(totals.myShare)}${m(totals.myShare)}</p>
+      <p class="text-xs text-on-surface-variant mt-1">${sgn(totals.grossProfit)}${m(totals.grossProfit)} profit · ${sgn(totals.grossLoss)}${m(totals.grossLoss)} loss · applied across ${profiles.length} membership${profiles.length !== 1 ? 's' : ''}</p>
+    </div>
+    <div class="border-l border-outline-variant/15 pl-6">
+      <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-1">Client Net P&amp;L</p>
+      <p class="font-playfair text-3xl font-semibold ${cls(totals.clientShare)}">${sgn(totals.clientShare)}${m(totals.clientShare)}</p>
+    </div>`;
+
+  // Per-shop breakdown
+  const shopMap = {};
+  for (const p of profilePnls) {
+    const key   = p.shop_name || 'Unassigned';
+    const shopId = p.shop_id || null;
+    if (!shopMap[key]) shopMap[key] = { shopId, members:0, soldCount:0, pipelineCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0 };
+    const s = shopMap[key];
+    s.members++;
+    s.soldCount    += p.soldCount;
+    s.pipelineCount += p.pipelineCount;
+    s.grossProfit  += p.grossProfit;
+    s.grossLoss    += p.grossLoss;
+    s.myShare      += p.myShare;
+    s.clientShare  += p.clientShare;
+  }
+  document.getElementById('kpiShopTable').innerHTML = Object.entries(shopMap).length
+    ? Object.entries(shopMap).map(([name, s]) => `
+      <tr class="tbl-row cursor-pointer" onclick="${s.shopId ? `openShopDetail(${s.shopId})` : ''}">
+        <td class="px-5 py-4 text-sm font-medium text-on-surface">${esc(name)}</td>
+        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${s.members}</td>
+        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${s.soldCount}</td>
+        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${s.pipelineCount}</td>
+        <td class="px-5 py-4 text-sm text-right ${s.grossProfit >= 0 ? 'text-emerald-400' : 'text-error'} font-medium">${sgn(s.grossProfit)}${m(s.grossProfit)}</td>
+        <td class="px-5 py-4 text-sm text-right ${s.grossLoss >= 0 ? 'text-emerald-400' : 'text-error'} font-medium">${sgn(s.grossLoss)}${m(s.grossLoss)}</td>
+        <td class="px-5 py-4 text-sm text-right ${cls(s.myShare)} font-semibold">${sgn(s.myShare)}${m(s.myShare)}</td>
+        <td class="px-5 py-4 text-sm text-right ${cls(s.clientShare)} font-medium">${sgn(s.clientShare)}${m(s.clientShare)}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="8" class="px-5 py-12 text-center text-on-surface-variant text-sm">No data yet.</td></tr>`;
+
+  // Per-membership breakdown
+  document.getElementById('kpiMemberTable').innerHTML = profilePnls.length
+    ? profilePnls.map(p => `
+      <tr class="tbl-row cursor-pointer" onclick="openProfileDetail(${p.id})">
+        <td class="px-5 py-4">
+          <div class="flex items-center gap-2.5">
+            ${avatarHtml(p.name, p.photo_path, 'sm')}
+            <span class="text-sm font-medium text-on-surface">${esc(p.name)}</span>
+          </div>
+        </td>
+        <td class="px-5 py-4 text-xs text-on-surface-variant">${esc(p.shop_name || '—')}</td>
+        <td class="px-5 py-4 text-center">
+          <span class="text-[10px] text-on-surface-variant font-mono">
+            <span class="text-emerald-400">${p.profitSplit}%</span> / <span class="text-purple-400">${100 - p.profitSplit}%</span>
+            &nbsp;·&nbsp;
+            <span class="text-emerald-400">${p.lossSplit}%</span> / <span class="text-purple-400">${100 - p.lossSplit}%</span>
+          </span>
+        </td>
+        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${m(p.capitalDeployed)}</td>
+        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${p.soldCount}</td>
+        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${p.pipelineCount}</td>
+        <td class="px-5 py-4 text-sm text-right ${cls(p.myShare)} font-semibold">${sgn(p.myShare)}${m(p.myShare)}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="7" class="px-5 py-12 text-center text-on-surface-variant text-sm">No memberships yet.</td></tr>`;
 }
 
 // ── Master Clients (Clients page) ──────────────────────────────────────────
