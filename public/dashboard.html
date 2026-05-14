@@ -473,25 +473,7 @@
               </div>
             </div>
           </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left">
-              <thead>
-                <tr class="bg-surface-container-low border-b border-outline-variant/10">
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Shop</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Date</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">List Price</th>
-                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
-                  <th class="px-6 py-4"></th>
-                </tr>
-              </thead>
-              <tbody id="watchesBody" class="divide-y divide-white/[0.04]"></tbody>
-            </table>
-          </div>
+          <div id="watchesBody" class="divide-y divide-white/[0.04]"></div>
           <div id="watchesPagination" class="px-6 py-4 flex items-center justify-between border-t border-outline-variant/10"></div>
         </div>
       </div>
@@ -2073,9 +2055,56 @@ function renderWatches() {
   const filtered = watchStatusFilter ? allWatches.filter(w => w.status === watchStatusFilter) : allWatches;
   const total = filtered.length;
   const slice = filtered.slice((watchPage - 1) * PER_PAGE, watchPage * PER_PAGE);
-  document.getElementById('watchesBody').innerHTML = slice.map(w => watchRow(w, false)).join('')
-    || `<tr><td colspan="9" class="px-6 py-16 text-center text-on-surface-variant text-sm">No watches found.</td></tr>`;
+  document.getElementById('watchesBody').innerHTML = slice.map(w => watchCard(w)).join('')
+    || `<div class="px-6 py-16 text-center text-on-surface-variant text-sm">No watches found.</div>`;
   renderPagination('watchesPagination', watchPage, total, PER_PAGE, n => { watchPage = n; renderWatches(); });
+}
+
+function watchCard(w) {
+  const cur   = w.currency || 'CHF';
+  const thumb = w.image_path
+    ? `<img src="${w.image_path}" class="w-full h-full object-cover cursor-zoom-in" onclick="openLightbox('${w.image_path}')">`
+    : `<span class="material-symbols-outlined text-outline text-[28px]">watch</span>`;
+  const meta = [
+    w.serial_number  ? `<span><span class="text-outline">S/N</span> ${esc(w.serial_number)}</span>` : null,
+    w.purchase_date  ? `<span><span class="text-outline">Date</span> ${fmt.date(w.purchase_date)}</span>` : null,
+    w.list_price != null ? `<span class="text-primary font-semibold">${fmt.price(w.list_price, cur)}</span>` : null,
+    w.status === 'sold' && w.sale_price != null ? `<span class="text-emerald-400 font-semibold">Sold ${fmt.price(w.sale_price, cur)}</span>` : null,
+    w.reference_number ? `<span><span class="text-outline">Ref</span> ${esc(w.reference_number)}</span>` : null,
+  ].filter(Boolean).join('<span class="text-outline/40 mx-1.5">·</span>');
+  return `
+  <div class="flex items-center gap-4 px-6 py-5 hover:bg-white/[0.02] transition-colors group">
+    <div class="w-16 h-16 rounded-xl bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
+      ${thumb}
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-1.5">
+        <p class="text-on-surface font-semibold text-sm leading-snug">${esc(w.model)}</p>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          ${statusBadge(w.status)}
+          ${sourceBadge(w.source)}
+        </div>
+      </div>
+      <p class="text-xs text-on-surface-variant mb-1.5">
+        ${esc(w.client_name || '—')}
+        ${w.shop_name ? `<span class="text-outline/50 mx-1">·</span><span class="text-outline">${esc(w.shop_name)}</span>` : ''}
+      </p>
+      ${meta ? `<p class="text-xs text-on-surface-variant font-mono flex flex-wrap gap-x-0 gap-y-1">${meta}</p>` : ''}
+    </div>
+    <div class="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      ${w.status !== 'sold' ? `<button onclick="quickMarkSold(${w.id})" title="Mark as Sold" class="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-all flex items-center gap-1">
+        <span class="material-symbols-outlined text-[13px]">sell</span> Sold
+      </button>` : ''}
+      <button onclick="openEditWatch(${w.id})" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
+        <span class="material-symbols-outlined text-[18px]">edit</span>
+      </button>
+      <button onclick="confirmDeleteWatch(${w.id},'${esc(w.model).replace(/'/g,"\\'")}')">
+        <span class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors block">
+          <span class="material-symbols-outlined text-[18px]">delete</span>
+        </span>
+      </button>
+    </div>
+  </div>`;
 }
 
 function renderWishlistWaiting() {
