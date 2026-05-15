@@ -234,7 +234,7 @@
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Shop</th>
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Members</th>
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Sold</th>
-                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Pipeline</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Active</th>
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Gross Profit</th>
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Gross Loss</th>
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">My Share</th>
@@ -259,7 +259,7 @@
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-center">Split (P/L)</th>
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Capital</th>
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Sold</th>
-                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Pipeline</th>
+                  <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">Active</th>
                   <th class="px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant text-right">My Share</th>
                 </tr>
               </thead>
@@ -841,6 +841,14 @@
       <input type="hidden" id="watchProfileId">
       <input type="hidden" id="wStatus" value="wishlist">
 
+      <!-- ── Profile selector (only shown when opened from Watches page) ── -->
+      <div id="wProfileWrap" class="hidden">
+        <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Client *</label>
+        <select id="wProfileSelect" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          <option value="">Select client…</option>
+        </select>
+      </div>
+
       <!-- ── Status toggle ── -->
       <div>
         <label class="block text-xs uppercase tracking-widest text-outline mb-2">Status</label>
@@ -1351,26 +1359,43 @@ async function loadMainKpi() {
     watchMap[w.profile_id].push(w);
   }
 
-  // Compute per-profile P&L (reuse computePnl logic)
+  // Compute per-profile P&L — handles both 'split' and 'discount' trading rules
   const profilePnls = profiles.map(prof => {
-    const watches = watchMap[prof.id] || [];
-    const profitSplit = prof.profit_split_me ?? 100;
-    const lossSplit   = prof.loss_split_me  ?? 100;
-    let grossProfit = 0, grossLoss = 0;
+    const watches      = watchMap[prof.id] || [];
+    const profitSplit  = prof.profit_split_me ?? 100;
+    const lossSplit    = prof.loss_split_me   ?? 100;
+    const isDiscount   = (prof.trading_rule || 'split') === 'discount';
+    const discountSplit= prof.discount_split  ?? 0.08;
+    let grossProfit = 0, grossLoss = 0, discountIncome = 0;
     for (const w of watches) {
       if (w.status !== 'sold' || w.list_price == null || w.sale_price == null) continue;
       const diff = w.sale_price - w.list_price;
-      if (diff > 0) grossProfit += diff; else grossLoss += diff;
+      if (isDiscount) {
+        discountIncome += w.list_price * discountSplit;
+        if (diff < 0) grossLoss += diff;
+      } else {
+        if (diff > 0) grossProfit += diff; else grossLoss += diff;
+      }
+    }
+    let myShare, clientShare;
+    if (isDiscount) {
+      const myLossShare = grossLoss * lossSplit / 100;
+      myShare     = discountIncome + myLossShare;
+      clientShare = grossLoss * (100 - lossSplit) / 100;
+    } else {
+      myShare     = (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss;
+      clientShare = ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss;
     }
     return {
       ...prof,
       watches,
-      profitSplit, lossSplit,
-      grossProfit, grossLoss,
-      myShare:       (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss,
-      clientShare:   ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss,
+      isDiscount, profitSplit, lossSplit, discountSplit,
+      grossProfit, grossLoss, discountIncome,
+      myShare, clientShare,
       soldCount:     watches.filter(w => w.status === 'sold').length,
-      pipelineCount: watches.filter(w => w.status === 'wishlist' || w.status === 'purchased').length,
+      activeCount:   watches.filter(w => w.status === 'wishlist' || w.status === 'purchased').length,
+      wishlistCount: watches.filter(w => w.status === 'wishlist').length,
+      purchasedCount:watches.filter(w => w.status === 'purchased').length,
       capitalDeployed: (prof.my_capital || 0) + (prof.client_capital || 0),
       available:       (prof.my_remaining || 0) + (prof.client_remaining || 0),
     };
@@ -1381,13 +1406,13 @@ async function loadMainKpi() {
     acc.capitalDeployed += p.capitalDeployed;
     acc.available       += p.available;
     acc.soldCount       += p.soldCount;
-    acc.pipelineCount   += p.pipelineCount;
+    acc.activeCount     += p.activeCount;
     acc.grossProfit     += p.grossProfit;
     acc.grossLoss       += p.grossLoss;
     acc.myShare         += p.myShare;
     acc.clientShare     += p.clientShare;
     return acc;
-  }, { capitalDeployed:0, available:0, soldCount:0, pipelineCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0 });
+  }, { capitalDeployed:0, available:0, soldCount:0, activeCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0 });
 
   const m   = v => fmt.money(v);
   const sgn = v => v > 0 ? '+' : '';
@@ -1398,7 +1423,7 @@ async function loadMainKpi() {
     { label: 'Capital Deployed', value: m(totals.capitalDeployed), sub: null },
     { label: 'Available',        value: m(totals.available),       sub: null },
     { label: 'Sold',             value: totals.soldCount,           sub: 'watches' },
-    { label: 'Pipeline',         value: totals.pipelineCount,       sub: 'watches' },
+    { label: 'Active',           value: totals.activeCount,         sub: 'watches' },
     { label: 'Gross Profit',     value: m(totals.grossProfit),      cls: totals.grossProfit >= 0 ? 'text-emerald-400' : 'text-error' },
     { label: 'Gross Loss',       value: m(totals.grossLoss),        cls: totals.grossLoss >= 0 ? 'text-emerald-400' : 'text-error' },
   ].map(t => `
@@ -1425,11 +1450,11 @@ async function loadMainKpi() {
   for (const p of profilePnls) {
     const key   = p.shop_name || 'Unassigned';
     const shopId = p.shop_id || null;
-    if (!shopMap[key]) shopMap[key] = { shopId, members:0, soldCount:0, pipelineCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0 };
+    if (!shopMap[key]) shopMap[key] = { shopId, members:0, soldCount:0, activeCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0 };
     const s = shopMap[key];
     s.members++;
-    s.soldCount    += p.soldCount;
-    s.pipelineCount += p.pipelineCount;
+    s.soldCount   += p.soldCount;
+    s.activeCount += p.activeCount;
     s.grossProfit  += p.grossProfit;
     s.grossLoss    += p.grossLoss;
     s.myShare      += p.myShare;
@@ -1441,7 +1466,7 @@ async function loadMainKpi() {
         <td class="px-5 py-4 text-sm font-medium text-on-surface">${esc(name)}</td>
         <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${s.members}</td>
         <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${s.soldCount}</td>
-        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${s.pipelineCount}</td>
+        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${s.activeCount}</td>
         <td class="px-5 py-4 text-sm text-right ${s.grossProfit >= 0 ? 'text-emerald-400' : 'text-error'} font-medium">${sgn(s.grossProfit)}${m(s.grossProfit)}</td>
         <td class="px-5 py-4 text-sm text-right ${s.grossLoss >= 0 ? 'text-emerald-400' : 'text-error'} font-medium">${sgn(s.grossLoss)}${m(s.grossLoss)}</td>
         <td class="px-5 py-4 text-sm text-right ${cls(s.myShare)} font-semibold">${sgn(s.myShare)}${m(s.myShare)}</td>
@@ -1469,7 +1494,7 @@ async function loadMainKpi() {
         </td>
         <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${m(p.capitalDeployed)}</td>
         <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${p.soldCount}</td>
-        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${p.pipelineCount}</td>
+        <td class="px-5 py-4 text-sm text-on-surface-variant text-right">${p.activeCount}</td>
         <td class="px-5 py-4 text-sm text-right ${cls(p.myShare)} font-semibold">${sgn(p.myShare)}${m(p.myShare)}</td>
       </tr>`).join('')
     : `<tr><td colspan="7" class="px-5 py-12 text-center text-on-surface-variant text-sm">No memberships yet.</td></tr>`;
@@ -1711,6 +1736,10 @@ function renderMembershipCard(client, m, masterIdBadge) {
               <td class="px-6 py-4 text-on-surface-variant text-xs max-w-[180px] truncate">${esc(w.notes || '—')}</td>
               <td class="px-6 py-4">
                 <div class="flex items-center justify-end gap-1">
+                  ${w.status === 'purchased' ? `
+                  <button onclick="openMarkSoldModal(${w.id})" class="p-1.5 rounded-lg hover:bg-emerald-500/10 text-on-surface-variant hover:text-emerald-400 transition-colors" title="Mark as Sold">
+                    <span class="material-symbols-outlined text-[16px]">sell</span>
+                  </button>` : ''}
                   <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-[16px]">edit</span>
                   </button>
@@ -2139,14 +2168,14 @@ function renderProfilePnl(profile) {
             <div class="flex justify-between items-baseline gap-4">
               <div>
                 <span class="text-on-surface font-medium">My share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">Discount income − (${p.lossSplit}% × loss) = ${m(p.discountIncome)} − ${m(-p.myLossShare)}</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.discountIncome ? m(p.discountIncome) : '$0'}${p.myLossShare < 0 ? ` − ${m(-p.myLossShare)} (${p.lossSplit}% of loss)` : ''}</span>
               </div>
               <span class="${cls(p.myShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.myShare)}${m(p.myShare)}</span>
             </div>
             <div class="flex justify-between items-baseline gap-4">
               <div>
                 <span class="text-on-surface font-medium">Client share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${100 - p.lossSplit}% × loss = ${m(-p.clientLossShare)}</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.clientLossShare < 0 ? `−${m(-p.clientLossShare)} (${100 - p.lossSplit}% of loss)` : 'No loss'}</span>
               </div>
               <span class="${cls(p.clientShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.clientShare)}${m(p.clientShare)}</span>
             </div>
@@ -2543,17 +2572,28 @@ function updateSoldPnl() {
     return;
   }
 
-  const gross = salePrice - listPrice;
-  const profitSplitMe = w.profit_split_me ?? 100;
-  const lossSplitMe   = w.loss_split_me   ?? 100;
-  const profitSplitClient = 100 - profitSplitMe;
-  const lossSplitClient   = 100 - lossSplitMe;
-
-  const myShare     = gross >= 0 ? gross * profitSplitMe / 100 : gross * lossSplitMe / 100;
-  const clientShare = gross >= 0 ? gross * profitSplitClient / 100 : gross * lossSplitClient / 100;
-
+  const gross          = salePrice - listPrice;
+  const isDiscount     = (w.trading_rule || 'split') === 'discount';
+  const discountSplit  = w.discount_split ?? 0.08;
+  const lossSplitMe    = w.loss_split_me   ?? 100;
+  const profitSplitMe  = w.profit_split_me ?? 100;
   const colorClass = g => g >= 0 ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
   const sign = g => g >= 0 ? '+' : '';
+
+  let myShare, clientShare, splitHint, clientHint;
+  if (isDiscount) {
+    const discountAmt = listPrice * discountSplit;
+    const lossShare   = gross < 0 ? gross * lossSplitMe / 100 : 0;
+    myShare     = discountAmt + lossShare;
+    clientShare = gross < 0 ? gross * (100 - lossSplitMe) / 100 : 0;
+    splitHint   = `(${(discountSplit * 100).toFixed(1)}% of list${gross < 0 ? ` − ${lossSplitMe}% loss` : ''})`;
+    clientHint  = gross < 0 ? `(${100 - lossSplitMe}% of loss)` : '(0%)';
+  } else {
+    myShare     = gross >= 0 ? gross * profitSplitMe / 100        : gross * lossSplitMe / 100;
+    clientShare = gross >= 0 ? gross * (100 - profitSplitMe) / 100 : gross * (100 - lossSplitMe) / 100;
+    splitHint   = gross >= 0 ? `(${profitSplitMe}%)` : `(${lossSplitMe}%)`;
+    clientHint  = gross >= 0 ? `(${100 - profitSplitMe}%)` : `(${100 - lossSplitMe}%)`;
+  }
 
   document.getElementById('pnlGross').textContent = `${sign(gross)}${fmt.price(gross, cur)}`;
   document.getElementById('pnlGross').className = colorClass(gross);
@@ -2561,9 +2601,8 @@ function updateSoldPnl() {
   document.getElementById('pnlMyShare').className = colorClass(myShare) + ' font-semibold';
   document.getElementById('pnlClientShare').textContent = `${sign(clientShare)}${fmt.price(clientShare, cur)}`;
   document.getElementById('pnlClientShare').className = colorClass(clientShare) + ' font-semibold';
-
-  document.getElementById('pnlSplitHint').textContent = gross >= 0 ? `(${profitSplitMe}%)` : `(${lossSplitMe}%)`;
-  document.getElementById('pnlClientHint').textContent = gross >= 0 ? `(${profitSplitClient}%)` : `(${lossSplitClient}%)`;
+  document.getElementById('pnlSplitHint').textContent = splitHint;
+  document.getElementById('pnlClientHint').textContent = clientHint;
 }
 
 async function submitMarkSold() {
@@ -2577,9 +2616,13 @@ async function submitMarkSold() {
   if (salePrice !== '') fd.append('sale_price', salePrice);
   if (soldTo)           fd.append('sold_to', soldTo);
 
-  await api('PUT', `/api/watches/${id}`, fd);
-  closeMarkSoldModal();
-  refreshCurrentWatchView();
+  try {
+    const result = await api('PUT', `/api/watches/${id}`, fd);
+    closeMarkSoldModal();
+    refreshCurrentWatchView();
+  } catch (e) {
+    alert(e.message || 'Failed to mark as sold');
+  }
 }
 
 function refreshCurrentWatchView() {
@@ -3074,7 +3117,7 @@ function prefillWatchFromSystem(w) {
   document.getElementById('wSystemResults').classList.add('hidden');
 }
 
-function openAddWatch(profileId) {
+async function openAddWatch(profileId) {
   ['watchId','wModel','wSerial','wDate','wRef','wNotes','wListPrice','wSalePrice','wMyCost','wClientCost','wSystemSearch'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
@@ -3091,11 +3134,31 @@ function openAddWatch(profileId) {
   setWatchStatus('wishlist');
   document.getElementById('watchModalTitle').textContent = 'Add Watch';
   document.getElementById('watchFormError').classList.add('hidden');
+
+  // Show profile picker when opened without a profile context
+  const profileWrap = document.getElementById('wProfileWrap');
+  const profileSel  = document.getElementById('wProfileSelect');
+  if (!profileId) {
+    profileWrap.classList.remove('hidden');
+    profileSel.innerHTML = '<option value="">Select client…</option>';
+    try {
+      const profs = await api('GET', '/api/profiles');
+      profs.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        profileSel.appendChild(opt);
+      });
+    } catch (e) { /* silently ignore */ }
+  } else {
+    profileWrap.classList.add('hidden');
+  }
+
   document.getElementById('watchModal').classList.remove('hidden');
 }
 
 async function openEditWatch(id) {
-  let wt = allWatches.find(x => x.id === id);
+  let wt = watchCache[id] || allWatches.find(x => x.id === id);
   if (!wt) { const all = await api('GET', '/api/watches'); wt = all.find(x => x.id === id); }
   if (!wt) return;
   document.getElementById('watchId').value        = wt.id;
@@ -3156,7 +3219,8 @@ document.getElementById('wCurrency')?.addEventListener('change', function() {
 
 document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   const id        = document.getElementById('watchId').value;
-  const profileId = document.getElementById('watchProfileId').value;
+  const profileId = document.getElementById('watchProfileId').value
+                  || document.getElementById('wProfileSelect').value;
   const errEl     = document.getElementById('watchFormError');
   errEl.classList.add('hidden');
 
@@ -3356,13 +3420,14 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 }
 
 // ── Close on backdrop click ────────────────────────────────────────────────
-['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal'].forEach(id => {
+['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target === e.currentTarget) {
       if (id === 'profileModal') closeProfileModal();
       else if (id === 'watchModal') closeWatchModal();
       else if (id === 'companyDocModal') closeCompanyDocModal();
       else if (id === 'markSoldModal') closeMarkSoldModal();
+      else if (id === 'portfolioModal') closePortfolioModal();
       else closeConfirm();
     }
   });
@@ -3372,7 +3437,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal(); closeShopModal(); closeMarkSoldModal();
-  closeClientPickerModal(); closeClientEditModal();
+  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal();
   document.getElementById('lightbox').classList.add('hidden');
 });
 
@@ -3655,7 +3720,7 @@ async function toggleWatchExpand(profileId) {
                   <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-[15px]">edit</span>
                   </button>
-                  <button onclick="confirmDeleteWatch(${w.id},'${esc(w.model).replace(/'/g,"\\'")}')" class="p1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors">
+                  <button onclick="confirmDeleteWatch(${w.id},'${esc(w.model).replace(/'/g,"\\'")}')" class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors">
                     <span class="material-symbols-outlined text-[15px]">delete</span>
                   </button>
                 </div>

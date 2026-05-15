@@ -39,7 +39,8 @@ router.post('/', (req, res) => {
             title, first_name, last_name, gender, dob, postal_code, city, country,
             shop_id, portfolio_id, client_id,
             profit_split_me, loss_split_me,
-            my_capital, my_remaining, client_capital, client_remaining } = req.body;
+            my_capital, my_remaining, client_capital, client_remaining,
+            trading_rule, discount_split } = req.body;
 
     // If linking to an existing master client, name + photo come from that record
     let resolvedName      = name;
@@ -89,6 +90,8 @@ router.post('/', (req, res) => {
         my_remaining:     my_remaining     != null ? Number(my_remaining)     : 0,
         client_capital:   client_capital   != null ? Number(client_capital)   : 0,
         client_remaining: client_remaining != null ? Number(client_remaining) : 0,
+        trading_rule:     trading_rule     || 'split',
+        discount_split:   discount_split   != null ? Number(discount_split)   : 0.08,
       });
       res.status(201).json(db.getProfile(id));
     } catch (e) {

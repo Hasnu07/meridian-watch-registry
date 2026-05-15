@@ -425,21 +425,24 @@ function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path
                           title, first_name, last_name, gender, dob, postal_code, city, country,
                           shop_id, portfolio_id, client_id,
                           profit_split_me, loss_split_me,
-                          my_capital, my_remaining, client_capital, client_remaining }) {
+                          my_capital, my_remaining, client_capital, client_remaining,
+                          trading_rule, discount_split }) {
   const result = db.prepare(`
     INSERT INTO profiles
       (name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
        title, first_name, last_name, gender, dob, postal_code, city, country,
        shop_id, portfolio_id, client_id,
-       profit_split_me, loss_split_me, my_capital, my_remaining, client_capital, client_remaining)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       profit_split_me, loss_split_me, my_capital, my_remaining, client_capital, client_remaining,
+       trading_rule, discount_split)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(name, email, address ?? null, subscriber_id ?? null, pp_urn ?? null,
          photo_path ?? null, id_card_path ?? null,
          title ?? null, first_name ?? null, last_name ?? null,
          gender ?? null, dob ?? null, postal_code ?? null, city ?? null, country ?? null,
          shop_id ?? null, portfolio_id ?? null, client_id ?? null,
          profit_split_me ?? 100, loss_split_me ?? 100,
-         my_capital ?? 0, my_remaining ?? 0, client_capital ?? 0, client_remaining ?? 0);
+         my_capital ?? 0, my_remaining ?? 0, client_capital ?? 0, client_remaining ?? 0,
+         trading_rule ?? 'split', discount_split ?? 0.08);
   return result.lastInsertRowid;
 }
 
