@@ -50,6 +50,7 @@ app.use('/api/_restore',                          require('./routes/restore')); 
 app.use('/api/profiles',                          requireAuth, require('./routes/profiles'));
 app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes/company-docs'));
 app.use('/api/watches',                           requireAuth, require('./routes/watches'));
+app.use('/api',                                   requireAuth, require('./routes/loss-payments'));
 
 // ── Public portfolio share ────────────────────────────────────────────────
 app.get('/p/:token', (req, res) => {

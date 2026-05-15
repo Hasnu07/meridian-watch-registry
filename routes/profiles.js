@@ -109,7 +109,11 @@ router.post('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const profile = db.getProfile(req.params.id);
   if (!profile) return res.status(404).json({ error: 'Not found' });
-  res.json({ ...profile, watches: db.listWatchesForProfile(req.params.id) });
+  const watches = db.listWatchesForProfile(req.params.id).map(w => ({
+    ...w,
+    loss_payments: db.listLossPayments(w.id),
+  }));
+  res.json({ ...profile, watches });
 });
 
 // PUT /api/profiles/:id

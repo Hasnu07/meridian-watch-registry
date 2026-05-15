@@ -89,6 +89,17 @@ function init() {
       key   TEXT PRIMARY KEY,
       value TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS loss_payments (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      watch_id   INTEGER NOT NULL REFERENCES watches(id) ON DELETE CASCADE,
+      date       DATE    NOT NULL,
+      amount     REAL    NOT NULL,
+      method     TEXT    DEFAULT 'BANK_TRANSFER',
+      notes      TEXT,
+      reversed   INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
   `);
 
   // Migrate profiles columns
@@ -132,13 +143,15 @@ function init() {
 
   // Migrate watches — list/sale price + status + currency
   const wcols2 = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
-  if (!wcols2.includes('list_price'))  db.exec("ALTER TABLE watches ADD COLUMN list_price REAL");
-  if (!wcols2.includes('sale_price'))  db.exec("ALTER TABLE watches ADD COLUMN sale_price REAL");
-  if (!wcols2.includes('status'))      db.exec("ALTER TABLE watches ADD COLUMN status TEXT DEFAULT 'wishlist'");
-  if (!wcols2.includes('currency'))    db.exec("ALTER TABLE watches ADD COLUMN currency TEXT DEFAULT 'CHF'");
-  if (!wcols2.includes('sold_to'))     db.exec("ALTER TABLE watches ADD COLUMN sold_to TEXT");
-  if (!wcols2.includes('my_cost'))     db.exec("ALTER TABLE watches ADD COLUMN my_cost REAL");
-  if (!wcols2.includes('client_cost')) db.exec("ALTER TABLE watches ADD COLUMN client_cost REAL");
+  if (!wcols2.includes('list_price'))           db.exec("ALTER TABLE watches ADD COLUMN list_price REAL");
+  if (!wcols2.includes('sale_price'))           db.exec("ALTER TABLE watches ADD COLUMN sale_price REAL");
+  if (!wcols2.includes('status'))               db.exec("ALTER TABLE watches ADD COLUMN status TEXT DEFAULT 'wishlist'");
+  if (!wcols2.includes('currency'))             db.exec("ALTER TABLE watches ADD COLUMN currency TEXT DEFAULT 'CHF'");
+  if (!wcols2.includes('sold_to'))              db.exec("ALTER TABLE watches ADD COLUMN sold_to TEXT");
+  if (!wcols2.includes('my_cost'))              db.exec("ALTER TABLE watches ADD COLUMN my_cost REAL");
+  if (!wcols2.includes('client_cost'))          db.exec("ALTER TABLE watches ADD COLUMN client_cost REAL");
+  if (!wcols2.includes('loss_status'))          db.exec("ALTER TABLE watches ADD COLUMN loss_status TEXT DEFAULT 'open'");
+  if (!wcols2.includes('discount_rate_applied')) db.exec("ALTER TABLE watches ADD COLUMN discount_rate_applied REAL");
   // Rename legacy 'pipeline' status to 'wishlist'
   db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
@@ -541,13 +554,13 @@ function updateWatch(id, updates) {
   const FIELDS = ['model','serial_number','source','purchase_date','price',
                   'reference_number','notes','image_path','movement_number','case_number',
                   'list_price','sale_price','status','currency','sold_to',
-                  'my_cost','client_cost'];
+                  'my_cost','client_cost','loss_status','discount_rate_applied'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {
     if (updates[f] !== undefined) {
       fields.push(`${f} = ?`);
-      const numericFields = ['price','list_price','sale_price'];
+      const numericFields = ['price','list_price','sale_price','discount_rate_applied'];
       values.push(numericFields.includes(f) ? (updates[f] != null && updates[f] !== '' ? Number(updates[f]) : null) : updates[f]);
     }
   }
@@ -619,6 +632,52 @@ function listWishlistWatchesWithDays() {
   `).all();
 }
 
+// ── Loss Payments ──────────────────────────────────────────────────────────
+
+function listLossPayments(watchId) {
+  return db.prepare(
+    'SELECT * FROM loss_payments WHERE watch_id = ? ORDER BY date ASC, created_at ASC'
+  ).all(watchId);
+}
+
+function getLossPayment(id) {
+  return db.prepare('SELECT * FROM loss_payments WHERE id = ?').get(id);
+}
+
+function createLossPayment({ watch_id, date, amount, method, notes }) {
+  const result = db.prepare(
+    'INSERT INTO loss_payments (watch_id, date, amount, method, notes) VALUES (?, ?, ?, ?, ?)'
+  ).run(watch_id, date, Number(amount), method || 'BANK_TRANSFER', notes || null);
+  _syncLossStatus(watch_id);
+  return result.lastInsertRowid;
+}
+
+function reversePayment(paymentId) {
+  const row = db.prepare('SELECT watch_id FROM loss_payments WHERE id = ?').get(paymentId);
+  if (!row) return false;
+  db.prepare('UPDATE loss_payments SET reversed = 1 WHERE id = ?').run(paymentId);
+  _syncLossStatus(row.watch_id);
+  return true;
+}
+
+// Internal helper — recalculate loss_status based on sum of active payments
+function _syncLossStatus(watchId) {
+  const watch = db.prepare('SELECT list_price, sale_price FROM watches WHERE id = ?').get(watchId);
+  if (!watch || watch.list_price == null || watch.sale_price == null) return;
+  const lossAmount = watch.list_price - watch.sale_price;
+  if (lossAmount <= 0) {
+    db.prepare("UPDATE watches SET loss_status = 'not_applicable' WHERE id = ?").run(watchId);
+    return;
+  }
+  const { total_paid } = db.prepare(
+    'SELECT COALESCE(SUM(amount), 0) AS total_paid FROM loss_payments WHERE watch_id = ? AND reversed = 0'
+  ).get(watchId);
+  const status = total_paid <= 0         ? 'open'
+               : total_paid >= lossAmount ? 'settled'
+               :                            'partially_paid';
+  db.prepare('UPDATE watches SET loss_status = ? WHERE id = ?').run(status, watchId);
+}
+
 module.exports = {
   init,
   getAdminHash, setAdminPassword,
@@ -631,4 +690,5 @@ module.exports = {
   getStats,
   getSetting, setSetting, getAllSettings,
   listWishlistWatchesWithDays,
+  listLossPayments, getLossPayment, createLossPayment, reversePayment,
 };

@@ -1109,11 +1109,11 @@
           <span id="pnlGross" class="font-mono">—</span>
         </div>
         <div class="flex justify-between text-xs">
-          <span class="text-on-surface-variant">My share <span id="pnlSplitHint" class="font-mono"></span></span>
+          <span class="text-on-surface-variant"><span id="pnlMyLabel">My share</span> <span id="pnlSplitHint" class="font-mono text-on-surface-variant/60"></span></span>
           <span id="pnlMyShare" class="font-mono font-semibold">—</span>
         </div>
         <div class="flex justify-between text-xs">
-          <span class="text-on-surface-variant">Client share <span id="pnlClientHint" class="font-mono"></span></span>
+          <span class="text-on-surface-variant"><span id="pnlClientLabel">Client share</span> <span id="pnlClientHint" class="font-mono text-on-surface-variant/60"></span></span>
           <span id="pnlClientShare" class="font-mono font-semibold">—</span>
         </div>
       </div>
@@ -1123,6 +1123,73 @@
       <button onclick="closeMarkSoldModal()" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
       <button onclick="submitMarkSold()" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 font-semibold px-6 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2">
         <span class="material-symbols-outlined text-[16px]">sell</span> Confirm Sale
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RECORD PAYMENT MODAL ═════════════════════════════════════════════ -->
+<div id="recordPaymentModal" class="fixed inset-0 z-[115] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-md bg-[#161B22] border border-white/10 rounded-2xl shadow-2xl">
+    <div class="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 class="font-playfair text-2xl text-amber-400">Record Payment</h2>
+      <button onclick="closeRecordPaymentModal()" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Watch info banner -->
+    <div class="flex items-center gap-4 px-6 py-4 bg-white/[0.02] border-b border-white/[0.06]">
+      <div class="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-error text-xl">watch</span>
+      </div>
+      <div class="min-w-0 flex-1">
+        <p id="rpWatchModel" class="font-semibold text-on-surface text-sm truncate">—</p>
+        <p id="rpLossInfo" class="text-xs text-on-surface-variant mt-0.5">—</p>
+      </div>
+      <span id="rpStatusBadge" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-lg border border-error/30 text-error bg-error/5">Open</span>
+    </div>
+
+    <div class="p-6 space-y-4">
+      <!-- Date -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Payment Date</label>
+        <input id="rpDate" type="date"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
+      </div>
+      <!-- Amount -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Amount</label>
+        <div class="flex gap-2">
+          <span id="rpCurrencyBadge" class="flex-shrink-0 px-3 py-2.5 bg-surface-variant/30 border border-outline-variant/30 rounded-lg text-sm font-mono text-on-surface-variant">CHF</span>
+          <input id="rpAmount" type="number" min="0.01" step="0.01" placeholder="0.00"
+            class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
+        </div>
+      </div>
+      <!-- Method -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Method</label>
+        <select id="rpMethod"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
+          <option value="BANK_TRANSFER">Bank Transfer</option>
+          <option value="CASH">Cash</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <!-- Notes -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Notes (optional)</label>
+        <input id="rpNotes" type="text" placeholder="Reference, transaction ID…"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
+      </div>
+      <!-- Error -->
+      <p id="rpError" class="hidden text-xs text-error bg-error/10 rounded-lg px-4 py-2.5"></p>
+    </div>
+
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+      <button onclick="closeRecordPaymentModal()" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button onclick="submitRecordPayment()" class="bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 font-semibold px-6 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">payments</span> Save Payment
       </button>
     </div>
   </div>
@@ -2044,26 +2111,43 @@ function computePnl(profile) {
   const isDiscount   = (profile.trading_rule || 'split') === 'discount';
   const discountSplit= profile.discount_split  ?? 0.08;
 
+  const activeWatches   = watches.filter(w => w.status === 'purchased');
+  const soldWatches     = watches.filter(w => w.status === 'sold');
+  const wishlistWatches = watches.filter(w => w.status === 'wishlist');
+
+  const profitWatches = soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price > w.list_price);
+  const lossWatches   = soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price < w.list_price);
+
   let grossProfit = 0, grossLoss = 0, discountIncome = 0;
-  for (const w of watches) {
-    if (w.status !== 'sold' || w.list_price == null || w.sale_price == null) continue;
+  let totalLossAmount = 0, totalLossPaid = 0;
+
+  for (const w of soldWatches) {
+    if (w.list_price == null || w.sale_price == null) continue;
     const diff = w.sale_price - w.list_price;
     if (isDiscount) {
-      discountIncome += w.list_price * discountSplit;
-      if (diff < 0) grossLoss += diff;
+      if (diff > 0) {
+        // Panel A: % of sale price, locked rate or current slider
+        discountIncome += w.sale_price * (w.discount_rate_applied ?? discountSplit);
+      } else if (diff < 0) {
+        // Panel B: loss = list − sale (positive = amount client owes)
+        const lossAmt = w.list_price - w.sale_price;
+        totalLossAmount += lossAmt;
+        const paid = (w.loss_payments || []).filter(p => !p.reversed).reduce((s, p) => s + p.amount, 0);
+        totalLossPaid += paid;
+      }
     } else {
       if (diff > 0) grossProfit += diff;
       else          grossLoss  += diff;
     }
   }
 
+  const lossOutstanding = totalLossAmount - totalLossPaid;
   const netPnl = grossProfit + grossLoss;
-  let myShare, clientShare, myLossShare = 0, clientLossShare = 0;
+
+  let myShare, clientShare;
   if (isDiscount) {
-    myLossShare     = grossLoss * lossSplit / 100;
-    clientLossShare = grossLoss * (100 - lossSplit) / 100;
-    myShare     = discountIncome + myLossShare;
-    clientShare = clientLossShare;
+    myShare     = discountIncome;
+    clientShare = lossOutstanding;
   } else {
     const splitMe = netPnl >= 0 ? profitSplit : lossSplit;
     myShare     = (splitMe / 100) * netPnl;
@@ -2075,22 +2159,17 @@ function computePnl(profile) {
   const myRemaining     = profile.my_remaining     || 0;
   const clientRemaining = profile.client_remaining || 0;
 
-  // Watch-level capital stats (from actual per-watch cost fields)
-  const activeWatches    = watches.filter(w => w.status === 'purchased');
-  const soldWatches      = watches.filter(w => w.status === 'sold');
-  const wishlistWatches  = watches.filter(w => w.status === 'wishlist');
   const myCostInWatches      = activeWatches.reduce((s, w) => s + (w.my_cost     || 0), 0);
   const clientCostInWatches  = activeWatches.reduce((s, w) => s + (w.client_cost || 0), 0);
   const totalCostInWatches   = myCostInWatches + clientCostInWatches;
-  const profitWatchCount     = soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price > w.list_price).length;
-  const lossWatchCount       = soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price < w.list_price).length;
   const totalListValueActive = activeWatches.reduce((s, w) => s + (w.list_price || 0), 0);
   const totalSaleValue       = soldWatches.reduce((s, w)  => s + (w.sale_price  || 0), 0);
 
   return {
     isDiscount, profitSplit, lossSplit, discountSplit,
     grossProfit, grossLoss, discountIncome, netPnl,
-    myLossShare, clientLossShare,
+    profitWatches, lossWatches,
+    totalLossAmount, totalLossPaid, lossOutstanding,
     myShare, clientShare,
     soldCount:      soldWatches.length,
     purchasedCount: activeWatches.length,
@@ -2099,18 +2178,99 @@ function computePnl(profile) {
     myCapital, clientCapital, myRemaining, clientRemaining,
     capitalDeployed: myCapital + clientCapital,
     available:       myRemaining + clientRemaining,
-    // Per-watch capital
     myCostInWatches, clientCostInWatches, totalCostInWatches,
     totalListValueActive, totalSaleValue,
-    profitWatchCount, lossWatchCount,
+    profitWatchCount: profitWatches.length,
+    lossWatchCount:   lossWatches.length,
   };
 }
 
 function renderProfilePnl(profile) {
   const p   = computePnl(profile);
+  const cur = (profile.watches || []).find(w => w.currency)?.currency || 'CHF';
   const m   = v => v == null ? '—' : fmt.money(v);
+  const mc  = (v, c) => v == null ? '—' : fmt.price(v, c || cur);
   const sgn = v => v > 0 ? '+' : '';
   const cls = v => v >= 0 ? 'text-emerald-400' : 'text-error';
+
+  function lossStatusBadge(st) {
+    const map = {
+      open:           'text-error border-error/30 bg-error/5',
+      partially_paid: 'text-amber-400 border-amber-400/30 bg-amber-400/5',
+      settled:        'text-emerald-400 border-emerald-400/30 bg-emerald-400/5',
+      not_applicable: 'text-on-surface-variant border-outline-variant/30 bg-white/[0.02]',
+    };
+    const labels = { open: 'Open', partially_paid: 'Partial', settled: 'Settled', not_applicable: 'N/A' };
+    const s = st || 'open';
+    return `<span class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md border ${map[s] || map.open}">${labels[s] || s}</span>`;
+  }
+
+  // ── Discount panel A rows ─────────────────────────────────────────────
+  function renderPanelARows() {
+    if (!p.profitWatches.length) {
+      return `<p class="text-xs text-on-surface-variant/60 italic py-2">No profitable sales yet</p>`;
+    }
+    return p.profitWatches.map(w => {
+      const rate    = w.discount_rate_applied ?? p.discountSplit;
+      const income  = w.sale_price * rate;
+      const ratePct = (rate * 100).toFixed(1);
+      return `
+        <div class="flex items-center justify-between py-2 border-b border-outline-variant/10 last:border-0 gap-4">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${mc(w.sale_price)} × ${ratePct}%</p>
+          </div>
+          <span class="text-emerald-400 font-semibold font-mono whitespace-nowrap">+${mc(income)}</span>
+        </div>`;
+    }).join('');
+  }
+
+  // ── Discount panel B rows ─────────────────────────────────────────────
+  function renderPanelBRows() {
+    if (!p.lossWatches.length) {
+      return `<p class="text-xs text-on-surface-variant/60 italic py-2">No loss watches — all sales above list price</p>`;
+    }
+    return p.lossWatches.map(w => {
+      const lossAmt   = w.list_price - w.sale_price;
+      const paid      = (w.loss_payments || []).filter(px => !px.reversed).reduce((s, px) => s + px.amount, 0);
+      const remaining = lossAmt - paid;
+      const settled   = (w.loss_status === 'settled');
+      const canPay    = !settled;
+      return `
+        <div class="py-2.5 border-b border-outline-variant/10 last:border-0">
+          <div class="flex items-center justify-between gap-4 mb-1.5">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+              <p class="text-[10px] text-on-surface-variant mt-0.5">List ${mc(w.list_price)} − Sold ${mc(w.sale_price)}</p>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              ${lossStatusBadge(w.loss_status)}
+              ${canPay ? `<button onclick="openRecordPaymentModal(${w.id})" class="text-[9px] font-semibold uppercase tracking-widest px-2 py-1 rounded-md border border-amber-400/30 text-amber-400 bg-amber-400/5 hover:bg-amber-400/10 transition-all flex items-center gap-1">
+                <span class="material-symbols-outlined text-[11px]">payments</span> Record
+              </button>` : ''}
+            </div>
+          </div>
+          <div class="flex justify-between text-[11px] text-on-surface-variant">
+            <span>Loss: <span class="text-error font-medium">${mc(lossAmt)}</span></span>
+            <span>Paid: <span class="${paid > 0 ? 'text-emerald-400' : 'text-on-surface-variant'} font-medium">${mc(paid)}</span></span>
+            <span>Outstanding: <span class="${remaining > 0 ? 'text-amber-400 font-medium' : 'text-on-surface-variant'}">${mc(remaining)}</span></span>
+          </div>
+          ${(w.loss_payments || []).filter(px => !px.reversed).length > 0 ? `
+          <div class="mt-2 space-y-1">
+            ${(w.loss_payments || []).filter(px => !px.reversed).map(px => `
+              <div class="flex justify-between text-[10px] text-on-surface-variant/60 pl-2 border-l border-outline-variant/20">
+                <span>${px.date} · ${px.method.replace('_',' ')}</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-emerald-400/70">${mc(px.amount)}</span>
+                  <button onclick="reversePayment(${px.id}, ${w.id})" title="Void payment" class="hover:text-error transition-colors">
+                    <span class="material-symbols-outlined text-[11px]">cancel</span>
+                  </button>
+                </div>
+              </div>`).join('')}
+          </div>` : ''}
+        </div>`;
+    }).join('');
+  }
 
   document.getElementById('profilePnlSection').innerHTML = `
     <div class="space-y-4">
@@ -2125,15 +2285,16 @@ function renderProfilePnl(profile) {
         </div>
 
         ${p.isDiscount ? `
-        <div class="mb-5">
+        <div>
           <div class="flex justify-between items-baseline mb-2">
-            <span class="text-sm text-on-surface">Discount Split</span>
-            <span class="text-xs text-on-surface-variant"><span class="text-amber-400 font-semibold">${(p.discountSplit * 100).toFixed(2)}%</span> of Purchase Price → paid to me on sale</span>
+            <span class="text-sm text-on-surface">Discount Rate</span>
+            <span class="text-xs text-on-surface-variant"><span class="text-amber-400 font-semibold">${(p.discountSplit * 100).toFixed(2)}%</span> of Sale Price → taken by me, profitable watches only</span>
           </div>
           <div class="h-2.5 rounded-full overflow-hidden bg-surface-container-highest flex">
-            <div class="bg-amber-500 h-full transition-all duration-500" style="width:${((p.discountSplit - 0.05) / 0.15) * 100}%"></div>
+            <div class="bg-amber-500 h-full transition-all duration-500" style="width:${Math.min(100, Math.max(0, ((p.discountSplit - 0.05) / 0.15) * 100))}%"></div>
           </div>
           <div class="flex justify-between text-[10px] text-outline mt-1"><span>5%</span><span>20%</span></div>
+          <p class="text-[10px] text-on-surface-variant/60 mt-3 leading-relaxed">Losses are fronted by me at list price and recovered separately from the client — see Panel B below.</p>
         </div>
         ` : `
         <div class="mb-5">
@@ -2150,8 +2311,6 @@ function renderProfilePnl(profile) {
             <div class="bg-purple-500 h-full transition-all duration-500" style="width:${100 - p.profitSplit}%"></div>
           </div>
         </div>
-        `}
-
         <div>
           <div class="flex justify-between items-baseline mb-2">
             <span class="text-sm text-on-surface">Losses</span>
@@ -2166,12 +2325,13 @@ function renderProfilePnl(profile) {
             <div class="bg-purple-500 h-full transition-all duration-500" style="width:${100 - p.lossSplit}%"></div>
           </div>
         </div>
+        `}
       </div>
 
-      <!-- Capital Card -->
+      ${!p.isDiscount ? `
+      <!-- Capital Card (split mode only) -->
       <div class="glass-surface rounded-2xl p-5">
         <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-4">Capital</p>
-        <!-- Deployed row -->
         <div class="grid grid-cols-3 gap-3 mb-1">
           <div class="bg-white/[0.03] rounded-xl p-3.5">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Capital</p>
@@ -2186,9 +2346,7 @@ function renderProfilePnl(profile) {
             <p class="font-playfair text-xl text-primary">${m(p.capitalDeployed)}</p>
           </div>
         </div>
-        <!-- Divider -->
         <div class="border-t border-outline-variant/10 my-3"></div>
-        <!-- Remaining row -->
         <div class="grid grid-cols-3 gap-3">
           <div class="bg-white/[0.03] rounded-xl p-3.5">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Remaining</p>
@@ -2204,6 +2362,7 @@ function renderProfilePnl(profile) {
           </div>
         </div>
       </div>
+      ` : ''}
 
       <!-- Watch Status Counts -->
       <div class="grid grid-cols-3 gap-3">
@@ -2236,36 +2395,53 @@ function renderProfilePnl(profile) {
         </div>
       </div>
 
-      <!-- P&L Breakdown -->
+      ${p.isDiscount ? `
+      <!-- Panel A — Discount Income -->
+      <div class="glass-surface rounded-2xl p-6 border border-amber-500/10">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-amber-400/70">Panel A</p>
+            <p class="text-sm font-semibold text-on-surface mt-0.5">My Discount Income</p>
+          </div>
+          <span class="font-playfair text-xl text-amber-400">+${mc(p.discountIncome)}</span>
+        </div>
+        <div class="space-y-0">
+          ${renderPanelARows()}
+        </div>
+        ${p.profitWatches.length > 0 ? `
+        <div class="border-t border-outline-variant/10 mt-3 pt-3 flex justify-between text-xs text-on-surface-variant">
+          <span>${p.profitWatches.length} profitable sale${p.profitWatches.length !== 1 ? 's' : ''}</span>
+          <span class="text-amber-400 font-semibold">Total +${mc(p.discountIncome)}</span>
+        </div>` : ''}
+      </div>
+
+      <!-- Panel B — Losses Receivable -->
+      <div class="glass-surface rounded-2xl p-6 border border-error/10">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-error/70">Panel B</p>
+            <p class="text-sm font-semibold text-on-surface mt-0.5">Losses Receivable from Client</p>
+          </div>
+          <div class="text-right">
+            <p class="font-playfair text-xl ${p.lossOutstanding > 0 ? 'text-amber-400' : 'text-emerald-400'}">${mc(p.lossOutstanding)}</p>
+            <p class="text-[10px] text-on-surface-variant">outstanding</p>
+          </div>
+        </div>
+        <div class="space-y-0">
+          ${renderPanelBRows()}
+        </div>
+        ${p.lossWatches.length > 0 ? `
+        <div class="border-t border-outline-variant/10 mt-3 pt-3 grid grid-cols-3 gap-2 text-xs text-on-surface-variant">
+          <div><span class="text-error font-medium">${mc(p.totalLossAmount)}</span><br>total loss</div>
+          <div><span class="text-emerald-400 font-medium">${mc(p.totalLossPaid)}</span><br>received</div>
+          <div><span class="${p.lossOutstanding > 0 ? 'text-amber-400 font-medium' : 'text-on-surface-variant'}">${mc(p.lossOutstanding)}</span><br>outstanding</div>
+        </div>` : ''}
+      </div>
+      ` : `
+      <!-- P&L Breakdown (split mode) -->
       <div class="glass-surface rounded-2xl p-6">
         <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-5">Rules Applied to P&amp;L</p>
         <div class="space-y-3 text-sm">
-          ${p.isDiscount ? `
-          <div class="flex justify-between">
-            <span class="text-on-surface-variant">Total Discount Income (sold watches)</span>
-            <span class="${cls(p.discountIncome)} font-medium">${sgn(p.discountIncome)}${m(p.discountIncome)}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-on-surface-variant">Gross loss (sold below list)</span>
-            <span class="${cls(p.grossLoss)} font-medium">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${m(p.grossLoss)}</span>
-          </div>
-          <div class="border-t border-outline-variant/15 pt-4 space-y-4">
-            <div class="flex justify-between items-baseline gap-4">
-              <div>
-                <span class="text-on-surface font-medium">My share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.discountIncome ? m(p.discountIncome) : '$0'}${p.myLossShare < 0 ? ` − ${m(-p.myLossShare)} (${p.lossSplit}% of loss)` : ''}</span>
-              </div>
-              <span class="${cls(p.myShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.myShare)}${m(p.myShare)}</span>
-            </div>
-            <div class="flex justify-between items-baseline gap-4">
-              <div>
-                <span class="text-on-surface font-medium">Client share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.clientLossShare < 0 ? `−${m(-p.clientLossShare)} (${100 - p.lossSplit}% of loss)` : 'No loss'}</span>
-              </div>
-              <span class="${cls(p.clientShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.clientShare)}${m(p.clientShare)}</span>
-            </div>
-          </div>
-          ` : `
           <div class="flex justify-between">
             <span class="text-on-surface-variant">Gross profit (sold)</span>
             <span class="${cls(p.grossProfit)} font-medium">${sgn(p.grossProfit)}${m(p.grossProfit)}</span>
@@ -2294,11 +2470,11 @@ function renderProfilePnl(profile) {
               <span class="${cls(p.clientShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.clientShare)}${m(p.clientShare)}</span>
             </div>
           </div>
-          `}
         </div>
       </div>
+      `}
 
-      <!-- Watch Portfolio Stats -->
+      <!-- Portfolio Summary -->
       <div class="glass-surface rounded-2xl p-6">
         <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-4">Portfolio Summary</p>
 
@@ -2321,8 +2497,25 @@ function renderProfilePnl(profile) {
           </div>
         </div>
 
-        <!-- Row 2: P&L performance -->
+        <!-- Row 2: P&L / income performance -->
         <div class="grid grid-cols-3 gap-3 mb-3">
+          ${p.isDiscount ? `
+          <div class="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Discount Income</p>
+            <p class="font-playfair text-lg text-amber-400">+${m(p.discountIncome)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profitable sale${p.profitWatchCount !== 1 ? 's' : ''}</p>
+          </div>
+          <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Loss Exposure</p>
+            <p class="font-playfair text-lg ${p.totalLossAmount > 0 ? 'text-error' : 'text-on-surface-variant'}">${m(p.totalLossAmount)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} loss watch${p.lossWatchCount !== 1 ? 'es' : ''}</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5 border ${p.lossOutstanding > 0 ? 'border-amber-500/20' : 'border-emerald-500/20'}">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Outstanding</p>
+            <p class="font-playfair text-lg ${p.lossOutstanding > 0 ? 'text-amber-400' : 'text-emerald-400'}">${m(p.lossOutstanding)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">client owes</p>
+          </div>
+          ` : `
           <div class="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Profit Incurred</p>
             <p class="font-playfair text-lg text-emerald-400">${sgn(p.grossProfit)}${m(p.grossProfit)}</p>
@@ -2338,6 +2531,7 @@ function renderProfilePnl(profile) {
             <p class="font-playfair text-lg ${cls(p.netPnl)}">${sgn(p.netPnl)}${m(p.netPnl)}</p>
             <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
           </div>
+          `}
         </div>
 
         <!-- Row 3: Totals & sale proceeds -->
@@ -2377,8 +2571,16 @@ function renderProfileWatches(watches, profile) {
       };
     });
   }
+  const isDiscount = (profile?.trading_rule || 'split') === 'discount';
+  // Update P&L column header to reflect discount mode
+  const headRow = document.querySelector('#profileWatchesBody')?.parentElement?.querySelector('thead tr');
+  if (headRow) {
+    const pnlTh = headRow.children[6]; // 0:Timepiece, 1:Status, 2:Source, 3:Serial, 4:List, 5:Sale, 6:P&L
+    if (pnlTh) pnlTh.textContent = isDiscount ? 'Income / Settlement' : 'P&L';
+  }
+  const opts = { isDiscount, discountSplit: profile?.discount_split ?? 0.08 };
   document.getElementById('profileWatchesBody').innerHTML = watches.length
-    ? watches.map(w => watchRow(w, true)).join('')
+    ? watches.map(w => watchRow(w, true, opts)).join('')
     : `<tr><td colspan="8" class="px-6 py-16 text-center text-on-surface-variant text-sm">No watches recorded yet.</td></tr>`;
 }
 
@@ -2613,7 +2815,8 @@ function plBadge(listPrice, salePrice) {
   return `<span class="text-xs font-semibold font-mono ${cls}">${sign}${fmt.money(diff)}</span>`;
 }
 
-function watchRow(w, detail) {
+function watchRow(w, detail, opts) {
+  const isDiscountRow = !!(opts?.isDiscount);
   const thumb = w.image_path
     ? `<img src="${w.image_path}" class="w-full h-full object-cover" alt="${esc(w.model)}" onclick="openLightbox('${w.image_path}')" style="cursor:zoom-in">`
     : `<span class="material-symbols-outlined text-outline text-[22px]">watch</span>`;
@@ -2623,13 +2826,43 @@ function watchRow(w, detail) {
     </td>`;
   const cur = w.currency || 'CHF';
   const shopCell = detail ? '' : `<td class="px-6 py-6 text-on-surface-variant text-sm">${esc(w.shop_name || '—')}</td>`;
+
+  // P&L / Settlement cell for profile-detail view
+  function detailPnlCell() {
+    if (!isDiscountRow) return `<td class="px-6 py-6">${plBadge(w.list_price, w.status === 'sold' ? w.sale_price : null)}</td>`;
+    // Discount mode
+    if (w.status !== 'sold') return `<td class="px-6 py-6"><span class="text-outline text-xs">—</span></td>`;
+    if (w.list_price != null && w.sale_price != null) {
+      const diff = w.sale_price - w.list_price;
+      if (diff > 0) {
+        // Profitable: show discount income
+        const rate   = w.discount_rate_applied ?? (opts?.discountSplit ?? 0.08);
+        const income = w.sale_price * rate;
+        return `<td class="px-6 py-6"><span class="text-xs font-semibold font-mono text-amber-400">+${fmt.price(income, cur)}</span><span class="block text-[9px] text-on-surface-variant/60 mt-0.5">${(rate*100).toFixed(1)}% disc.</span></td>`;
+      } else if (diff < 0) {
+        // Loss: settlement badge + record button
+        const stMap   = { open: 'text-error border-error/30 bg-error/5', partially_paid: 'text-amber-400 border-amber-400/30 bg-amber-400/5', settled: 'text-emerald-400 border-emerald-400/30 bg-emerald-400/5' };
+        const stLabel = { open: 'Open', partially_paid: 'Partial', settled: 'Settled' };
+        const st      = w.loss_status || 'open';
+        const canPay  = st !== 'settled';
+        return `<td class="px-6 py-6">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md border ${stMap[st] || stMap.open}">${stLabel[st] || st}</span>
+            ${canPay ? `<button onclick="openRecordPaymentModal(${w.id})" title="Record payment" class="text-[9px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md border border-amber-400/30 text-amber-400 bg-amber-400/5 hover:bg-amber-400/10 transition-all">Pay</button>` : ''}
+          </div>
+        </td>`;
+      }
+    }
+    return `<td class="px-6 py-6"><span class="text-outline text-xs">—</span></td>`;
+  }
+
   const detailPriceCols = detail ? `
       <td class="px-6 py-6">${statusBadge(w.status)}</td>
       <td class="px-6 py-6">${sourceBadge(w.source)}</td>
       <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
       <td class="px-6 py-6 text-primary font-semibold text-sm">${w.status === 'sold' ? fmt.price(w.sale_price, cur) : '<span class="text-outline">—</span>'}</td>
-      <td class="px-6 py-6">${plBadge(w.list_price, w.status === 'sold' ? w.sale_price : null)}</td>` : `
+      ${detailPnlCell()}` : `
       <td class="px-6 py-6">${statusBadge(w.status)}</td>
       <td class="px-6 py-6">${sourceBadge(w.source)}</td>
       <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
@@ -2703,6 +2936,84 @@ function closeMarkSoldModal() {
   _soldWatchData = null;
 }
 
+// ── Record Loss Payment Modal ──────────────────────────────────────────────
+
+let _rpWatchId = null;
+
+function openRecordPaymentModal(watchId) {
+  // Find watch from profile detail cache or allWatches
+  const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
+  _rpWatchId = watchId;
+
+  const cur       = w?.currency || 'CHF';
+  const lossAmt   = w ? (w.list_price - w.sale_price) : 0;
+  const paid      = w ? ((w.loss_payments || []).filter(p => !p.reversed).reduce((s, p) => s + p.amount, 0)) : 0;
+  const remaining = lossAmt - paid;
+
+  document.getElementById('rpWatchModel').textContent = w?.model || `Watch #${watchId}`;
+  document.getElementById('rpLossInfo').textContent   = `Loss: ${fmt.price(lossAmt, cur)} · Paid: ${fmt.price(paid, cur)} · Remaining: ${fmt.price(remaining, cur)}`;
+  document.getElementById('rpCurrencyBadge').textContent = cur;
+
+  const st = w?.loss_status || 'open';
+  const badgeMap = {
+    open:           'text-error border-error/30 bg-error/5',
+    partially_paid: 'text-amber-400 border-amber-400/30 bg-amber-400/5',
+    settled:        'text-emerald-400 border-emerald-400/30 bg-emerald-400/5',
+  };
+  const labelMap = { open: 'Open', partially_paid: 'Partial', settled: 'Settled' };
+  const badge = document.getElementById('rpStatusBadge');
+  badge.textContent = labelMap[st] || st;
+  badge.className = `text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-lg border ${badgeMap[st] || badgeMap.open}`;
+
+  // Pre-fill today's date
+  document.getElementById('rpDate').value   = new Date().toISOString().split('T')[0];
+  document.getElementById('rpAmount').value = '';
+  document.getElementById('rpMethod').value = 'BANK_TRANSFER';
+  document.getElementById('rpNotes').value  = '';
+  document.getElementById('rpError').classList.add('hidden');
+
+  document.getElementById('recordPaymentModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('rpAmount').focus(), 50);
+}
+
+function closeRecordPaymentModal() {
+  document.getElementById('recordPaymentModal').classList.add('hidden');
+  _rpWatchId = null;
+}
+
+async function submitRecordPayment() {
+  if (!_rpWatchId) return;
+  const date   = document.getElementById('rpDate').value;
+  const amount = document.getElementById('rpAmount').value;
+  const method = document.getElementById('rpMethod').value;
+  const notes  = document.getElementById('rpNotes').value.trim();
+  const errEl  = document.getElementById('rpError');
+  errEl.classList.add('hidden');
+
+  if (!date)              { errEl.textContent = 'Date is required';             errEl.classList.remove('hidden'); return; }
+  if (!amount || +amount <= 0) { errEl.textContent = 'Enter a positive amount'; errEl.classList.remove('hidden'); return; }
+
+  try {
+    await api('POST', `/api/watches/${_rpWatchId}/loss-payments`, { date, amount: +amount, method, notes });
+    closeRecordPaymentModal();
+    // Refresh profile detail to reflect updated loss_status and payments
+    if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to record payment';
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function reversePayment(paymentId, watchId) {
+  if (!confirm('Void this payment? This cannot be undone.')) return;
+  try {
+    await api('POST', `/api/loss-payments/${paymentId}/reverse`);
+    if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
+  } catch (e) {
+    alert(e.message || 'Failed to void payment');
+  }
+}
+
 function updateSoldPnl() {
   const w = _soldWatchData;
   if (!w) return;
@@ -2733,12 +3044,19 @@ function updateSoldPnl() {
 
   let myShare, clientShare, splitHint, clientHint;
   if (isDiscount) {
-    const discountAmt = listPrice * discountSplit;
-    const lossShare   = gross < 0 ? gross * lossSplitMe / 100 : 0;
-    myShare     = discountAmt + lossShare;
-    clientShare = gross < 0 ? gross * (100 - lossSplitMe) / 100 : 0;
-    splitHint   = `(${(discountSplit * 100).toFixed(1)}% of list${gross < 0 ? ` − ${lossSplitMe}% loss` : ''})`;
-    clientHint  = gross < 0 ? `(${100 - lossSplitMe}% of loss)` : '(0%)';
+    if (gross >= 0) {
+      // Profitable: I earn discount % of sale price
+      myShare     = salePrice * discountSplit;
+      clientShare = 0;
+      splitHint   = `(${(discountSplit * 100).toFixed(1)}% of sale price)`;
+      clientHint  = '(discount client — no P/L share)';
+    } else {
+      // Loss: fronted by me, full loss is receivable from client (Panel B)
+      myShare     = 0;
+      clientShare = listPrice - salePrice; // Positive = client owes me
+      splitHint   = '(no income — loss watch)';
+      clientHint  = `(owes ${fmt.price(listPrice - salePrice, cur)} via Panel B)`;
+    }
   } else {
     // Net this watch's gross, then split (matches profile-level net-first logic)
     const splitMe = gross >= 0 ? profitSplitMe : lossSplitMe;
@@ -2750,10 +3068,14 @@ function updateSoldPnl() {
 
   document.getElementById('pnlGross').textContent = `${sign(gross)}${fmt.price(gross, cur)}`;
   document.getElementById('pnlGross').className = colorClass(gross);
-  document.getElementById('pnlMyShare').textContent = `${sign(myShare)}${fmt.price(myShare, cur)}`;
-  document.getElementById('pnlMyShare').className = colorClass(myShare) + ' font-semibold';
-  document.getElementById('pnlClientShare').textContent = `${sign(clientShare)}${fmt.price(clientShare, cur)}`;
-  document.getElementById('pnlClientShare').className = colorClass(clientShare) + ' font-semibold';
+  // Discount: loss watch shows 0 income for me, client owes the difference (Panel B)
+  const myDisplayVal = isDiscount && gross < 0 ? 0 : myShare;
+  document.getElementById('pnlMyShare').textContent = `${sign(myDisplayVal)}${fmt.price(myDisplayVal, cur)}`;
+  document.getElementById('pnlMyShare').className = colorClass(myDisplayVal) + ' font-semibold';
+  document.getElementById('pnlClientShare').textContent = isDiscount && gross < 0 ? `+${fmt.price(clientShare, cur)}` : `${sign(clientShare)}${fmt.price(clientShare, cur)}`;
+  document.getElementById('pnlClientShare').className = (isDiscount && gross < 0 ? 'font-mono text-amber-400' : colorClass(clientShare)) + ' font-semibold';
+  document.getElementById('pnlMyLabel').textContent    = isDiscount ? (gross >= 0 ? 'Discount income' : 'My income') : 'My share';
+  document.getElementById('pnlClientLabel').textContent = isDiscount ? (gross < 0 ? 'Client owes (Panel B)' : 'Client share') : 'Client share';
   document.getElementById('pnlSplitHint').textContent = splitHint;
   document.getElementById('pnlClientHint').textContent = clientHint;
 }
@@ -3632,7 +3954,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 }
 
 // ── Close on backdrop click ────────────────────────────────────────────────
-['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal'].forEach(id => {
+['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal','recordPaymentModal'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target === e.currentTarget) {
       if (id === 'profileModal') closeProfileModal();
@@ -3640,6 +3962,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
       else if (id === 'companyDocModal') closeCompanyDocModal();
       else if (id === 'markSoldModal') closeMarkSoldModal();
       else if (id === 'portfolioModal') closePortfolioModal();
+      else if (id === 'recordPaymentModal') closeRecordPaymentModal();
       else closeConfirm();
     }
   });
@@ -3649,7 +3972,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal(); closeShopModal(); closeMarkSoldModal();
-  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal();
+  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal();
   document.getElementById('lightbox').classList.add('hidden');
 });
 

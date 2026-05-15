@@ -51,6 +51,15 @@ router.put('/:id', (req, res) => {
 
       const oldStatus = watch.status;
       const newStatus = updates.status || oldStatus;
+
+      // Lock discount_rate_applied when first transitioning to 'sold' under a discount profile
+      if (newStatus === 'sold' && oldStatus !== 'sold' && watch.discount_rate_applied == null) {
+        const profile = db.getProfile(watch.profile_id);
+        if (profile?.trading_rule === 'discount') {
+          updates.discount_rate_applied = profile.discount_split ?? 0.08;
+        }
+      }
+
       db.updateWatch(req.params.id, updates);
       const updated = db.getWatch(req.params.id);
 
