@@ -952,14 +952,6 @@
           <input type="text" id="wSerial" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
         <div>
-          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Source *</label>
-          <select id="wSource" required class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
-            <option value="">Select source…</option>
-            <option value="Company">Company</option>
-            <option value="Dealer">Dealer</option>
-          </select>
-        </div>
-        <div>
           <label id="wDateLabel" class="block text-xs uppercase tracking-widest text-outline mb-1.5">Wishlist Date</label>
           <input type="date" id="wDate" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
@@ -3605,7 +3597,6 @@ function prefillWatchFromSystem(w) {
   const pfLbl = document.getElementById('wCurrencyLabel');
   if (pfLbl) pfLbl.textContent = (pfCur && pfCur.value) || 'CHF';
   document.getElementById('wListPrice').value= w.list_price != null ? w.list_price : '';
-  document.getElementById('wSource').value   = w.source       || '';
   document.getElementById('wSystemSearch').value = '';
   document.getElementById('wSystemResults').classList.add('hidden');
 }
@@ -3619,7 +3610,6 @@ async function openAddWatch(profileId) {
   const curLbl = document.getElementById('wCurrencyLabel');
   if (curLbl) curLbl.textContent = 'CHF';
   document.getElementById('watchProfileId').value = profileId || '';
-  document.getElementById('wSource').value = '';
   document.getElementById('wImage').value  = '';
   document.getElementById('watchImgChosen').classList.add('hidden');
   document.getElementById('wSystemResults').classList.add('hidden');
@@ -3658,7 +3648,6 @@ async function openEditWatch(id) {
   document.getElementById('watchProfileId').value = wt.profile_id;
   document.getElementById('wModel').value     = wt.model;
   document.getElementById('wSerial').value    = wt.serial_number    || '';
-  document.getElementById('wSource').value    = wt.source;
   document.getElementById('wDate').value      = wt.purchase_date    || '';
   document.getElementById('wListPrice').value  = wt.list_price   != null ? wt.list_price   : '';
   document.getElementById('wSalePrice').value  = wt.sale_price   != null ? wt.sale_price   : '';
@@ -3717,14 +3706,12 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   const errEl     = document.getElementById('watchFormError');
   errEl.classList.add('hidden');
 
-  const model  = document.getElementById('wModel').value.trim();
-  const source = document.getElementById('wSource').value;
+  const model = document.getElementById('wModel').value.trim();
   if (!model)  { errEl.textContent = 'Model is required';  errEl.classList.remove('hidden'); return; }
-  if (!source) { errEl.textContent = 'Source is required'; errEl.classList.remove('hidden'); return; }
 
   const fd = new FormData();
   fd.append('model',            model);
-  fd.append('source',           source);
+  fd.append('source',           'Company');
   fd.append('status',           document.getElementById('wStatus').value);
   fd.append('serial_number',    document.getElementById('wSerial').value.trim());
   fd.append('purchase_date',    document.getElementById('wDate').value);
