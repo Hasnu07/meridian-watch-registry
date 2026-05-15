@@ -851,7 +851,7 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Purchase Date</label>
+          <label id="wDateLabel" class="block text-xs uppercase tracking-widest text-outline mb-1.5">Wishlist Date</label>
           <input type="date" id="wDate" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
         <div>
@@ -2782,6 +2782,9 @@ function setWatchStatus(status) {
   document.getElementById('wSalePriceWrap').classList.toggle('hidden', status !== 'sold');
   const curLabel = document.getElementById('wCurrencyLabel');
   if (curLabel) curLabel.textContent = document.getElementById('wCurrency')?.value || 'CHF';
+  const dateLabels = { wishlist: 'Wishlist Date', purchased: 'Purchase Date', sold: 'Sold Date' };
+  const wDateLabel = document.getElementById('wDateLabel');
+  if (wDateLabel) wDateLabel.textContent = dateLabels[status] || 'Date';
 }
 
 // ── Watch "from system" search ─────────────────────────────────────────────
