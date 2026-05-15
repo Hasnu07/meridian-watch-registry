@@ -1940,7 +1940,7 @@ async function openProfileDetail(id) {
 
   document.getElementById('addWatchForProfileBtn').onclick = () => openAddWatch(id);
   renderProfilePnl(profile);
-  renderProfileWatches(profile.watches);
+  renderProfileWatches(profile.watches, profile);
 }
 
 function computePnl(profile) {
@@ -2184,7 +2184,19 @@ function renderProfilePnl(profile) {
   `;
 }
 
-function renderProfileWatches(watches) {
+function renderProfileWatches(watches, profile) {
+  // Cache watches with the profile's split data so openMarkSoldModal works from any page
+  if (profile) {
+    watches.forEach(w => {
+      watchCache[w.id] = {
+        ...w,
+        profit_split_me: profile.profit_split_me,
+        loss_split_me:   profile.loss_split_me,
+        trading_rule:    profile.trading_rule,
+        discount_split:  profile.discount_split,
+      };
+    });
+  }
   document.getElementById('profileWatchesBody').innerHTML = watches.length
     ? watches.map(w => watchRow(w, true)).join('')
     : `<tr><td colspan="8" class="px-6 py-16 text-center text-on-surface-variant text-sm">No watches recorded yet.</td></tr>`;
@@ -2289,6 +2301,7 @@ document.getElementById('backToProfiles').addEventListener('click', () => {
 
 // ── Watches page ───────────────────────────────────────────────────────────
 let allWatches = [];
+const watchCache = {};           // id → watch, populated from all sources
 let watchPage  = 1;
 let watchStatusFilter = '';
 
@@ -2303,6 +2316,7 @@ async function loadWatches(q, source) {
   if (q)      params.set('q', q);
   if (source) params.set('source', source);
   allWatches = await api('GET', `/api/watches?${params}`);
+  allWatches.forEach(w => { watchCache[w.id] = w; });
   watchPage  = 1;
   renderWatches();
   renderWishlistWaiting();
@@ -2479,7 +2493,7 @@ function watchRow(w, detail) {
 let _soldWatchData = null;
 
 function openMarkSoldModal(id) {
-  const w = allWatches.find(x => x.id === id);
+  const w = allWatches.find(x => x.id === id) || watchCache[id];
   if (!w) return;
   _soldWatchData = w;
 
