@@ -825,19 +825,19 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">My Capital Deployed</label>
-            <input type="number" id="pMyCapital" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+            <input type="text" inputmode="decimal" oninput="formatMoneyInput(this)" id="pMyCapital" placeholder="0" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary transition-all">
           </div>
           <div>
             <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">My Remaining</label>
-            <input type="number" id="pMyRemaining" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+            <input type="text" inputmode="decimal" oninput="formatMoneyInput(this)" id="pMyRemaining" placeholder="0" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary transition-all">
           </div>
           <div>
             <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Client Capital</label>
-            <input type="number" id="pClientCapital" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+            <input type="text" inputmode="decimal" oninput="formatMoneyInput(this)" id="pClientCapital" placeholder="0" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary transition-all">
           </div>
           <div>
             <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Client Remaining</label>
-            <input type="number" id="pClientRemaining" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+            <input type="text" inputmode="decimal" oninput="formatMoneyInput(this)" id="pClientRemaining" placeholder="0" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary transition-all">
           </div>
         </div>
       </div>
@@ -962,14 +962,14 @@
               <option value="EUR">EUR</option>
               <option value="GBP">GBP</option>
             </select>
-            <input type="number" id="wListPrice" step="0.01" min="0" placeholder="0.00" class="flex-1 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+            <input type="text" inputmode="decimal" oninput="formatMoneyInput(this)" id="wListPrice" placeholder="0" class="flex-1 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
           </div>
         </div>
         <div id="wSalePriceWrap" class="hidden">
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Sale Price</label>
           <div class="flex gap-2">
             <span id="wCurrencyLabel" class="bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-3 text-on-surface-variant text-sm flex-shrink-0 flex items-center">CHF</span>
-            <input type="number" id="wSalePrice" step="0.01" min="0" placeholder="0.00" class="flex-1 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+            <input type="text" inputmode="decimal" oninput="formatMoneyInput(this)" id="wSalePrice" placeholder="0" class="flex-1 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
           </div>
         </div>
 
@@ -980,13 +980,13 @@
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs text-on-surface-variant mb-1.5"><span id="wCostLabelMe">I Paid</span> <span id="wCostCurrencyMe" class="font-mono text-outline">(CHF)</span></label>
-                <input type="number" id="wMyCost" step="0.01" min="0" placeholder="0.00"
-                  class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+                <input type="text" inputmode="decimal" oninput="formatMoneyInput(this)" id="wMyCost" placeholder="0"
+                  class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
               </div>
               <div>
                 <label class="block text-xs text-on-surface-variant mb-1.5"><span id="wCostLabelClient">Client Paid</span> <span id="wCostCurrencyClient" class="font-mono text-outline">(CHF)</span></label>
-                <input type="number" id="wClientCost" step="0.01" min="0" placeholder="0.00"
-                  class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+                <input type="text" inputmode="decimal" oninput="formatMoneyInput(this)" id="wClientCost" placeholder="0"
+                  class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
               </div>
             </div>
           </div>
@@ -1071,9 +1071,9 @@
         <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Sale Price</label>
         <div class="flex gap-2">
           <span id="soldCurrencyBadge" class="flex-shrink-0 px-3 py-2.5 bg-surface-variant/30 border border-outline-variant/30 rounded-lg text-sm font-mono text-on-surface-variant">CHF</span>
-          <input id="soldSalePrice" type="number" min="0" step="0.01" placeholder="0.00"
-            class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60"
-            oninput="updateSoldPnl()">
+          <input id="soldSalePrice" type="text" inputmode="decimal" placeholder="0"
+            class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface font-mono focus:outline-none focus:border-primary/60"
+            oninput="formatMoneyInput(this); updateSoldPnl()">
         </div>
       </div>
 
@@ -1154,7 +1154,7 @@
         <div class="flex gap-2">
           <span id="rpCurrencyBadge" class="flex-shrink-0 px-3 py-2.5 bg-surface-variant/30 border border-outline-variant/30 rounded-lg text-sm font-mono text-on-surface-variant">CHF</span>
           <input id="rpAmount" type="text" inputmode="decimal" placeholder="0"
-            oninput="formatRpAmount(this)"
+            oninput="formatMoneyInput(this)"
             class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60 font-mono">
         </div>
       </div>
@@ -2990,7 +2990,7 @@ function openMarkSoldModal(id) {
   document.getElementById('soldCurrencyBadge').textContent = cur;
 
   // Pre-fill sale price if already set
-  document.getElementById('soldSalePrice').value = w.sale_price != null ? w.sale_price : '';
+  setMoneyValue('soldSalePrice', w.sale_price);
   document.getElementById('soldTo').value = w.sold_to || '';
 
   updateSoldPnl();
@@ -3048,21 +3048,38 @@ function closeRecordPaymentModal() {
   _rpWatchId = null;
 }
 
-// Live thousand-separator formatting for amount input
-function formatRpAmount(el) {
+// Live thousand-separator formatting for any money input
+function formatMoneyInput(el) {
   const cursor   = el.selectionStart;
   const oldLen   = el.value.length;
-  // Strip everything except digits and a single decimal point
   let raw = el.value.replace(/[^\d.]/g, '');
   const parts = raw.split('.');
   if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
   const [intPart, decPart] = raw.split('.');
   const formatted = (intPart ? Number(intPart).toLocaleString('en-US') : '') + (raw.includes('.') ? '.' + (decPart || '') : '');
   el.value = formatted;
-  // Restore cursor position roughly
   const newLen = formatted.length;
   el.setSelectionRange(cursor + (newLen - oldLen), cursor + (newLen - oldLen));
 }
+
+// Set value with comma formatting (preserves empty string for null/undefined)
+function setMoneyValue(elOrId, value) {
+  const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+  if (!el) return;
+  if (value == null || value === '') { el.value = ''; return; }
+  el.value = Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+// Read value, strip commas — returns cleaned string ('' if blank/invalid)
+function readMoneyInput(elOrId) {
+  const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+  if (!el) return '';
+  const cleaned = (el.value || '').replace(/,/g, '').trim();
+  return cleaned;
+}
+
+// Legacy alias (older inline handlers still call this name)
+const formatRpAmount = formatMoneyInput;
 
 async function submitRecordPayment() {
   if (!_rpWatchId) return;
@@ -3103,7 +3120,7 @@ function updateSoldPnl() {
   if (!w) return;
   const cur = w.currency || 'CHF';
   const listPrice = w.list_price;
-  const salePrice = parseFloat(document.getElementById('soldSalePrice').value);
+  const salePrice = parseFloat(readMoneyInput('soldSalePrice'));
 
   document.getElementById('pnlListPrice').textContent = listPrice != null ? fmt.price(listPrice, cur) : '—';
   document.getElementById('pnlSalePrice').textContent = !isNaN(salePrice) ? fmt.price(salePrice, cur) : '—';
@@ -3167,7 +3184,7 @@ function updateSoldPnl() {
 async function submitMarkSold() {
   if (!_soldWatchData) return;
   const id = _soldWatchData.id;
-  const salePrice = document.getElementById('soldSalePrice').value;
+  const salePrice = readMoneyInput('soldSalePrice');
   const soldTo    = document.getElementById('soldTo').value.trim();
 
   const fd = new FormData();
@@ -3322,10 +3339,10 @@ async function openEditProfile(id) {
   setProfileTradingRule(tradingRule);
   document.getElementById('pDiscountSplit').value = p.discount_split != null ? (p.discount_split * 100) : 8;
   updateDiscountBar();
-  document.getElementById('pMyCapital').value        = p.my_capital       ?? '';
-  document.getElementById('pMyRemaining').value      = p.my_remaining     ?? '';
-  document.getElementById('pClientCapital').value    = p.client_capital   ?? '';
-  document.getElementById('pClientRemaining').value  = p.client_remaining ?? '';
+  setMoneyValue('pMyCapital',       p.my_capital);
+  setMoneyValue('pMyRemaining',     p.my_remaining);
+  setMoneyValue('pClientCapital',   p.client_capital);
+  setMoneyValue('pClientRemaining', p.client_remaining);
   updateSplitBars();
   document.getElementById('pTitle').value      = p.title      || '';
   document.getElementById('pFirstName').value  = p.first_name || '';
@@ -3556,10 +3573,10 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
   fd.append('trading_rule',  document.getElementById('pTradingRule').value);
   const dsPct = parseFloat(document.getElementById('pDiscountSplit').value || '8');
   fd.append('discount_split', (dsPct / 100).toFixed(4));
-  fd.append('my_capital',       document.getElementById('pMyCapital').value);
-  fd.append('my_remaining',     document.getElementById('pMyRemaining').value);
-  fd.append('client_capital',   document.getElementById('pClientCapital').value);
-  fd.append('client_remaining', document.getElementById('pClientRemaining').value);
+  fd.append('my_capital',       readMoneyInput('pMyCapital'));
+  fd.append('my_remaining',     readMoneyInput('pMyRemaining'));
+  fd.append('client_capital',   readMoneyInput('pClientCapital'));
+  fd.append('client_remaining', readMoneyInput('pClientRemaining'));
   fd.append('title',         document.getElementById('pTitle').value.trim());
   fd.append('first_name',    document.getElementById('pFirstName').value.trim());
   fd.append('last_name',     document.getElementById('pLastName').value.trim());
@@ -3667,7 +3684,7 @@ function prefillWatchFromSystem(w) {
   if (pfCur && w.currency) pfCur.value = w.currency;
   const pfLbl = document.getElementById('wCurrencyLabel');
   if (pfLbl) pfLbl.textContent = (pfCur && pfCur.value) || 'CHF';
-  document.getElementById('wListPrice').value= w.list_price != null ? w.list_price : '';
+  setMoneyValue('wListPrice', w.list_price);
   document.getElementById('wSystemSearch').value = '';
   document.getElementById('wSystemResults').classList.add('hidden');
 }
@@ -3720,10 +3737,10 @@ async function openEditWatch(id) {
   document.getElementById('wModel').value     = wt.model;
   document.getElementById('wSerial').value    = wt.serial_number    || '';
   document.getElementById('wDate').value      = wt.purchase_date    || '';
-  document.getElementById('wListPrice').value  = wt.list_price   != null ? wt.list_price   : '';
-  document.getElementById('wSalePrice').value  = wt.sale_price   != null ? wt.sale_price   : '';
-  document.getElementById('wMyCost').value     = wt.my_cost      != null ? wt.my_cost      : '';
-  document.getElementById('wClientCost').value = wt.client_cost  != null ? wt.client_cost  : '';
+  setMoneyValue('wListPrice',  wt.list_price);
+  setMoneyValue('wSalePrice',  wt.sale_price);
+  setMoneyValue('wMyCost',     wt.my_cost);
+  setMoneyValue('wClientCost', wt.client_cost);
   document.getElementById('wRef').value        = wt.reference_number || '';
   document.getElementById('wNotes').value      = wt.notes            || '';
   const ewCur = document.getElementById('wCurrency');
@@ -3786,10 +3803,10 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   fd.append('status',           document.getElementById('wStatus').value);
   fd.append('serial_number',    document.getElementById('wSerial').value.trim());
   fd.append('purchase_date',    document.getElementById('wDate').value);
-  fd.append('list_price',       document.getElementById('wListPrice').value);
-  fd.append('sale_price',       document.getElementById('wSalePrice').value);
-  fd.append('my_cost',          document.getElementById('wMyCost').value);
-  fd.append('client_cost',      document.getElementById('wClientCost').value);
+  fd.append('list_price',       readMoneyInput('wListPrice'));
+  fd.append('sale_price',       readMoneyInput('wSalePrice'));
+  fd.append('my_cost',          readMoneyInput('wMyCost'));
+  fd.append('client_cost',      readMoneyInput('wClientCost'));
   fd.append('reference_number', document.getElementById('wRef').value.trim());
   fd.append('currency', document.getElementById('wCurrency')?.value || 'CHF');
   fd.append('notes',            document.getElementById('wNotes').value.trim());
