@@ -1,10 +1,11 @@
 'use strict';
 
-const express = require('express');
-const path    = require('path');
-const multer  = require('multer');
-const db      = require('../db');
-const storage = require('../lib/storage');
+const express  = require('express');
+const path     = require('path');
+const multer   = require('multer');
+const db       = require('../db');
+const storage  = require('../lib/storage');
+const notifier = require('../lib/event-notifier');
 
 const router = express.Router();
 
@@ -66,6 +67,7 @@ router.post('/', (req, res) => {
       }
 
       const id = db.createProfile({
+
         name:          resolvedName,
         email,
         address,
@@ -93,7 +95,9 @@ router.post('/', (req, res) => {
         trading_rule:     trading_rule     || 'split',
         discount_split:   discount_split   != null ? Number(discount_split)   : 0.08,
       });
-      res.status(201).json(db.getProfile(id));
+      const created = db.getProfile(id);
+      notifier.onProfileCreated(created);
+      res.status(201).json(created);
     } catch (e) {
       if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Email already exists' });
       return res.status(500).json({ error: e.message || 'Database error' });
@@ -165,6 +169,7 @@ router.delete('/:id', async (req, res) => {
   await storage.deleteFile(profile.photo_path);
   await storage.deleteFile(profile.id_card_path);
   db.deleteProfile(req.params.id);
+  notifier.onProfileDeleted(profile);
   res.json({ ok: true });
 });
 
@@ -192,7 +197,8 @@ router.post('/:id/watches', (req, res) => {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
     }
-    if (!db.getProfile(req.params.id)) return res.status(404).json({ error: 'Profile not found' });
+    const profile = db.getProfile(req.params.id);
+    if (!profile) return res.status(404).json({ error: 'Profile not found' });
     const { model, source } = req.body;
     if (!model || !source) return res.status(400).json({ error: 'model and source required' });
     if (!['Company', 'Dealer'].includes(source)) return res.status(400).json({ error: 'source must be Company or Dealer' });
@@ -209,7 +215,9 @@ router.post('/:id/watches', (req, res) => {
         status:      ['wishlist','purchased','sold'].includes(req.body.status) ? req.body.status : 'wishlist',
         image_path:  imageUrl,
       });
-      res.status(201).json(db.getWatch(id));
+      const created = db.getWatch(id);
+      notifier.onWatchCreated(created, profile);
+      res.status(201).json(created);
     } catch (e) {
       return res.status(500).json({ error: e.message || 'Database error' });
     }

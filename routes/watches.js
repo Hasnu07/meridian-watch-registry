@@ -1,10 +1,11 @@
 'use strict';
 
-const express = require('express');
-const path    = require('path');
-const multer  = require('multer');
-const db      = require('../db');
-const storage = require('../lib/storage');
+const express  = require('express');
+const path     = require('path');
+const multer   = require('multer');
+const db       = require('../db');
+const storage  = require('../lib/storage');
+const notifier = require('../lib/event-notifier');
 
 const router = express.Router();
 
@@ -48,8 +49,18 @@ router.put('/:id', (req, res) => {
         updates.image_path = await storage.uploadFile(req.file, 'meridian/watches');
       }
 
+      const oldStatus = watch.status;
+      const newStatus = updates.status || oldStatus;
       db.updateWatch(req.params.id, updates);
-      res.json(db.getWatch(req.params.id));
+      const updated = db.getWatch(req.params.id);
+
+      // Fire status-change notification if status actually changed
+      if (updates.status && updates.status !== oldStatus) {
+        const profile = db.getProfile(watch.profile_id);
+        notifier.onWatchStatusChanged(watch, newStatus, updates, profile);
+      }
+
+      res.json(updated);
     } catch (e) {
       return res.status(500).json({ error: e.message || 'Database error' });
     }
@@ -60,8 +71,10 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', async (req, res) => {
   const watch = db.getWatch(req.params.id);
   if (!watch) return res.status(404).json({ error: 'Not found' });
+  const profile = db.getProfile(watch.profile_id);
   await storage.deleteFile(watch.image_path);
   db.deleteWatch(req.params.id);
+  notifier.onWatchDeleted(watch, profile);
   res.json({ ok: true });
 });
 
