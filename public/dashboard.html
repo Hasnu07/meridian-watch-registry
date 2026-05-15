@@ -2321,8 +2321,8 @@ function renderProfilePnl(profile) {
         `}
       </div>
 
-      ${!p.isDiscount ? `
-      <!-- Capital Card (split mode only) -->
+      ${!p.isDiscount && (p.myCapital || p.clientCapital || p.myRemaining || p.clientRemaining) ? `
+      <!-- Capital Card (split mode only — hidden when all zero) -->
       <div class="glass-surface rounded-2xl p-5">
         <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-4">Capital</p>
         <div class="grid grid-cols-3 gap-3 mb-1">
