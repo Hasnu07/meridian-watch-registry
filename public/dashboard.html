@@ -483,26 +483,83 @@
       <div id="page-settings" class="hidden p-10 max-w-[1280px] w-full mx-auto">
         <div class="mb-8">
           <h2 class="font-playfair text-5xl font-semibold text-on-surface">Settings</h2>
-          <p class="text-on-surface-variant text-sm mt-2">Manage your registry credentials.</p>
+          <p class="text-on-surface-variant text-sm mt-2">Manage your registry credentials and integrations.</p>
         </div>
-        <div class="glass-surface rounded-xl p-8 max-w-md">
-          <h3 class="font-playfair text-xl text-on-surface mb-6 pb-5 border-b border-outline-variant/15">Change Admin Password</h3>
-          <form id="passwordForm" class="space-y-4">
-            <div>
-              <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Current Password</label>
-              <input type="password" id="currPass" required class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Change Admin Password -->
+          <div class="glass-surface rounded-xl p-8">
+            <h3 class="font-playfair text-xl text-on-surface mb-6 pb-5 border-b border-outline-variant/15">Change Admin Password</h3>
+            <form id="passwordForm" class="space-y-4">
+              <div>
+                <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Current Password</label>
+                <input type="password" id="currPass" required class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+              </div>
+              <div>
+                <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">New Password</label>
+                <input type="password" id="newPass" required minlength="6" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+              </div>
+              <div>
+                <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Confirm New Password</label>
+                <input type="password" id="confPass" required class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+              </div>
+              <div id="passMsg"></div>
+              <button type="submit" class="bg-primary text-on-primary font-semibold px-6 py-3 rounded-lg text-sm hover:brightness-110 active:scale-95 transition-all">Update Password</button>
+            </form>
+          </div>
+
+          <!-- WhatsApp Notifications (GreenAPI) -->
+          <div class="glass-surface rounded-xl p-8">
+            <div class="flex items-center gap-3 mb-6 pb-5 border-b border-outline-variant/15">
+              <span class="text-2xl">💬</span>
+              <h3 class="font-playfair text-xl text-on-surface">WhatsApp Wishlist Reminders</h3>
             </div>
-            <div>
-              <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">New Password</label>
-              <input type="password" id="newPass" required minlength="6" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+            <p class="text-xs text-on-surface-variant mb-5 leading-relaxed">
+              Automatically sends a message to your WhatsApp group when any wishlist watch reaches a
+              <strong class="text-on-surface">10, 20, 30, 40…</strong> day milestone. Powered by
+              <a href="https://green-api.com" target="_blank" class="text-primary hover:underline">GreenAPI</a>.
+            </p>
+            <div class="space-y-4" id="waSettingsForm">
+              <div>
+                <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">GreenAPI Instance ID</label>
+                <input type="text" id="waInstanceId" placeholder="e.g. 1101234567"
+                       class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+              </div>
+              <div>
+                <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">GreenAPI API Token</label>
+                <input type="password" id="waApiToken" placeholder="Paste new token to update"
+                       class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+                <p class="text-[11px] text-on-surface-variant mt-1">Leave blank to keep the existing token.</p>
+              </div>
+              <div>
+                <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">WhatsApp Group Chat ID</label>
+                <input type="text" id="waGroupId" placeholder="e.g. 120363xxxxxxxxxx@g.us"
+                       class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+                <p class="text-[11px] text-on-surface-variant mt-1">Find this in GreenAPI dashboard → Chats list.</p>
+              </div>
+              <div>
+                <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Daily Send Time (Hour)</label>
+                <div class="flex items-center gap-3">
+                  <input type="number" id="waNotifyHour" min="0" max="23" placeholder="9"
+                         class="w-28 bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+                  <span class="text-sm text-on-surface-variant">:00 daily (24h, server local time)</span>
+                </div>
+              </div>
+
+              <div id="waMsg" class="hidden text-sm px-4 py-3 rounded-lg"></div>
+
+              <div class="flex gap-3 pt-2">
+                <button onclick="saveWaSettings()" class="flex-1 bg-primary text-on-primary font-semibold px-5 py-2.5 rounded-lg text-sm hover:brightness-110 active:scale-95 transition-all">
+                  Save Settings
+                </button>
+                <button onclick="testWaMessage()" title="Send a test message now" class="flex items-center gap-2 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-semibold px-4 py-2.5 rounded-lg text-sm transition-all">
+                  <span class="material-symbols-outlined text-[16px]">send</span> Test
+                </button>
+                <button onclick="triggerWaReminder()" title="Run milestone check now" class="flex items-center gap-2 border border-outline-variant/40 text-on-surface-variant hover:bg-surface-variant/30 font-semibold px-4 py-2.5 rounded-lg text-sm transition-all">
+                  <span class="material-symbols-outlined text-[16px]">notifications</span> Run Now
+                </button>
+              </div>
             </div>
-            <div>
-              <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Confirm New Password</label>
-              <input type="password" id="confPass" required class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
-            </div>
-            <div id="passMsg"></div>
-            <button type="submit" class="bg-primary text-on-primary font-semibold px-6 py-3 rounded-lg text-sm hover:brightness-110 active:scale-95 transition-all">Update Password</button>
-          </form>
+          </div>
         </div>
       </div>
 
@@ -3310,6 +3367,62 @@ function confirmDeleteWatch(id, model) {
 function resetPasswordForm() {
   ['currPass','newPass','confPass'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('passMsg').innerHTML = '';
+  loadWaSettings();
+}
+
+// ── WhatsApp / GreenAPI settings ───────────────────────────────────────────
+
+async function loadWaSettings() {
+  try {
+    const s = await api('GET', '/api/settings');
+    if (s.greenapi_instance_id) document.getElementById('waInstanceId').value  = s.greenapi_instance_id;
+    if (s.greenapi_group_id)    document.getElementById('waGroupId').value     = s.greenapi_group_id;
+    if (s.greenapi_notify_hour) document.getElementById('waNotifyHour').value  = s.greenapi_notify_hour;
+    // API token is masked — leave input blank (placeholder explains)
+  } catch (e) { /* settings may not exist yet */ }
+}
+
+function waMsg(text, isError) {
+  const el = document.getElementById('waMsg');
+  el.className = `text-sm px-4 py-3 rounded-lg ${isError ? 'bg-error/10 text-error' : 'bg-emerald-500/10 text-emerald-400'}`;
+  el.textContent = text;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
+}
+
+async function saveWaSettings() {
+  const body = {};
+  const inst  = document.getElementById('waInstanceId').value.trim();
+  const token = document.getElementById('waApiToken').value.trim();
+  const group = document.getElementById('waGroupId').value.trim();
+  const hour  = document.getElementById('waNotifyHour').value.trim();
+  if (inst)  body.greenapi_instance_id = inst;
+  if (token) body.greenapi_api_token   = token;
+  if (group) body.greenapi_group_id    = group;
+  if (hour !== '') body.greenapi_notify_hour = hour;
+  if (!Object.keys(body).length) { waMsg('Nothing to save.', true); return; }
+  try {
+    await api('POST', '/api/settings', body);
+    document.getElementById('waApiToken').value = '';
+    waMsg('Settings saved.', false);
+  } catch (e) { waMsg(e.message, true); }
+}
+
+async function testWaMessage() {
+  try {
+    const r = await api('POST', '/api/settings/whatsapp/test');
+    if (r.error) waMsg('Error: ' + r.error, true);
+    else waMsg('Test message sent! Check your WhatsApp group.', false);
+  } catch (e) { waMsg(e.message, true); }
+}
+
+async function triggerWaReminder() {
+  try {
+    const r = await api('POST', '/api/settings/whatsapp/trigger');
+    if (r.error) waMsg('Error: ' + r.error, true);
+    else if (r.sent) waMsg(`Sent! ${r.count} milestone watch(es) notified.`, false);
+    else waMsg('No milestone watches today (no 10/20/30/40-day watches). Use Test to force-send.', false);
+  } catch (e) { waMsg(e.message, true); }
 }
 
 document.getElementById('passwordForm').addEventListener('submit', async e => {

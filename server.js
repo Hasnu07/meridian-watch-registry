@@ -2,11 +2,13 @@
 
 require('dotenv').config();
 
-const express = require('express');
-const session = require('express-session');
-const path    = require('path');
-const bcrypt  = require('bcrypt');
-const db      = require('./db');
+const express   = require('express');
+const session   = require('express-session');
+const path      = require('path');
+const bcrypt    = require('bcrypt');
+const cron      = require('node-cron');
+const db        = require('./db');
+const notifier  = require('./lib/wishlist-notifier');
 const { UPLOADS_DIR } = require('./config');
 
 // ── Initialise database ───────────────────────────────────────────────────
@@ -88,6 +90,39 @@ app.post('/api/settings/password', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── App Settings (GreenAPI etc.) ─────────────────────────────────────────
+const ALLOWED_SETTINGS = ['greenapi_instance_id','greenapi_api_token','greenapi_group_id','greenapi_notify_hour'];
+
+app.get('/api/settings', requireAuth, (req, res) => {
+  const all = db.getAllSettings();
+  // Never expose API token in plaintext — mask it
+  if (all.greenapi_api_token) all.greenapi_api_token = '••••••••';
+  res.json(all);
+});
+
+app.post('/api/settings', requireAuth, (req, res) => {
+  for (const key of ALLOWED_SETTINGS) {
+    if (req.body[key] !== undefined && req.body[key] !== '') {
+      db.setSetting(key, req.body[key]);
+    }
+  }
+  // Re-register cron whenever hour setting changes
+  scheduleCron();
+  res.json({ ok: true });
+});
+
+// Manual trigger — send wishlist reminder right now
+app.post('/api/settings/whatsapp/trigger', requireAuth, async (req, res) => {
+  const result = await notifier.checkAndNotify({ force: false });
+  res.json(result);
+});
+
+// Test message — always sends regardless of milestones
+app.post('/api/settings/whatsapp/test', requireAuth, async (req, res) => {
+  const result = await notifier.checkAndNotify({ force: true });
+  res.json(result);
+});
+
 // Protected dashboard — serve dashboard.html for any non-API route when authed
 app.get('/dashboard', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -104,6 +139,27 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
+
+// ── WhatsApp wishlist cron ────────────────────────────────────────────────
+let _cronJob = null;
+
+function scheduleCron() {
+  if (_cronJob) { _cronJob.stop(); _cronJob = null; }
+  const hourStr = db.getSetting('greenapi_notify_hour') || '09';
+  const hour    = Math.max(0, Math.min(23, parseInt(hourStr, 10) || 9));
+  // Run daily at the configured hour (minute 0)
+  _cronJob = cron.schedule(`0 ${hour} * * *`, async () => {
+    console.log(`[WhatsApp] Running wishlist milestone check (${hour}:00)…`);
+    const result = await notifier.checkAndNotify();
+    if (result.sent)  console.log(`[WhatsApp] Sent — ${result.count} milestone watch(es).`);
+    else if (result.error) console.warn(`[WhatsApp] Error: ${result.error}`);
+    else console.log('[WhatsApp] No milestone watches today.');
+  });
+  console.log(`[WhatsApp] Scheduled daily wishlist reminder at ${hour}:00`);
+}
+
+// Kick off on startup
+scheduleCron();
 
 // ── Start ─────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {

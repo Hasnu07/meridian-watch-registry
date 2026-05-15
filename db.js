@@ -84,6 +84,11 @@ function init() {
       doc_path   TEXT NOT NULL,
       created_at DATETIME DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 
   // Migrate profiles columns
@@ -585,6 +590,35 @@ function getStats() {
   return { total_profiles, total_watches, company_watches, dealer_watches, total_value };
 }
 
+// ── Settings (key-value store) ─────────────────────────────────────────────
+
+function getSetting(key) {
+  return db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value ?? null;
+}
+
+function setSetting(key, value) {
+  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+}
+
+function getAllSettings() {
+  const rows = db.prepare('SELECT key, value FROM settings').all();
+  return Object.fromEntries(rows.map(r => [r.key, r.value]));
+}
+
+// ── Wishlist watches with days waiting (for WhatsApp notifications) ─────────
+
+function listWishlistWatchesWithDays() {
+  return db.prepare(`
+    SELECT w.id, w.model, w.created_at, w.image_path, w.currency,
+           p.name AS client_name, p.id AS profile_id,
+           CAST((julianday('now') - julianday(w.created_at)) AS INTEGER) AS days_waiting
+    FROM watches w
+    JOIN profiles p ON p.id = w.profile_id
+    WHERE w.status = 'wishlist'
+    ORDER BY days_waiting DESC
+  `).all();
+}
+
 module.exports = {
   init,
   getAdminHash, setAdminPassword,
@@ -595,4 +629,6 @@ module.exports = {
   listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,
   listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,
   getStats,
+  getSetting, setSetting, getAllSettings,
+  listWishlistWatchesWithDays,
 };
