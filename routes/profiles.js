@@ -120,9 +120,9 @@ router.put('/:id', (req, res) => {
     // If profile is linked to a master client, name + photo are managed there — skip them here
     const isLinked = !!profile.client_id;
     const TEXT_FIELDS = isLinked
-      ? ['email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country']
-      : ['name','email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country'];
-    const NUM_FIELDS = ['profit_split_me','loss_split_me','my_capital','my_remaining','client_capital','client_remaining'];
+      ? ['email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country','trading_rule']
+      : ['name','email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country','trading_rule'];
+    const NUM_FIELDS = ['profit_split_me','loss_split_me','my_capital','my_remaining','client_capital','client_remaining','discount_split'];
     NUM_FIELDS.forEach(f => {
       if (req.body[f] !== undefined) updates[f] = req.body[f] !== '' ? Number(req.body[f]) : null;
     });

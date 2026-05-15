@@ -122,6 +122,8 @@ function init() {
   if (!pcols2.includes('my_remaining'))     db.exec("ALTER TABLE profiles ADD COLUMN my_remaining     REAL DEFAULT 0");
   if (!pcols2.includes('client_capital'))   db.exec("ALTER TABLE profiles ADD COLUMN client_capital   REAL DEFAULT 0");
   if (!pcols2.includes('client_remaining')) db.exec("ALTER TABLE profiles ADD COLUMN client_remaining REAL DEFAULT 0");
+  if (!pcols2.includes('trading_rule'))   db.exec("ALTER TABLE profiles ADD COLUMN trading_rule TEXT DEFAULT 'split'");
+  if (!pcols2.includes('discount_split')) db.exec("ALTER TABLE profiles ADD COLUMN discount_split REAL DEFAULT 0.08");
 
   // Migrate watches — list/sale price + status + currency
   const wcols2 = db.prepare("PRAGMA table_info(watches)").all().map(r => r.name);
@@ -445,7 +447,8 @@ function updateProfile(id, updates) {
   const FIELDS = ['name','email','address','subscriber_id','pp_urn','photo_path','id_card_path',
                   'title','first_name','last_name','gender','dob','postal_code','city','country',
                   'shop_id','portfolio_id','client_id',
-                  'profit_split_me','loss_split_me','my_capital','my_remaining','client_capital','client_remaining'];
+                  'profit_split_me','loss_split_me','my_capital','my_remaining','client_capital','client_remaining',
+                  'trading_rule','discount_split'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {
