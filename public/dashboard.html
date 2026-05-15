@@ -914,15 +914,15 @@
         <!-- Capital Contributions — shown for Purchased + Sold, hidden for Wishlist -->
         <div id="wCostWrap" class="hidden">
           <div class="border border-outline-variant/20 rounded-xl p-4 space-y-3 bg-white/[0.02]">
-            <p class="text-xs font-semibold uppercase tracking-widest text-outline">Capital Contributions</p>
+            <p id="wCostSectionTitle" class="text-xs font-semibold uppercase tracking-widest text-outline">Capital Contributions</p>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs text-on-surface-variant mb-1.5">I Paid <span id="wCostCurrencyMe" class="font-mono text-outline">(CHF)</span></label>
+                <label class="block text-xs text-on-surface-variant mb-1.5"><span id="wCostLabelMe">I Paid</span> <span id="wCostCurrencyMe" class="font-mono text-outline">(CHF)</span></label>
                 <input type="number" id="wMyCost" step="0.01" min="0" placeholder="0.00"
                   class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
               </div>
               <div>
-                <label class="block text-xs text-on-surface-variant mb-1.5">Client Paid <span id="wCostCurrencyClient" class="font-mono text-outline">(CHF)</span></label>
+                <label class="block text-xs text-on-surface-variant mb-1.5"><span id="wCostLabelClient">Client Paid</span> <span id="wCostCurrencyClient" class="font-mono text-outline">(CHF)</span></label>
                 <input type="number" id="wClientCost" step="0.01" min="0" placeholder="0.00"
                   class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
               </div>
@@ -3010,6 +3010,13 @@ function setWatchStatus(status) {
   const costClient = document.getElementById('wCostCurrencyClient');
   if (costMe)     costMe.textContent     = `(${cur})`;
   if (costClient) costClient.textContent = `(${cur})`;
+  // Dynamic contribution labels: "Paid" when buying, "Received" when sold
+  const sectionTitle = document.getElementById('wCostSectionTitle');
+  const labelMe      = document.getElementById('wCostLabelMe');
+  const labelClient  = document.getElementById('wCostLabelClient');
+  if (sectionTitle) sectionTitle.textContent = status === 'sold' ? 'Sale Proceeds' : 'Capital Contributions';
+  if (labelMe)      labelMe.textContent      = status === 'sold' ? 'I Received'      : 'I Paid';
+  if (labelClient)  labelClient.textContent  = status === 'sold' ? 'Client Received' : 'Client Paid';
   const dateLabels = { wishlist: 'Wishlist Date', purchased: 'Purchase Date', sold: 'Sold Date' };
   const wDateLabel = document.getElementById('wDateLabel');
   if (wDateLabel) wDateLabel.textContent = dateLabels[status] || 'Date';
