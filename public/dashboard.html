@@ -1440,20 +1440,22 @@ async function loadMainKpi() {
         if (diff > 0) grossProfit += diff; else grossLoss += diff;
       }
     }
+    const netPnl = grossProfit + grossLoss;
     let myShare, clientShare;
     if (isDiscount) {
       const myLossShare = grossLoss * lossSplit / 100;
       myShare     = discountIncome + myLossShare;
       clientShare = grossLoss * (100 - lossSplit) / 100;
     } else {
-      myShare     = (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss;
-      clientShare = ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss;
+      const splitMe = netPnl >= 0 ? profitSplit : lossSplit;
+      myShare     = (splitMe / 100) * netPnl;
+      clientShare = ((100 - splitMe) / 100) * netPnl;
     }
     return {
       ...prof,
       watches,
       isDiscount, profitSplit, lossSplit, discountSplit,
-      grossProfit, grossLoss, discountIncome,
+      grossProfit, grossLoss, discountIncome, netPnl,
       myShare, clientShare,
       soldCount:     watches.filter(w => w.status === 'sold').length,
       activeCount:   watches.filter(w => w.status === 'wishlist' || w.status === 'purchased').length,
@@ -2055,15 +2057,17 @@ function computePnl(profile) {
     }
   }
 
+  const netPnl = grossProfit + grossLoss;
   let myShare, clientShare, myLossShare = 0, clientLossShare = 0;
   if (isDiscount) {
     myLossShare     = grossLoss * lossSplit / 100;
     clientLossShare = grossLoss * (100 - lossSplit) / 100;
-    myShare     = discountIncome + myLossShare;      // grossLoss is negative
+    myShare     = discountIncome + myLossShare;
     clientShare = clientLossShare;
   } else {
-    myShare     = (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss;
-    clientShare = ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss;
+    const splitMe = netPnl >= 0 ? profitSplit : lossSplit;
+    myShare     = (splitMe / 100) * netPnl;
+    clientShare = ((100 - splitMe) / 100) * netPnl;
   }
 
   const myCapital       = profile.my_capital       || 0;
@@ -2072,7 +2076,7 @@ function computePnl(profile) {
   const clientRemaining = profile.client_remaining || 0;
   return {
     isDiscount, profitSplit, lossSplit, discountSplit,
-    grossProfit, grossLoss, discountIncome,
+    grossProfit, grossLoss, discountIncome, netPnl,
     myLossShare, clientLossShare,
     myShare, clientShare,
     soldCount:      watches.filter(w => w.status === 'sold').length,
@@ -2252,18 +2256,22 @@ function renderProfilePnl(profile) {
             <span class="text-on-surface-variant">Gross loss (sold)</span>
             <span class="${cls(p.grossLoss)} font-medium">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${m(p.grossLoss)}</span>
           </div>
+          <div class="flex justify-between border-t border-outline-variant/10 pt-3 mt-1">
+            <span class="text-on-surface font-semibold">Net P&amp;L</span>
+            <span class="${cls(p.netPnl)} font-bold font-playfair text-lg">${sgn(p.netPnl)}${m(p.netPnl)}</span>
+          </div>
           <div class="border-t border-outline-variant/15 pt-4 space-y-4">
             <div class="flex justify-between items-baseline gap-4">
               <div>
                 <span class="text-on-surface font-medium">My share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.profitSplit}% × ${m(p.grossProfit)} + ${p.lossSplit}% × ${m(p.grossLoss)}</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.netPnl >= 0 ? p.profitSplit : p.lossSplit}% × net ${m(p.netPnl)}</span>
               </div>
               <span class="${cls(p.myShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.myShare)}${m(p.myShare)}</span>
             </div>
             <div class="flex justify-between items-baseline gap-4">
               <div>
                 <span class="text-on-surface font-medium">Client share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${100 - p.profitSplit}% × ${m(p.grossProfit)} + ${100 - p.lossSplit}% × ${m(p.grossLoss)}</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.netPnl >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}% × net ${m(p.netPnl)}</span>
               </div>
               <span class="${cls(p.clientShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.clientShare)}${m(p.clientShare)}</span>
             </div>
@@ -2652,10 +2660,12 @@ function updateSoldPnl() {
     splitHint   = `(${(discountSplit * 100).toFixed(1)}% of list${gross < 0 ? ` − ${lossSplitMe}% loss` : ''})`;
     clientHint  = gross < 0 ? `(${100 - lossSplitMe}% of loss)` : '(0%)';
   } else {
-    myShare     = gross >= 0 ? gross * profitSplitMe / 100        : gross * lossSplitMe / 100;
-    clientShare = gross >= 0 ? gross * (100 - profitSplitMe) / 100 : gross * (100 - lossSplitMe) / 100;
-    splitHint   = gross >= 0 ? `(${profitSplitMe}%)` : `(${lossSplitMe}%)`;
-    clientHint  = gross >= 0 ? `(${100 - profitSplitMe}%)` : `(${100 - lossSplitMe}%)`;
+    // Net this watch's gross, then split (matches profile-level net-first logic)
+    const splitMe = gross >= 0 ? profitSplitMe : lossSplitMe;
+    myShare     = gross * splitMe / 100;
+    clientShare = gross * (100 - splitMe) / 100;
+    splitHint   = `(${splitMe}% of net)`;
+    clientHint  = `(${100 - splitMe}% of net)`;
   }
 
   document.getElementById('pnlGross').textContent = `${sign(gross)}${fmt.price(gross, cur)}`;
