@@ -2437,30 +2437,30 @@ function renderProfilePnl(profile) {
         <div class="space-y-3 text-sm">
           <div class="flex justify-between">
             <span class="text-on-surface-variant">Gross profit (sold)</span>
-            <span class="${cls(p.grossProfit)} font-medium">${sgn(p.grossProfit)}${m(p.grossProfit)}</span>
+            <span class="${cls(p.grossProfit)} font-medium">${sgn(p.grossProfit)}${mc(p.grossProfit)}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-on-surface-variant">Gross loss (sold)</span>
-            <span class="${cls(p.grossLoss)} font-medium">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${m(p.grossLoss)}</span>
+            <span class="${cls(p.grossLoss)} font-medium">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${mc(p.grossLoss)}</span>
           </div>
           <div class="flex justify-between border-t border-outline-variant/10 pt-3 mt-1">
             <span class="text-on-surface font-semibold">Net P&amp;L</span>
-            <span class="${cls(p.netPnl)} font-bold font-playfair text-lg">${sgn(p.netPnl)}${m(p.netPnl)}</span>
+            <span class="${cls(p.netPnl)} font-bold font-playfair text-lg">${sgn(p.netPnl)}${mc(p.netPnl)}</span>
           </div>
           <div class="border-t border-outline-variant/15 pt-4 space-y-4">
             <div class="flex justify-between items-baseline gap-4">
               <div>
                 <span class="text-on-surface font-medium">My share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.netPnl >= 0 ? p.profitSplit : p.lossSplit}% × net ${m(p.netPnl)}</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.netPnl >= 0 ? p.profitSplit : p.lossSplit}% × net ${mc(p.netPnl)}</span>
               </div>
-              <span class="${cls(p.myShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.myShare)}${m(p.myShare)}</span>
+              <span class="${cls(p.myShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.myShare)}${mc(p.myShare)}</span>
             </div>
             <div class="flex justify-between items-baseline gap-4">
               <div>
                 <span class="text-on-surface font-medium">Client share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.netPnl >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}% × net ${m(p.netPnl)}</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.netPnl >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}% × net ${mc(p.netPnl)}</span>
               </div>
-              <span class="${cls(p.clientShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.clientShare)}${m(p.clientShare)}</span>
+              <span class="${cls(p.clientShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.clientShare)}${mc(p.clientShare)}</span>
             </div>
           </div>
         </div>
@@ -2843,12 +2843,12 @@ function statusBadge(status) {
   return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>Wishlist</span>`;
 }
 
-function plBadge(listPrice, salePrice) {
+function plBadge(listPrice, salePrice, cur) {
   if (listPrice == null || salePrice == null) return '<span class="text-outline text-xs">—</span>';
   const diff = salePrice - listPrice;
   const cls  = diff >= 0 ? 'text-emerald-400' : 'text-red-400';
   const sign = diff >= 0 ? '+' : '';
-  return `<span class="text-xs font-semibold font-mono ${cls}">${sign}${fmt.money(diff)}</span>`;
+  return `<span class="text-xs font-semibold font-mono ${cls}">${sign}${fmt.price(diff, cur || 'CHF')}</span>`;
 }
 
 function watchRow(w, detail, opts) {
@@ -2865,7 +2865,7 @@ function watchRow(w, detail, opts) {
 
   // P&L / Settlement cell for profile-detail view
   function detailPnlCell() {
-    if (!isDiscountRow) return `<td class="px-6 py-6">${plBadge(w.list_price, w.status === 'sold' ? w.sale_price : null)}</td>`;
+    if (!isDiscountRow) return `<td class="px-6 py-6">${plBadge(w.list_price, w.status === 'sold' ? w.sale_price : null, cur)}</td>`;
     // Discount mode
     if (w.status !== 'sold') return `<td class="px-6 py-6"><span class="text-outline text-xs">—</span></td>`;
     if (w.list_price != null && w.sale_price != null) {
