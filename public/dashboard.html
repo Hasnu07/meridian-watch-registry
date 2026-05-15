@@ -2471,60 +2471,102 @@ function renderProfilePnl(profile) {
       <div class="glass-surface rounded-2xl p-6">
         <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-4">Portfolio Summary</p>
 
+        ${p.isDiscount ? `
+        <!-- DISCOUNT MODE: aligned with Panel A / Panel B model -->
+        <!-- Row 1: Inventory I'm fronting + rate + proceeds -->
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Active Inventory (List)</p>
+            <p class="font-playfair text-lg text-primary">${mc(p.totalListValueActive || 0)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount} purchased — fronted by me</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Discount Rate</p>
+            <p class="font-playfair text-lg text-amber-400">${(p.discountSplit * 100).toFixed(2)}%</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">of sale price · profit only</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sale Proceeds</p>
+            <p class="font-playfair text-lg text-on-surface">${mc(p.totalSaleValue || 0)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
+          </div>
+        </div>
+
+        <!-- Row 2: Panel A & Panel B summary -->
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div class="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Panel A · Income</p>
+            <p class="font-playfair text-lg text-amber-400">+${mc(p.discountIncome)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profitable sale${p.profitWatchCount !== 1 ? 's' : ''}</p>
+          </div>
+          <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Panel B · Loss Exposure</p>
+            <p class="font-playfair text-lg ${p.totalLossAmount > 0 ? 'text-error' : 'text-on-surface-variant'}">${mc(p.totalLossAmount)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} loss watch${p.lossWatchCount !== 1 ? 'es' : ''}</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5 border ${p.lossOutstanding > 0 ? 'border-amber-500/20' : 'border-emerald-500/20'}">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Receivable</p>
+            <p class="font-playfair text-lg ${p.lossOutstanding > 0 ? 'text-amber-400' : 'text-emerald-400'}">${mc(p.lossOutstanding)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">client still owes</p>
+          </div>
+        </div>
+
+        <!-- Row 3: Watch counts -->
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Wishlist</p>
+            <p class="font-playfair text-lg text-amber-400">${p.wishlistCount}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">watches waiting</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sold</p>
+            <p class="font-playfair text-lg text-emerald-400">${p.soldCount}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profit · ${p.lossWatchCount} loss</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Watches</p>
+            <p class="font-playfair text-lg text-on-surface">${p.totalWatches}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">in membership</p>
+          </div>
+        </div>
+        ` : `
+        <!-- SPLIT MODE -->
         <!-- Row 1: Capital in active watches -->
         <div class="grid grid-cols-3 gap-3 mb-3">
           <div class="bg-white/[0.03] rounded-xl p-3.5">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Cost in Watches</p>
-            <p class="font-playfair text-lg text-emerald-400">${m(p.myCostInWatches || 0)}</p>
+            <p class="font-playfair text-lg text-emerald-400">${mc(p.myCostInWatches || 0)}</p>
             <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount} purchased</p>
           </div>
           <div class="bg-white/[0.03] rounded-xl p-3.5">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Cost in Watches</p>
-            <p class="font-playfair text-lg text-purple-300">${m(p.clientCostInWatches || 0)}</p>
+            <p class="font-playfair text-lg text-purple-300">${mc(p.clientCostInWatches || 0)}</p>
             <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount} purchased</p>
           </div>
           <div class="bg-white/[0.03] rounded-xl p-3.5 border border-primary/15">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total in Watches</p>
-            <p class="font-playfair text-lg text-primary">${m(p.totalCostInWatches || 0)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">list value ${m(p.totalListValueActive || 0)}</p>
+            <p class="font-playfair text-lg text-primary">${mc(p.totalCostInWatches || 0)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">list value ${mc(p.totalListValueActive || 0)}</p>
           </div>
         </div>
 
-        <!-- Row 2: P&L / income performance -->
+        <!-- Row 2: P&L performance -->
         <div class="grid grid-cols-3 gap-3 mb-3">
-          ${p.isDiscount ? `
-          <div class="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Discount Income</p>
-            <p class="font-playfair text-lg text-amber-400">+${m(p.discountIncome)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profitable sale${p.profitWatchCount !== 1 ? 's' : ''}</p>
-          </div>
-          <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Loss Exposure</p>
-            <p class="font-playfair text-lg ${p.totalLossAmount > 0 ? 'text-error' : 'text-on-surface-variant'}">${m(p.totalLossAmount)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} loss watch${p.lossWatchCount !== 1 ? 'es' : ''}</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5 border ${p.lossOutstanding > 0 ? 'border-amber-500/20' : 'border-emerald-500/20'}">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Outstanding</p>
-            <p class="font-playfair text-lg ${p.lossOutstanding > 0 ? 'text-amber-400' : 'text-emerald-400'}">${m(p.lossOutstanding)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">client owes</p>
-          </div>
-          ` : `
           <div class="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Profit Incurred</p>
-            <p class="font-playfair text-lg text-emerald-400">${sgn(p.grossProfit)}${m(p.grossProfit)}</p>
+            <p class="font-playfair text-lg text-emerald-400">${sgn(p.grossProfit)}${mc(p.grossProfit)}</p>
             <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} watch${p.profitWatchCount !== 1 ? 'es' : ''}</p>
           </div>
           <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Loss Sustained</p>
-            <p class="font-playfair text-lg ${p.grossLoss < 0 ? 'text-error' : 'text-on-surface-variant'}">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${m(p.grossLoss)}</p>
+            <p class="font-playfair text-lg ${p.grossLoss < 0 ? 'text-error' : 'text-on-surface-variant'}">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${mc(p.grossLoss)}</p>
             <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} watch${p.lossWatchCount !== 1 ? 'es' : ''}</p>
           </div>
           <div class="bg-white/[0.03] rounded-xl p-3.5 border ${p.netPnl >= 0 ? 'border-emerald-500/20' : 'border-error/20'}">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Net P&amp;L</p>
-            <p class="font-playfair text-lg ${cls(p.netPnl)}">${sgn(p.netPnl)}${m(p.netPnl)}</p>
+            <p class="font-playfair text-lg ${cls(p.netPnl)}">${sgn(p.netPnl)}${mc(p.netPnl)}</p>
             <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
           </div>
-          `}
         </div>
 
         <!-- Row 3: Totals & sale proceeds -->
@@ -2536,7 +2578,7 @@ function renderProfilePnl(profile) {
           </div>
           <div class="bg-white/[0.03] rounded-xl p-3.5">
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sale Proceeds</p>
-            <p class="font-playfair text-lg text-on-surface">${m(p.totalSaleValue || 0)}</p>
+            <p class="font-playfair text-lg text-on-surface">${mc(p.totalSaleValue || 0)}</p>
             <p class="text-[10px] text-on-surface-variant mt-0.5">total received</p>
           </div>
           <div class="bg-white/[0.03] rounded-xl p-3.5">
@@ -2545,6 +2587,7 @@ function renderProfilePnl(profile) {
             <p class="text-[10px] text-on-surface-variant mt-0.5">in membership</p>
           </div>
         </div>
+        `}
       </div>
 
     </div>
