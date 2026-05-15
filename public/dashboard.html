@@ -520,8 +520,14 @@
             </p>
             <div class="space-y-4" id="waSettingsForm">
               <div>
+                <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">GreenAPI API URL</label>
+                <input type="text" id="waApiUrl" placeholder="e.g. https://7107.api.greenapi.com"
+                       class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+                <p class="text-[11px] text-on-surface-variant mt-1">Shown as "apiUrl" in GreenAPI dashboard.</p>
+              </div>
+              <div>
                 <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">GreenAPI Instance ID</label>
-                <input type="text" id="waInstanceId" placeholder="e.g. 1101234567"
+                <input type="text" id="waInstanceId" placeholder="e.g. 7107574780"
                        class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
               </div>
               <div>
@@ -3375,6 +3381,7 @@ function resetPasswordForm() {
 async function loadWaSettings() {
   try {
     const s = await api('GET', '/api/settings');
+    if (s.greenapi_api_url)     document.getElementById('waApiUrl').value      = s.greenapi_api_url;
     if (s.greenapi_instance_id) document.getElementById('waInstanceId').value  = s.greenapi_instance_id;
     if (s.greenapi_group_id)    document.getElementById('waGroupId').value     = s.greenapi_group_id;
     if (s.greenapi_notify_hour) document.getElementById('waNotifyHour').value  = s.greenapi_notify_hour;
@@ -3392,13 +3399,15 @@ function waMsg(text, isError) {
 
 async function saveWaSettings() {
   const body = {};
-  const inst  = document.getElementById('waInstanceId').value.trim();
-  const token = document.getElementById('waApiToken').value.trim();
-  const group = document.getElementById('waGroupId').value.trim();
-  const hour  = document.getElementById('waNotifyHour').value.trim();
-  if (inst)  body.greenapi_instance_id = inst;
-  if (token) body.greenapi_api_token   = token;
-  if (group) body.greenapi_group_id    = group;
+  const apiUrl = document.getElementById('waApiUrl').value.trim();
+  const inst   = document.getElementById('waInstanceId').value.trim();
+  const token  = document.getElementById('waApiToken').value.trim();
+  const group  = document.getElementById('waGroupId').value.trim();
+  const hour   = document.getElementById('waNotifyHour').value.trim();
+  if (apiUrl) body.greenapi_api_url      = apiUrl;
+  if (inst)   body.greenapi_instance_id  = inst;
+  if (token)  body.greenapi_api_token    = token;
+  if (group)  body.greenapi_group_id     = group;
   if (hour !== '') body.greenapi_notify_hour = hour;
   if (!Object.keys(body).length) { waMsg('Nothing to save.', true); return; }
   try {

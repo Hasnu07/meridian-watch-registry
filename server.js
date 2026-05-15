@@ -91,7 +91,7 @@ app.post('/api/settings/password', requireAuth, async (req, res) => {
 });
 
 // ── App Settings (GreenAPI etc.) ─────────────────────────────────────────
-const ALLOWED_SETTINGS = ['greenapi_instance_id','greenapi_api_token','greenapi_group_id','greenapi_notify_hour'];
+const ALLOWED_SETTINGS = ['greenapi_api_url','greenapi_instance_id','greenapi_api_token','greenapi_group_id','greenapi_notify_hour'];
 
 app.get('/api/settings', requireAuth, (req, res) => {
   const all = db.getAllSettings();
