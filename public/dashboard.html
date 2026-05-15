@@ -2081,7 +2081,7 @@ function computePnl(profile) {
   const wishlistWatches  = watches.filter(w => w.status === 'wishlist');
   const myCostInWatches      = activeWatches.reduce((s, w) => s + (w.my_cost     || 0), 0);
   const clientCostInWatches  = activeWatches.reduce((s, w) => s + (w.client_cost || 0), 0);
-  const totalCostInWatches   = activeWatches.reduce((s, w) => s + (w.price       || 0), 0);
+  const totalCostInWatches   = myCostInWatches + clientCostInWatches;
   const profitWatchCount     = soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price > w.list_price).length;
   const lossWatchCount       = soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price < w.list_price).length;
   const totalListValueActive = activeWatches.reduce((s, w) => s + (w.list_price || 0), 0);
