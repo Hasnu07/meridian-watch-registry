@@ -2074,17 +2074,35 @@ function computePnl(profile) {
   const clientCapital   = profile.client_capital   || 0;
   const myRemaining     = profile.my_remaining     || 0;
   const clientRemaining = profile.client_remaining || 0;
+
+  // Watch-level capital stats (from actual per-watch cost fields)
+  const activeWatches    = watches.filter(w => w.status === 'purchased');
+  const soldWatches      = watches.filter(w => w.status === 'sold');
+  const wishlistWatches  = watches.filter(w => w.status === 'wishlist');
+  const myCostInWatches      = activeWatches.reduce((s, w) => s + (w.my_cost     || 0), 0);
+  const clientCostInWatches  = activeWatches.reduce((s, w) => s + (w.client_cost || 0), 0);
+  const totalCostInWatches   = activeWatches.reduce((s, w) => s + (w.price       || 0), 0);
+  const profitWatchCount     = soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price > w.list_price).length;
+  const lossWatchCount       = soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price < w.list_price).length;
+  const totalListValueActive = activeWatches.reduce((s, w) => s + (w.list_price || 0), 0);
+  const totalSaleValue       = soldWatches.reduce((s, w)  => s + (w.sale_price  || 0), 0);
+
   return {
     isDiscount, profitSplit, lossSplit, discountSplit,
     grossProfit, grossLoss, discountIncome, netPnl,
     myLossShare, clientLossShare,
     myShare, clientShare,
-    soldCount:      watches.filter(w => w.status === 'sold').length,
-    purchasedCount: watches.filter(w => w.status === 'purchased').length,
-    wishlistCount:  watches.filter(w => w.status === 'wishlist').length,
+    soldCount:      soldWatches.length,
+    purchasedCount: activeWatches.length,
+    wishlistCount:  wishlistWatches.length,
+    totalWatches:   watches.length,
     myCapital, clientCapital, myRemaining, clientRemaining,
     capitalDeployed: myCapital + clientCapital,
     available:       myRemaining + clientRemaining,
+    // Per-watch capital
+    myCostInWatches, clientCostInWatches, totalCostInWatches,
+    totalListValueActive, totalSaleValue,
+    profitWatchCount, lossWatchCount,
   };
 }
 
@@ -2277,6 +2295,68 @@ function renderProfilePnl(profile) {
             </div>
           </div>
           `}
+        </div>
+      </div>
+
+      <!-- Watch Portfolio Stats -->
+      <div class="glass-surface rounded-2xl p-6">
+        <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-4">Portfolio Summary</p>
+
+        <!-- Row 1: Capital in active watches -->
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Cost in Watches</p>
+            <p class="font-playfair text-lg text-emerald-400">${m(p.myCostInWatches || 0)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount} purchased</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Cost in Watches</p>
+            <p class="font-playfair text-lg text-purple-300">${m(p.clientCostInWatches || 0)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount} purchased</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5 border border-primary/15">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total in Watches</p>
+            <p class="font-playfair text-lg text-primary">${m(p.totalCostInWatches || 0)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">list value ${m(p.totalListValueActive || 0)}</p>
+          </div>
+        </div>
+
+        <!-- Row 2: P&L performance -->
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div class="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Profit Incurred</p>
+            <p class="font-playfair text-lg text-emerald-400">${sgn(p.grossProfit)}${m(p.grossProfit)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} watch${p.profitWatchCount !== 1 ? 'es' : ''}</p>
+          </div>
+          <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Loss Sustained</p>
+            <p class="font-playfair text-lg ${p.grossLoss < 0 ? 'text-error' : 'text-on-surface-variant'}">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${m(p.grossLoss)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} watch${p.lossWatchCount !== 1 ? 'es' : ''}</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5 border ${p.netPnl >= 0 ? 'border-emerald-500/20' : 'border-error/20'}">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Net P&amp;L</p>
+            <p class="font-playfair text-lg ${cls(p.netPnl)}">${sgn(p.netPnl)}${m(p.netPnl)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
+          </div>
+        </div>
+
+        <!-- Row 3: Totals & sale proceeds -->
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Wishlist</p>
+            <p class="font-playfair text-lg text-amber-400">${p.wishlistCount}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">watches waiting</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sale Proceeds</p>
+            <p class="font-playfair text-lg text-on-surface">${m(p.totalSaleValue || 0)}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">total received</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Watches</p>
+            <p class="font-playfair text-lg text-on-surface">${p.totalWatches}</p>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">in membership</p>
+          </div>
         </div>
       </div>
 
