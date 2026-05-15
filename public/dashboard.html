@@ -1162,8 +1162,9 @@
         <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Amount</label>
         <div class="flex gap-2">
           <span id="rpCurrencyBadge" class="flex-shrink-0 px-3 py-2.5 bg-surface-variant/30 border border-outline-variant/30 rounded-lg text-sm font-mono text-on-surface-variant">CHF</span>
-          <input id="rpAmount" type="number" min="0.01" step="0.01" placeholder="0.00"
-            class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
+          <input id="rpAmount" type="text" inputmode="decimal" placeholder="0"
+            oninput="formatRpAmount(this)"
+            class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60 font-mono">
         </div>
       </div>
       <!-- Method -->
@@ -1171,9 +1172,9 @@
         <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Method</label>
         <select id="rpMethod"
           class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
-          <option value="BANK_TRANSFER">Bank Transfer</option>
-          <option value="CASH">Cash</option>
-          <option value="OTHER">Other</option>
+          <option value="BANK_TRANSFER" style="background:#231f17;color:#eae1d4">Bank Transfer</option>
+          <option value="CASH" style="background:#231f17;color:#eae1d4">Cash</option>
+          <option value="OTHER" style="background:#231f17;color:#eae1d4">Other</option>
         </select>
       </div>
       <!-- Notes -->
@@ -2981,20 +2982,37 @@ function closeRecordPaymentModal() {
   _rpWatchId = null;
 }
 
+// Live thousand-separator formatting for amount input
+function formatRpAmount(el) {
+  const cursor   = el.selectionStart;
+  const oldLen   = el.value.length;
+  // Strip everything except digits and a single decimal point
+  let raw = el.value.replace(/[^\d.]/g, '');
+  const parts = raw.split('.');
+  if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+  const [intPart, decPart] = raw.split('.');
+  const formatted = (intPart ? Number(intPart).toLocaleString('en-US') : '') + (raw.includes('.') ? '.' + (decPart || '') : '');
+  el.value = formatted;
+  // Restore cursor position roughly
+  const newLen = formatted.length;
+  el.setSelectionRange(cursor + (newLen - oldLen), cursor + (newLen - oldLen));
+}
+
 async function submitRecordPayment() {
   if (!_rpWatchId) return;
-  const date   = document.getElementById('rpDate').value;
-  const amount = document.getElementById('rpAmount').value;
-  const method = document.getElementById('rpMethod').value;
-  const notes  = document.getElementById('rpNotes').value.trim();
-  const errEl  = document.getElementById('rpError');
+  const date      = document.getElementById('rpDate').value;
+  const rawAmount = document.getElementById('rpAmount').value.replace(/,/g, '');
+  const amount    = parseFloat(rawAmount);
+  const method    = document.getElementById('rpMethod').value;
+  const notes     = document.getElementById('rpNotes').value.trim();
+  const errEl     = document.getElementById('rpError');
   errEl.classList.add('hidden');
 
-  if (!date)              { errEl.textContent = 'Date is required';             errEl.classList.remove('hidden'); return; }
-  if (!amount || +amount <= 0) { errEl.textContent = 'Enter a positive amount'; errEl.classList.remove('hidden'); return; }
+  if (!date)                         { errEl.textContent = 'Date is required';            errEl.classList.remove('hidden'); return; }
+  if (isNaN(amount) || amount <= 0)  { errEl.textContent = 'Enter a positive amount';     errEl.classList.remove('hidden'); return; }
 
   try {
-    await api('POST', `/api/watches/${_rpWatchId}/loss-payments`, { date, amount: +amount, method, notes });
+    await api('POST', `/api/watches/${_rpWatchId}/loss-payments`, { date, amount, method, notes });
     closeRecordPaymentModal();
     // Refresh profile detail to reflect updated loss_status and payments
     if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
