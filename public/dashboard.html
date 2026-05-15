@@ -1911,15 +1911,22 @@ function computePnl(profile) {
     if (diff > 0) grossProfit += diff;
     else          grossLoss  += diff;
   }
+  const myCapital      = profile.my_capital      || 0;
+  const clientCapital  = profile.client_capital  || 0;
+  const myRemaining    = profile.my_remaining    || 0;
+  const clientRemaining= profile.client_remaining|| 0;
   return {
     profitSplit, lossSplit,
     grossProfit, grossLoss,
-    myShare:       (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss,
-    clientShare:   ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss,
-    soldCount:     watches.filter(w => w.status === 'sold').length,
-    pipelineCount: watches.filter(w => w.status === 'pipeline').length,
-    capitalDeployed: (profile.my_capital || 0) + (profile.client_capital || 0),
-    available:       (profile.my_remaining || 0) + (profile.client_remaining || 0),
+    myShare:        (profitSplit / 100) * grossProfit + (lossSplit / 100) * grossLoss,
+    clientShare:    ((100 - profitSplit) / 100) * grossProfit + ((100 - lossSplit) / 100) * grossLoss,
+    soldCount:      watches.filter(w => w.status === 'sold').length,
+    purchasedCount: watches.filter(w => w.status === 'purchased').length,
+    wishlistCount:  watches.filter(w => w.status === 'wishlist').length,
+    myCapital, clientCapital,
+    myRemaining, clientRemaining,
+    capitalDeployed: myCapital + clientCapital,
+    available:       myRemaining + clientRemaining,
   };
 }
 
@@ -1967,23 +1974,71 @@ function renderProfilePnl(profile) {
         </div>
       </div>
 
-      <!-- KPI grid -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="glass-surface rounded-xl p-4">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Capital Deployed</p>
-          <p class="font-playfair text-2xl text-on-surface">${m(p.capitalDeployed)}</p>
+      <!-- Capital Card -->
+      <div class="glass-surface rounded-2xl p-5">
+        <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-4">Capital</p>
+        <!-- Deployed row -->
+        <div class="grid grid-cols-3 gap-3 mb-1">
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Capital</p>
+            <p class="font-playfair text-xl text-on-surface">${m(p.myCapital)}</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Capital</p>
+            <p class="font-playfair text-xl text-purple-300">${m(p.clientCapital)}</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5 border border-primary/15">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Deployed</p>
+            <p class="font-playfair text-xl text-primary">${m(p.capitalDeployed)}</p>
+          </div>
         </div>
-        <div class="glass-surface rounded-xl p-4">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Available</p>
-          <p class="font-playfair text-2xl text-on-surface">${m(p.available)}</p>
+        <!-- Divider -->
+        <div class="border-t border-outline-variant/10 my-3"></div>
+        <!-- Remaining row -->
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Remaining</p>
+            <p class="font-playfair text-xl text-on-surface">${m(p.myRemaining)}</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Remaining</p>
+            <p class="font-playfair text-xl text-purple-300">${m(p.clientRemaining)}</p>
+          </div>
+          <div class="bg-white/[0.03] rounded-xl p-3.5 border border-emerald-500/15">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Available Total</p>
+            <p class="font-playfair text-xl text-emerald-400">${m(p.available)}</p>
+          </div>
         </div>
-        <div class="glass-surface rounded-xl p-4">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Sold</p>
-          <p class="font-playfair text-2xl text-on-surface">${p.soldCount}</p>
+      </div>
+
+      <!-- Watch Status Counts -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="glass-surface rounded-xl p-4 flex items-center gap-4">
+          <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-amber-400 text-[18px]">bookmark</span>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">Wishlist</p>
+            <p class="font-playfair text-2xl text-on-surface">${p.wishlistCount}</p>
+          </div>
         </div>
-        <div class="glass-surface rounded-xl p-4">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Pipeline</p>
-          <p class="font-playfair text-2xl text-on-surface">${p.pipelineCount}</p>
+        <div class="glass-surface rounded-xl p-4 flex items-center gap-4">
+          <div class="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-blue-400 text-[18px]">inventory_2</span>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">Purchased</p>
+            <p class="font-playfair text-2xl text-on-surface">${p.purchasedCount}</p>
+          </div>
+        </div>
+        <div class="glass-surface rounded-xl p-4 flex items-center gap-4">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-emerald-400 text-[18px]">sell</span>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">Sold</p>
+            <p class="font-playfair text-2xl text-on-surface">${p.soldCount}</p>
+          </div>
         </div>
       </div>
 
