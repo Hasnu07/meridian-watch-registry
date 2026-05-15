@@ -130,6 +130,8 @@ function init() {
   if (!wcols2.includes('status'))      db.exec("ALTER TABLE watches ADD COLUMN status TEXT DEFAULT 'wishlist'");
   if (!wcols2.includes('currency'))    db.exec("ALTER TABLE watches ADD COLUMN currency TEXT DEFAULT 'CHF'");
   if (!wcols2.includes('sold_to'))     db.exec("ALTER TABLE watches ADD COLUMN sold_to TEXT");
+  if (!wcols2.includes('my_cost'))     db.exec("ALTER TABLE watches ADD COLUMN my_cost REAL");
+  if (!wcols2.includes('client_cost')) db.exec("ALTER TABLE watches ADD COLUMN client_cost REAL");
   // Rename legacy 'pipeline' status to 'wishlist'
   db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
@@ -502,22 +504,24 @@ function getWatch(id) {
 
 function createWatch(profileId, { model, serial_number, source, purchase_date, price,
                                    reference_number, notes, image_path, movement_number, case_number,
-                                   list_price, sale_price, status, currency }) {
+                                   list_price, sale_price, status, currency, my_cost, client_cost }) {
   const result = db.prepare(`
     INSERT INTO watches
       (profile_id, model, serial_number, source, purchase_date, price,
        reference_number, notes, image_path, movement_number, case_number,
-       list_price, sale_price, status, currency)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       list_price, sale_price, status, currency, my_cost, client_cost)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     profileId, model, serial_number ?? null, source,
     purchase_date ?? null, price != null ? Number(price) : null,
     reference_number ?? null, notes ?? null, image_path ?? null,
     movement_number ?? null, case_number ?? null,
-    list_price != null ? Number(list_price) : null,
-    sale_price != null ? Number(sale_price) : null,
+    list_price  != null ? Number(list_price)  : null,
+    sale_price  != null ? Number(sale_price)  : null,
     status ?? 'wishlist',
-    currency ?? 'CHF'
+    currency ?? 'CHF',
+    my_cost     != null ? Number(my_cost)     : null,
+    client_cost != null ? Number(client_cost) : null
   );
   return result.lastInsertRowid;
 }
@@ -525,7 +529,8 @@ function createWatch(profileId, { model, serial_number, source, purchase_date, p
 function updateWatch(id, updates) {
   const FIELDS = ['model','serial_number','source','purchase_date','price',
                   'reference_number','notes','image_path','movement_number','case_number',
-                  'list_price','sale_price','status','currency','sold_to'];
+                  'list_price','sale_price','status','currency','sold_to',
+                  'my_cost','client_cost'];
   const fields = [];
   const values = [];
   for (const f of FIELDS) {

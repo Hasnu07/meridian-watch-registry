@@ -872,6 +872,26 @@
             <input type="number" id="wSalePrice" step="0.01" min="0" placeholder="0.00" class="flex-1 bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
           </div>
         </div>
+
+        <!-- Capital Contributions — shown for Purchased + Sold, hidden for Wishlist -->
+        <div id="wCostWrap" class="hidden">
+          <div class="border border-outline-variant/20 rounded-xl p-4 space-y-3 bg-white/[0.02]">
+            <p class="text-xs font-semibold uppercase tracking-widest text-outline">Capital Contributions</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-on-surface-variant mb-1.5">I Paid <span id="wCostCurrencyMe" class="font-mono text-outline">(CHF)</span></label>
+                <input type="number" id="wMyCost" step="0.01" min="0" placeholder="0.00"
+                  class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+              </div>
+              <div>
+                <label class="block text-xs text-on-surface-variant mb-1.5">Client Paid <span id="wCostCurrencyClient" class="font-mono text-outline">(CHF)</span></label>
+                <input type="number" id="wClientCost" step="0.01" min="0" placeholder="0.00"
+                  class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-3 py-2.5 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div>
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Reference / Invoice #</label>
           <input type="text" id="wRef" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
@@ -2780,8 +2800,14 @@ function setWatchStatus(status) {
     btn.className = 'flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all ' + (s === status ? 'bg-primary/15 border-primary/40 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30');
   });
   document.getElementById('wSalePriceWrap').classList.toggle('hidden', status !== 'sold');
+  document.getElementById('wCostWrap').classList.toggle('hidden', status === 'wishlist');
+  const cur = document.getElementById('wCurrency')?.value || 'CHF';
   const curLabel = document.getElementById('wCurrencyLabel');
-  if (curLabel) curLabel.textContent = document.getElementById('wCurrency')?.value || 'CHF';
+  if (curLabel) curLabel.textContent = cur;
+  const costMe     = document.getElementById('wCostCurrencyMe');
+  const costClient = document.getElementById('wCostCurrencyClient');
+  if (costMe)     costMe.textContent     = `(${cur})`;
+  if (costClient) costClient.textContent = `(${cur})`;
   const dateLabels = { wishlist: 'Wishlist Date', purchased: 'Purchase Date', sold: 'Sold Date' };
   const wDateLabel = document.getElementById('wDateLabel');
   if (wDateLabel) wDateLabel.textContent = dateLabels[status] || 'Date';
@@ -2826,7 +2852,7 @@ function prefillWatchFromSystem(w) {
 }
 
 function openAddWatch(profileId) {
-  ['watchId','wModel','wSerial','wDate','wRef','wNotes','wListPrice','wSalePrice','wSystemSearch'].forEach(id => {
+  ['watchId','wModel','wSerial','wDate','wRef','wNotes','wListPrice','wSalePrice','wMyCost','wClientCost','wSystemSearch'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const curSel = document.getElementById('wCurrency');
@@ -2855,14 +2881,21 @@ async function openEditWatch(id) {
   document.getElementById('wSerial').value    = wt.serial_number    || '';
   document.getElementById('wSource').value    = wt.source;
   document.getElementById('wDate').value      = wt.purchase_date    || '';
-  document.getElementById('wListPrice').value = wt.list_price != null ? wt.list_price : '';
-  document.getElementById('wSalePrice').value = wt.sale_price != null ? wt.sale_price : '';
-  document.getElementById('wRef').value       = wt.reference_number || '';
-  document.getElementById('wNotes').value     = wt.notes            || '';
+  document.getElementById('wListPrice').value  = wt.list_price   != null ? wt.list_price   : '';
+  document.getElementById('wSalePrice').value  = wt.sale_price   != null ? wt.sale_price   : '';
+  document.getElementById('wMyCost').value     = wt.my_cost      != null ? wt.my_cost      : '';
+  document.getElementById('wClientCost').value = wt.client_cost  != null ? wt.client_cost  : '';
+  document.getElementById('wRef').value        = wt.reference_number || '';
+  document.getElementById('wNotes').value      = wt.notes            || '';
   const ewCur = document.getElementById('wCurrency');
   if (ewCur) ewCur.value = wt.currency || 'CHF';
   const ewCurLbl = document.getElementById('wCurrencyLabel');
   if (ewCurLbl) ewCurLbl.textContent = wt.currency || 'CHF';
+  const costMe     = document.getElementById('wCostCurrencyMe');
+  const costClient = document.getElementById('wCostCurrencyClient');
+  const cur = wt.currency || 'CHF';
+  if (costMe)     costMe.textContent     = `(${cur})`;
+  if (costClient) costClient.textContent = `(${cur})`;
   document.getElementById('wImage').value     = '';
   document.getElementById('watchImgChosen').classList.add('hidden');
   document.getElementById('wSystemResults').classList.add('hidden');
@@ -2892,6 +2925,10 @@ document.getElementById('cancelWatchModal').addEventListener('click', closeWatch
 document.getElementById('wCurrency')?.addEventListener('change', function() {
   const lbl = document.getElementById('wCurrencyLabel');
   if (lbl) lbl.textContent = this.value;
+  const costMe     = document.getElementById('wCostCurrencyMe');
+  const costClient = document.getElementById('wCostCurrencyClient');
+  if (costMe)     costMe.textContent     = `(${this.value})`;
+  if (costClient) costClient.textContent = `(${this.value})`;
 });
 
 document.getElementById('saveWatchBtn').addEventListener('click', async () => {
@@ -2913,6 +2950,8 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   fd.append('purchase_date',    document.getElementById('wDate').value);
   fd.append('list_price',       document.getElementById('wListPrice').value);
   fd.append('sale_price',       document.getElementById('wSalePrice').value);
+  fd.append('my_cost',          document.getElementById('wMyCost').value);
+  fd.append('client_cost',      document.getElementById('wClientCost').value);
   fd.append('reference_number', document.getElementById('wRef').value.trim());
   fd.append('currency', document.getElementById('wCurrency')?.value || 'CHF');
   fd.append('notes',            document.getElementById('wNotes').value.trim());
