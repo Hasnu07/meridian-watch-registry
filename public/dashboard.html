@@ -1353,6 +1353,10 @@
   <img id="lightboxImg" src="" alt="ID document" class="max-w-[92vw] max-h-[92vh] rounded-xl shadow-2xl">
 </div>
 
+<!-- ═══ GLOBAL HOVER TOOLTIP ═════════════════════════════════════════════ -->
+<div id="globalTooltip" class="fixed z-[300] hidden pointer-events-none rounded-xl shadow-2xl text-xs"
+     style="background:#1a1611;border:1px solid rgba(212,175,55,0.20);color:#eae1d4;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
+
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
 <script>
 /* ══════════════════════════════════════════════════════════════════════
@@ -2362,6 +2366,114 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
   const myPnlNote     = p.isDiscount ? `Panel A · ${p.profitWatchCount} sale${p.profitWatchCount !== 1 ? 's' : ''}` : `${p.netPnl >= 0 ? p.profitSplit : p.lossSplit}% of net`;
   const clientPnlNote = p.isDiscount ? `Panel B liability` : `${p.netPnl >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}% of net`;
 
+  // ── Build per-tile tooltip HTML ────────────────────────────────────────
+  const paidWatches = [...(p.activeWatches || []), ...(p.soldWatches || [])];
+
+  const tipMyCost = buildWatchListTip(
+    'My Cost — per watch',
+    paidWatches.filter(w => (w.my_cost || 0) > 0),
+    w => `<div class="flex justify-between gap-3"><span class="text-on-surface-variant truncate">${esc(w.model)} <span class="text-outline/60 text-[9px] uppercase">· ${w.status}</span></span><span class="font-mono text-emerald-400">${mc(w.my_cost)}</span></div>`,
+    'Total', mc(p.myTotalCost || 0)
+  );
+  const tipClientCost = buildWatchListTip(
+    'Client Cost — per watch',
+    paidWatches.filter(w => (w.client_cost || 0) > 0),
+    w => `<div class="flex justify-between gap-3"><span class="text-on-surface-variant truncate">${esc(w.model)} <span class="text-outline/60 text-[9px] uppercase">· ${w.status}</span></span><span class="font-mono text-purple-300">${mc(w.client_cost)}</span></div>`,
+    'Total', mc(p.clientTotalCost || 0)
+  );
+  const tipTotalCost = buildWatchListTip(
+    'Total Investment — per watch',
+    paidWatches.filter(w => (w.my_cost || 0) + (w.client_cost || 0) > 0),
+    w => {
+      const t = (w.my_cost || 0) + (w.client_cost || 0);
+      return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono text-primary">${mc(t)}</span></div><div class="text-[9px] text-outline/70 flex gap-2"><span>me ${mc(w.my_cost || 0)}</span><span>client ${mc(w.client_cost || 0)}</span></div></div>`;
+    },
+    'Total', mc(p.totalCost || 0)
+  );
+
+  const profitList = (p.profitWatches || []).filter(w => w.list_price != null && w.sale_price != null);
+  const lossList   = (p.lossWatches   || []).filter(w => w.list_price != null && w.sale_price != null);
+
+  const tipProfit = buildWatchListTip(
+    'Profit — per watch',
+    profitList,
+    w => {
+      const diff = w.sale_price - w.list_price;
+      return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono text-emerald-400">+${mc(diff)}</span></div><div class="text-[9px] text-outline/70">List ${mc(w.list_price)} → Sold ${mc(w.sale_price)}</div></div>`;
+    },
+    'Gross profit', `+${mc(p.totalProfit || 0)}`
+  );
+  const tipLoss = buildWatchListTip(
+    'Loss — per watch',
+    lossList,
+    w => {
+      const diff = w.sale_price - w.list_price;
+      return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono text-error">${mc(diff)}</span></div><div class="text-[9px] text-outline/70">List ${mc(w.list_price)} → Sold ${mc(w.sale_price)}</div></div>`;
+    },
+    'Gross loss', mc(p.totalLoss || 0)
+  );
+
+  const tipMyPnl = p.isDiscount
+    ? buildWatchListTip(
+        'My P&L · Discount Income',
+        profitList,
+        w => {
+          const rate   = w.discount_rate_applied ?? p.discountSplit;
+          const income = w.sale_price * rate;
+          return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono text-amber-400">+${mc(income)}</span></div><div class="text-[9px] text-outline/70">${mc(w.sale_price)} × ${(rate * 100).toFixed(2)}%</div></div>`;
+        },
+        'My income', `+${mc(p.myPnl || 0)}`
+      )
+    : `<div class="px-4 py-3">
+        <p class="text-[10px] uppercase tracking-widest text-primary font-semibold mb-2">My Share Calculation</p>
+        <div class="space-y-1.5 text-[11px]">
+          <div class="flex justify-between"><span class="text-on-surface-variant">Gross profit</span><span class="font-mono text-emerald-400">+${mc(p.totalProfit || 0)}</span></div>
+          <div class="flex justify-between"><span class="text-on-surface-variant">Gross loss</span><span class="font-mono ${(p.totalLoss || 0) < 0 ? 'text-error' : 'text-on-surface-variant'}">${mc(p.totalLoss || 0)}</span></div>
+          <div class="flex justify-between border-t border-outline-variant/15 pt-1.5"><span class="text-on-surface font-semibold">Net P&amp;L</span><span class="font-mono ${cls(p.netPnl || 0)}">${sgn(p.netPnl || 0)}${mc(p.netPnl || 0)}</span></div>
+          <div class="flex justify-between"><span class="text-on-surface-variant">Split applied</span><span class="font-mono text-on-surface">${(p.netPnl || 0) >= 0 ? p.profitSplit : p.lossSplit}%</span></div>
+          <div class="flex justify-between border-t border-outline-variant/15 pt-1.5"><span class="text-on-surface font-semibold">My share</span><span class="font-mono ${cls(p.myPnl || 0)}">${sgn(p.myPnl || 0)}${mc(p.myPnl || 0)}</span></div>
+        </div>
+      </div>`;
+
+  const tipClientPnl = p.isDiscount
+    ? buildWatchListTip(
+        'Client P&L · Loss Liability',
+        lossList,
+        w => {
+          const diff = w.sale_price - w.list_price;   // negative
+          const paid = (w.loss_payments || []).filter(x => !x.reversed).reduce((s, x) => s + x.amount, 0);
+          return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono text-error">${mc(diff)}</span></div><div class="text-[9px] text-outline/70">Loss ${mc(-diff)} · Paid ${mc(paid)} · ${w.loss_status || 'open'}</div></div>`;
+        },
+        'Client owes (total)', mc(p.clientPnl || 0)
+      )
+    : `<div class="px-4 py-3">
+        <p class="text-[10px] uppercase tracking-widest text-primary font-semibold mb-2">Client Share Calculation</p>
+        <div class="space-y-1.5 text-[11px]">
+          <div class="flex justify-between"><span class="text-on-surface-variant">Net P&amp;L</span><span class="font-mono ${cls(p.netPnl || 0)}">${sgn(p.netPnl || 0)}${mc(p.netPnl || 0)}</span></div>
+          <div class="flex justify-between"><span class="text-on-surface-variant">Split applied</span><span class="font-mono text-on-surface">${(p.netPnl || 0) >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}%</span></div>
+          <div class="flex justify-between border-t border-outline-variant/15 pt-1.5"><span class="text-on-surface font-semibold">Client share</span><span class="font-mono ${cls(p.clientPnl || 0)}">${sgn(p.clientPnl || 0)}${mc(p.clientPnl || 0)}</span></div>
+        </div>
+      </div>`;
+
+  const tipProceeds = buildWatchListTip(
+    'Sale Proceeds — per watch',
+    (p.soldWatches || []).filter(w => w.sale_price != null),
+    w => `<div class="flex justify-between gap-3"><span class="text-on-surface-variant truncate">${esc(w.model)}</span><span class="font-mono text-on-surface">${mc(w.sale_price)}</span></div>`,
+    'Total received', mc(p.totalSaleValue || 0)
+  );
+
+  const tipTotalWatches = `
+    <div class="px-4 py-3">
+      <p class="text-[10px] uppercase tracking-widest text-primary font-semibold mb-2">Watch Breakdown</p>
+      <div class="space-y-1.5 text-[11px]">
+        <div class="flex justify-between"><span class="text-amber-400">🔖 Wishlist</span><span class="font-mono text-on-surface">${p.wishlistCount}</span></div>
+        <div class="flex justify-between"><span class="text-blue-400">📦 Purchased</span><span class="font-mono text-on-surface">${p.purchasedCount}</span></div>
+        <div class="flex justify-between"><span class="text-emerald-400">✅ Sold</span><span class="font-mono text-on-surface">${p.soldCount}</span></div>
+        <div class="flex justify-between border-t border-outline-variant/15 pt-1.5"><span class="text-on-surface font-semibold">Total</span><span class="font-mono text-primary">${p.totalWatches}</span></div>
+        ${p.soldCount ? `<div class="text-[9px] text-outline/70 mt-1">${p.profitWatchCount} profitable · ${p.lossWatchCount} loss</div>` : ''}
+      </div>
+    </div>`;
+
   return `
     <div class="glass-surface rounded-2xl p-6">
       <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -2371,58 +2483,67 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
 
       <!-- Row 1: Costs -->
       <div class="grid grid-cols-3 gap-3 mb-3">
-        <div class="bg-white/[0.03] rounded-xl p-3.5">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 transition-all hover:bg-white/[0.05] hover:ring-1 hover:ring-emerald-500/20">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Total Cost</p>
           <p class="font-playfair text-lg text-emerald-400">${mc(p.myTotalCost || 0)}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount + p.soldCount} watch${(p.purchasedCount + p.soldCount) !== 1 ? 'es' : ''} paid</p>
+          <div class="tip-html hidden">${tipMyCost}</div>
         </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 transition-all hover:bg-white/[0.05] hover:ring-1 hover:ring-purple-500/20">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Total Cost</p>
           <p class="font-playfair text-lg text-purple-300">${mc(p.clientTotalCost || 0)}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount + p.soldCount} watch${(p.purchasedCount + p.soldCount) !== 1 ? 'es' : ''} paid</p>
+          <div class="tip-html hidden">${tipClientCost}</div>
         </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5 border border-primary/15">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border border-primary/15 transition-all hover:bg-white/[0.05] hover:ring-1 hover:ring-primary/30">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total in Watches</p>
           <p class="font-playfair text-lg text-primary">${mc(p.totalCost || 0)}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">active list ${mc(p.totalListValueActive || 0)}</p>
+          <div class="tip-html hidden">${tipTotalCost}</div>
         </div>
       </div>
 
       <!-- Row 2: Raw P&L -->
       <div class="grid grid-cols-3 gap-3 mb-3">
-        <div class="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5">
+        <div class="has-tip cursor-help bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5 transition-all hover:bg-emerald-500/10">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Profit</p>
           <p class="font-playfair text-lg text-emerald-400">${p.totalProfit > 0 ? '+' : ''}${mc(p.totalProfit || 0)}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profitable sale${p.profitWatchCount !== 1 ? 's' : ''}</p>
+          <div class="tip-html hidden">${tipProfit}</div>
         </div>
-        <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
+        <div class="has-tip cursor-help bg-error/5 border border-error/15 rounded-xl p-3.5 transition-all hover:bg-error/10">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Loss</p>
           <p class="font-playfair text-lg ${p.totalLoss < 0 ? 'text-error' : 'text-on-surface-variant'}">${p.totalLoss < 0 ? sgn(p.totalLoss) + mc(p.totalLoss) : mc(0)}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} loss sale${p.lossWatchCount !== 1 ? 's' : ''}</p>
+          <div class="tip-html hidden">${tipLoss}</div>
         </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5 border ${(p.myPnl || 0) >= 0 ? 'border-emerald-500/20' : 'border-error/20'}">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border ${(p.myPnl || 0) >= 0 ? 'border-emerald-500/20' : 'border-error/20'} transition-all hover:bg-white/[0.05]">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My P&amp;L</p>
           <p class="font-playfair text-lg ${cls(p.myPnl || 0)}">${sgn(p.myPnl || 0)}${mc(p.myPnl || 0)}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${myPnlNote}</p>
+          <div class="tip-html hidden">${tipMyPnl}</div>
         </div>
       </div>
 
       <!-- Row 3: Client side + proceeds + count -->
       <div class="grid grid-cols-3 gap-3">
-        <div class="bg-white/[0.03] rounded-xl p-3.5 border ${(p.clientPnl || 0) >= 0 ? 'border-emerald-500/20' : 'border-error/20'}">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border ${(p.clientPnl || 0) >= 0 ? 'border-emerald-500/20' : 'border-error/20'} transition-all hover:bg-white/[0.05]">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client P&amp;L</p>
           <p class="font-playfair text-lg ${cls(p.clientPnl || 0)}">${sgn(p.clientPnl || 0)}${mc(p.clientPnl || 0)}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${clientPnlNote}</p>
+          <div class="tip-html hidden">${tipClientPnl}</div>
         </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 transition-all hover:bg-white/[0.05]">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sale Proceeds</p>
           <p class="font-playfair text-lg text-on-surface">${mc(p.totalSaleValue || 0)}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
+          <div class="tip-html hidden">${tipProceeds}</div>
         </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 transition-all hover:bg-white/[0.05]">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Watches</p>
           <p class="font-playfair text-lg text-on-surface">${p.totalWatches}</p>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.wishlistCount} 🔖 · ${p.purchasedCount} 📦 · ${p.soldCount} ✅</p>
+          <div class="tip-html hidden">${tipTotalWatches}</div>
         </div>
       </div>
     </div>
@@ -2608,9 +2729,9 @@ function renderProfilePnl(profile) {
       </div>
       ` : ''}
 
-      <!-- Watch Status Counts -->
+      <!-- Watch Status Counts (with hover details) -->
       <div class="grid grid-cols-3 gap-3">
-        <div class="glass-surface rounded-xl p-4 flex items-center gap-4">
+        <div class="has-tip cursor-help glass-surface rounded-xl p-4 flex items-center gap-4 transition-all hover:ring-1 hover:ring-amber-400/30">
           <div class="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
             <span class="material-symbols-outlined text-amber-400 text-[18px]">bookmark</span>
           </div>
@@ -2618,8 +2739,16 @@ function renderProfilePnl(profile) {
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">Wishlist</p>
             <p class="font-playfair text-2xl text-on-surface">${p.wishlistCount}</p>
           </div>
+          <div class="tip-html hidden">${
+            buildWatchListTip(
+              'Wishlist',
+              p.wishlistWatches || [],
+              w => `<div class="flex justify-between gap-3"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="text-[9px] text-outline">${(w.created_at || '').split(' ')[0] || ''}</span></div>`,
+              '', ''
+            )
+          }</div>
         </div>
-        <div class="glass-surface rounded-xl p-4 flex items-center gap-4">
+        <div class="has-tip cursor-help glass-surface rounded-xl p-4 flex items-center gap-4 transition-all hover:ring-1 hover:ring-blue-400/30">
           <div class="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
             <span class="material-symbols-outlined text-blue-400 text-[18px]">inventory_2</span>
           </div>
@@ -2627,8 +2756,19 @@ function renderProfilePnl(profile) {
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">Purchased</p>
             <p class="font-playfair text-2xl text-on-surface">${p.purchasedCount}</p>
           </div>
+          <div class="tip-html hidden">${
+            buildWatchListTip(
+              'Purchased (active inventory)',
+              p.activeWatches || [],
+              w => {
+                const total = (w.my_cost || 0) + (w.client_cost || 0);
+                return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono text-primary">${mc(total)}</span></div><div class="text-[9px] text-outline/70 flex gap-2">${w.list_price != null ? `<span>list ${mc(w.list_price)}</span>` : ''}<span>me ${mc(w.my_cost || 0)}</span><span>client ${mc(w.client_cost || 0)}</span></div></div>`;
+              },
+              'Active capital', mc(p.totalCostInWatches || 0)
+            )
+          }</div>
         </div>
-        <div class="glass-surface rounded-xl p-4 flex items-center gap-4">
+        <div class="has-tip cursor-help glass-surface rounded-xl p-4 flex items-center gap-4 transition-all hover:ring-1 hover:ring-emerald-400/30">
           <div class="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
             <span class="material-symbols-outlined text-emerald-400 text-[18px]">sell</span>
           </div>
@@ -2636,6 +2776,18 @@ function renderProfilePnl(profile) {
             <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">Sold</p>
             <p class="font-playfair text-2xl text-on-surface">${p.soldCount}</p>
           </div>
+          <div class="tip-html hidden">${
+            buildWatchListTip(
+              'Sold — with P&L',
+              p.soldWatches || [],
+              w => {
+                if (w.list_price == null || w.sale_price == null) return `<div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="text-[9px] text-outline italic">prices missing</span></div>`;
+                const diff = w.sale_price - w.list_price;
+                return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono ${cls(diff)}">${sgn(diff)}${mc(diff)}</span></div><div class="text-[9px] text-outline/70">List ${mc(w.list_price)} → Sold ${mc(w.sale_price)}</div></div>`;
+              },
+              'Net P&L', `${sgn(p.netPnl || 0)}${mc(p.netPnl || 0)}`
+            )
+          }</div>
         </div>
       </div>
 
@@ -3227,6 +3379,62 @@ function readMoneyInput(elOrId) {
 
 // Legacy alias (older inline handlers still call this name)
 const formatRpAmount = formatMoneyInput;
+
+// ── Global hover tooltip ──────────────────────────────────────────────────
+// Any element with class `has-tip` and a `.tip-html` child will reveal its
+// child's HTML in the global tooltip while hovered. The tooltip auto-flips
+// above/below to stay on screen and follows the cursor target.
+(() => {
+  const tt = document.getElementById('globalTooltip');
+  if (!tt) return;
+
+  function position(target) {
+    const r  = target.getBoundingClientRect();
+    const tr = tt.getBoundingClientRect();
+    const margin = 10;
+    let top  = r.top - tr.height - 8;            // prefer above
+    if (top < margin) top = r.bottom + 8;        // flip below if no room
+    let left = r.left + r.width / 2 - tr.width / 2;
+    if (left < margin) left = margin;
+    if (left + tr.width > window.innerWidth - margin) left = window.innerWidth - tr.width - margin;
+    tt.style.top  = `${top}px`;
+    tt.style.left = `${left}px`;
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    const t = e.target.closest('.has-tip');
+    if (!t) return;
+    const tip = t.querySelector(':scope > .tip-html');
+    if (!tip || !tip.innerHTML.trim()) return;
+    tt.innerHTML = tip.innerHTML;
+    tt.classList.remove('hidden');
+    // Position after content settles
+    requestAnimationFrame(() => position(t));
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    const t = e.target.closest('.has-tip');
+    if (!t) return;
+    // Only hide if leaving the tile entirely (not a child re-entry)
+    if (e.relatedTarget && t.contains(e.relatedTarget)) return;
+    tt.classList.add('hidden');
+  });
+
+  // Hide on scroll so the tooltip doesn't float away from its target
+  window.addEventListener('scroll', () => tt.classList.add('hidden'), true);
+})();
+
+// Build tooltip body for a list of watches with custom row content
+function buildWatchListTip(title, watches, rowFn, totalLabel, totalValue, cur) {
+  if (!watches.length) return `<div class="px-4 py-3"><p class="text-on-surface-variant/70 italic">No watches in this bucket.</p></div>`;
+  const rows = watches.map(rowFn).join('');
+  return `
+    <div class="px-4 py-3">
+      <p class="text-[10px] uppercase tracking-widest text-primary font-semibold mb-2">${title}</p>
+      <div class="space-y-1.5 max-h-60 overflow-y-auto">${rows}</div>
+      ${totalLabel ? `<div class="border-t border-outline-variant/15 mt-2 pt-2 flex justify-between text-[11px]"><span class="text-on-surface-variant">${totalLabel}</span><span class="font-semibold text-on-surface">${totalValue}</span></div>` : ''}
+    </div>`;
+}
 
 async function submitRecordPayment() {
   if (!_rpWatchId) return;
