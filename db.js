@@ -378,7 +378,8 @@ function getClientWithMemberships(id) {
     ORDER BY p.created_at ASC
   `).all(id);
   memberships.forEach(m => {
-    m.watches      = db.prepare('SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
+    const raw = db.prepare('SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
+    m.watches      = raw.map(w => ({ ...w, loss_payments: listLossPayments(w.id) }));
     m.company_docs = db.prepare('SELECT * FROM company_docs WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
   });
   return { ...client, memberships };
