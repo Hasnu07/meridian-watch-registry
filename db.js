@@ -155,6 +155,39 @@ function init() {
   // Rename legacy 'pipeline' status to 'wishlist'
   db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
+  // Drop NOT NULL from profiles.email — rebuild table (SQLite 12-step procedure)
+  const emailCol = db.prepare("PRAGMA table_info(profiles)").all().find(c => c.name === 'email');
+  if (emailCol && emailCol.notnull) {
+    const allCols = db.prepare("PRAGMA table_info(profiles)").all();
+    const colDefs = allCols.map(c => {
+      if (c.pk)                    return `${c.name} INTEGER PRIMARY KEY AUTOINCREMENT`;
+      if (c.name === 'email')      return 'email TEXT UNIQUE';
+      let def = `${c.name} ${c.type || ''}`.trim();
+      if (c.notnull) def += ' NOT NULL';
+      if (c.dflt_value != null) {
+        // Wrap function-call defaults (e.g. datetime('now')) in parens; leave literals alone
+        const needsParens = /[()]/.test(c.dflt_value);
+        def += ` DEFAULT ${needsParens ? `(${c.dflt_value})` : c.dflt_value}`;
+      }
+      return def;
+    });
+    const fkClauses = [
+      'FOREIGN KEY (shop_id)      REFERENCES shops(id)      ON DELETE SET NULL',
+      'FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE SET NULL',
+      'FOREIGN KEY (client_id)    REFERENCES clients(id)    ON DELETE SET NULL',
+    ];
+    const colList = allCols.map(c => c.name).join(', ');
+
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN TRANSACTION');
+    db.exec(`CREATE TABLE profiles_new (${colDefs.join(', ')}, ${fkClauses.join(', ')})`);
+    db.exec(`INSERT INTO profiles_new (${colList}) SELECT ${colList} FROM profiles`);
+    db.exec('DROP TABLE profiles');
+    db.exec('ALTER TABLE profiles_new RENAME TO profiles');
+    db.exec('COMMIT');
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+
   // Migrate clients columns — add master_id if missing
   const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(r => r.name);
   if (!clientCols.includes('master_id')) {

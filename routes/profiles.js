@@ -52,7 +52,7 @@ router.post('/', (req, res) => {
       resolvedName      = master.name;
       resolvedPhotoPath = master.photo_path;
     }
-    if (!resolvedName || !email) return res.status(400).json({ error: 'name and email required' });
+    if (!resolvedName) return res.status(400).json({ error: 'name required' });
 
     try {
       const photoUrl   = !client_id && req.files?.photo?.[0]
@@ -69,7 +69,7 @@ router.post('/', (req, res) => {
       const id = db.createProfile({
 
         name:          resolvedName,
-        email,
+        email:         email || null,
         address,
         subscriber_id: null,
         pp_urn:        pp_urn || null,
