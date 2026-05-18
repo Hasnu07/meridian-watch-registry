@@ -1756,135 +1756,63 @@ function dominantCurrency(watches) {
 }
 
 // ── Master Identity overview (aggregates across all memberships) ─────────
+// Builds an aggregate `p`-shaped object so the unified Portfolio Summary
+// renderer (renderPortfolioSummary9) can be reused. Adds a header band that
+// explains the trading-rule mix and watch totals.
 function renderClientMasterSummary(client) {
   const memberships = client.memberships || [];
   const allWatches  = memberships.flatMap(m => m.watches || []);
   const cur         = dominantCurrency(allWatches);
   const mc          = v => fmt.price(v || 0, cur);
-
-  // Per-membership P&L objects
-  const pnls = memberships.map(m => computePnl(m));
-
-  const splitCount    = memberships.filter(m => (m.trading_rule || 'split') !== 'discount').length;
-  const discountCount = memberships.length - splitCount;
-
-  const sum = (arr, key) => arr.reduce((s, x) => s + (x[key] || 0), 0);
-
-  const wishlist  = sum(pnls, 'wishlistCount');
-  const purchased = sum(pnls, 'purchasedCount');
-  const sold      = sum(pnls, 'soldCount');
-
-  // Discount-mode aggregates
-  const discountPnls    = pnls.filter(p => p.isDiscount);
-  const totalDiscIncome = sum(discountPnls, 'discountIncome');
-  const totalLossExpo   = sum(discountPnls, 'totalLossAmount');
-  const totalLossPaid   = sum(discountPnls, 'totalLossPaid');
-  const totalReceivable = totalLossExpo - totalLossPaid;
-
-  // Split-mode aggregates
-  const splitPnls = pnls.filter(p => !p.isDiscount);
-  const totalNetPnl     = sum(splitPnls, 'netPnl');
-  const totalMyShare    = sum(splitPnls, 'myShare');
-  const totalClientShr  = sum(splitPnls, 'clientShare');
-  const totalGrossProf  = sum(splitPnls, 'grossProfit');
-  const totalGrossLoss  = sum(splitPnls, 'grossLoss');
-
-  // Universal aggregates
-  const totalCapitalDeployed = sum(pnls, 'capitalDeployed');
-  const totalCostInWatches   = sum(pnls, 'totalCostInWatches');
-  const totalListValue       = sum(pnls, 'totalListValueActive');
-  const totalSaleProceeds    = sum(pnls, 'totalSaleValue');
-
   const sgn = v => v > 0 ? '+' : '';
   const cls = v => v >= 0 ? 'text-emerald-400' : 'text-error';
 
+  const pnls = memberships.map(m => computePnl(m));
+  const sum  = key => pnls.reduce((s, x) => s + (x[key] || 0), 0);
+
+  const splitCount    = pnls.filter(p => !p.isDiscount).length;
+  const discountCount = pnls.length - splitCount;
+
+  // Aggregate `p` for the unified renderer
+  const aggP = {
+    isDiscount:     discountCount > 0 && splitCount === 0,
+    myTotalCost:    sum('myTotalCost'),
+    clientTotalCost: sum('clientTotalCost'),
+    totalCost:      sum('totalCost'),
+    totalListValueActive: sum('totalListValueActive'),
+    totalSaleValue: sum('totalSaleValue'),
+    totalProfit:    sum('totalProfit'),
+    totalLoss:      sum('totalLoss'),
+    grossProfit:    sum('grossProfit'),
+    grossLoss:      sum('grossLoss'),
+    netPnl:         sum('netPnl'),
+    myPnl:          sum('myPnl'),
+    clientPnl:      sum('clientPnl'),
+    wishlistCount:  sum('wishlistCount'),
+    purchasedCount: sum('purchasedCount'),
+    soldCount:      sum('soldCount'),
+    profitWatchCount: sum('profitWatchCount'),
+    lossWatchCount:   sum('lossWatchCount'),
+    totalWatches:   allWatches.length,
+    // these don't apply cross-membership but the renderer references them
+    profitSplit:    null,
+    lossSplit:      null,
+  };
+
+  const ruleMix = splitCount && discountCount
+    ? `${splitCount} P/L split · ${discountCount} discount`
+    : splitCount ? `${splitCount} P/L split` : `${discountCount} discount`;
+
   return `
-    <div class="glass-surface rounded-2xl p-6 border border-primary/10">
-      <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+    <div class="space-y-4">
+      <div class="glass-surface rounded-2xl p-5 border border-primary/10 flex items-center justify-between flex-wrap gap-3">
         <div>
           <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-primary">Master Identity Overview</p>
-          <p class="text-xs text-on-surface-variant mt-1">Aggregated across ${memberships.length} shop presence${memberships.length !== 1 ? 's' : ''}${splitCount && discountCount ? ` · ${splitCount} P/L split · ${discountCount} discount` : splitCount ? ` · ${splitCount} P/L split` : ` · ${discountCount} discount`}</p>
+          <p class="text-xs text-on-surface-variant mt-1">Aggregated across ${memberships.length} shop presence${memberships.length !== 1 ? 's' : ''} · ${ruleMix}</p>
         </div>
         <span class="text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-lg border border-primary/30 text-primary bg-primary/5">${allWatches.length} watch${allWatches.length !== 1 ? 'es' : ''}</span>
       </div>
-
-      <!-- Row 1: Watch status counts -->
-      <div class="grid grid-cols-3 gap-3 mb-3">
-        <div class="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3.5">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Wishlist</p>
-          <p class="font-playfair text-xl text-amber-400">${wishlist}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">watches waiting</p>
-        </div>
-        <div class="bg-blue-500/5 border border-blue-500/15 rounded-xl p-3.5">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Purchased (Active)</p>
-          <p class="font-playfair text-xl text-blue-400">${purchased}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">list value ${mc(totalListValue)}</p>
-        </div>
-        <div class="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sold</p>
-          <p class="font-playfair text-xl text-emerald-400">${sold}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">proceeds ${mc(totalSaleProceeds)}</p>
-        </div>
-      </div>
-
-      <!-- Row 2: Income / P&L -->
-      <div class="grid grid-cols-3 gap-3 mb-3">
-        ${discountCount > 0 ? `
-        <div class="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3.5">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Discount Income</p>
-          <p class="font-playfair text-xl text-amber-400">+${mc(totalDiscIncome)}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">across ${discountCount} discount client${discountCount !== 1 ? 's' : ''}</p>
-        </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5 border ${totalReceivable > 0 ? 'border-amber-500/20' : 'border-emerald-500/20'}">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Loss Receivable</p>
-          <p class="font-playfair text-xl ${totalReceivable > 0 ? 'text-amber-400' : 'text-emerald-400'}">${mc(totalReceivable)}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">${mc(totalLossPaid)} of ${mc(totalLossExpo)} paid</p>
-        </div>
-        ` : `
-        <div class="bg-white/[0.03] rounded-xl p-3.5 border border-outline-variant/10 opacity-50">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Discount Income</p>
-          <p class="font-playfair text-xl text-on-surface-variant">—</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">no discount memberships</p>
-        </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5 border border-outline-variant/10 opacity-50">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Loss Receivable</p>
-          <p class="font-playfair text-xl text-on-surface-variant">—</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">no discount memberships</p>
-        </div>
-        `}
-        ${splitCount > 0 ? `
-        <div class="bg-white/[0.03] rounded-xl p-3.5 border ${totalNetPnl >= 0 ? 'border-emerald-500/20' : 'border-error/20'}">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Net P&amp;L (P/L Split)</p>
-          <p class="font-playfair text-xl ${cls(totalNetPnl)}">${sgn(totalNetPnl)}${mc(totalNetPnl)}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">my share ${sgn(totalMyShare)}${mc(totalMyShare)}</p>
-        </div>
-        ` : `
-        <div class="bg-white/[0.03] rounded-xl p-3.5 border border-outline-variant/10 opacity-50">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Net P&amp;L (P/L Split)</p>
-          <p class="font-playfair text-xl text-on-surface-variant">—</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">no split memberships</p>
-        </div>
-        `}
-      </div>
-
-      <!-- Row 3: Capital / cost / proceeds -->
-      <div class="grid grid-cols-3 gap-3">
-        <div class="bg-white/[0.03] rounded-xl p-3.5">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Capital Deployed</p>
-          <p class="font-playfair text-lg text-primary">${mc(totalCapitalDeployed)}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">across split clients</p>
-        </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Cost in Active Watches</p>
-          <p class="font-playfair text-lg text-on-surface">${mc(totalCostInWatches)}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">${purchased} purchased</p>
-        </div>
-        <div class="bg-white/[0.03] rounded-xl p-3.5">
-          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Sale Proceeds</p>
-          <p class="font-playfair text-lg text-on-surface">${mc(totalSaleProceeds)}</p>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">${sold} sold lifetime</p>
-        </div>
-      </div>
+      ${renderPortfolioSummary9(aggP, mc, sgn, cls)}
     </div>
   `;
 }
@@ -2343,6 +2271,9 @@ function computePnl(profile) {
   for (const w of soldWatches) {
     if (w.list_price == null || w.sale_price == null) continue;
     const diff = w.sale_price - w.list_price;
+    // Raw gain/loss is tracked for BOTH modes (used by Portfolio Summary tiles)
+    if (diff > 0) grossProfit += diff;
+    else          grossLoss  += diff;
     if (isDiscount) {
       if (diff > 0) {
         // Panel A: % of sale price, locked rate or current slider
@@ -2354,9 +2285,6 @@ function computePnl(profile) {
         const paid = (w.loss_payments || []).filter(p => !p.reversed).reduce((s, p) => s + p.amount, 0);
         totalLossPaid += paid;
       }
-    } else {
-      if (diff > 0) grossProfit += diff;
-      else          grossLoss  += diff;
     }
   }
 
@@ -2378,18 +2306,31 @@ function computePnl(profile) {
   const myRemaining     = profile.my_remaining     || 0;
   const clientRemaining = profile.client_remaining || 0;
 
+  // Active-only (still tied up in inventory)
   const myCostInWatches      = activeWatches.reduce((s, w) => s + (w.my_cost     || 0), 0);
   const clientCostInWatches  = activeWatches.reduce((s, w) => s + (w.client_cost || 0), 0);
   const totalCostInWatches   = myCostInWatches + clientCostInWatches;
+  // Across all watches we've put capital into (purchased + sold) — the "lifetime" cost view
+  const paidWatches      = watches.filter(w => w.status === 'purchased' || w.status === 'sold');
+  const myTotalCost      = paidWatches.reduce((s, w) => s + (w.my_cost     || 0), 0);
+  const clientTotalCost  = paidWatches.reduce((s, w) => s + (w.client_cost || 0), 0);
+  const totalCost        = myTotalCost + clientTotalCost;
   const totalListValueActive = activeWatches.reduce((s, w) => s + (w.list_price || 0), 0);
   const totalSaleValue       = soldWatches.reduce((s, w)  => s + (w.sale_price  || 0), 0);
+
+  // Mode-agnostic "My P&L" / "Client P&L" — meaningful for both trading rules
+  const myPnl     = isDiscount ? discountIncome             : myShare;
+  const clientPnl = isDiscount ? -(totalLossAmount || 0)    : clientShare;
+  const totalProfit = Math.max(grossProfit, 0);
+  const totalLoss   = Math.min(grossLoss, 0);   // already <= 0
 
   return {
     isDiscount, profitSplit, lossSplit, discountSplit,
     grossProfit, grossLoss, discountIncome, netPnl,
-    profitWatches, lossWatches,
+    profitWatches, lossWatches, soldWatches, activeWatches, wishlistWatches,
     totalLossAmount, totalLossPaid, lossOutstanding,
-    myShare, clientShare,
+    myShare, clientShare, myPnl, clientPnl,
+    totalProfit, totalLoss,
     soldCount:      soldWatches.length,
     purchasedCount: activeWatches.length,
     wishlistCount:  wishlistWatches.length,
@@ -2397,11 +2338,95 @@ function computePnl(profile) {
     myCapital, clientCapital, myRemaining, clientRemaining,
     capitalDeployed: myCapital + clientCapital,
     available:       myRemaining + clientRemaining,
+    // Cost views — active-only (legacy) and full (purchased + sold)
     myCostInWatches, clientCostInWatches, totalCostInWatches,
+    myTotalCost, clientTotalCost, totalCost,
     totalListValueActive, totalSaleValue,
     profitWatchCount: profitWatches.length,
     lossWatchCount:   lossWatches.length,
   };
+}
+
+// ── Unified 9-tile Portfolio Summary ──────────────────────────────────────
+// Used on profile detail, master identity overview, and any other dashboard
+// that needs the same financial roll-up. Layout is mode-aware:
+//
+//   Row 1 (capital):    My Total Cost      | Client Total Cost   | Total Cost
+//   Row 2 (P&L raw):    Total Profit       | Total Loss          | My P&L
+//   Row 3 (settlement): Client P&L         | Sale Proceeds       | Total Watches
+//
+// For discount mode:
+//   "My P&L"     = Panel A (discount income)
+//   "Client P&L" = -Total Loss Exposure (client liability via Panel B)
+function renderPortfolioSummary9(p, mc, sgn, cls) {
+  const myPnlNote     = p.isDiscount ? `Panel A · ${p.profitWatchCount} sale${p.profitWatchCount !== 1 ? 's' : ''}` : `${p.netPnl >= 0 ? p.profitSplit : p.lossSplit}% of net`;
+  const clientPnlNote = p.isDiscount ? `Panel B liability` : `${p.netPnl >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}% of net`;
+
+  return `
+    <div class="glass-surface rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant">Portfolio Summary</p>
+        <span class="text-[9px] uppercase tracking-widest text-outline">Across ${p.purchasedCount + p.soldCount} paid · ${p.wishlistCount} wishlist</span>
+      </div>
+
+      <!-- Row 1: Costs -->
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div class="bg-white/[0.03] rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Total Cost</p>
+          <p class="font-playfair text-lg text-emerald-400">${mc(p.myTotalCost || 0)}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount + p.soldCount} watch${(p.purchasedCount + p.soldCount) !== 1 ? 'es' : ''} paid</p>
+        </div>
+        <div class="bg-white/[0.03] rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Total Cost</p>
+          <p class="font-playfair text-lg text-purple-300">${mc(p.clientTotalCost || 0)}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount + p.soldCount} watch${(p.purchasedCount + p.soldCount) !== 1 ? 'es' : ''} paid</p>
+        </div>
+        <div class="bg-white/[0.03] rounded-xl p-3.5 border border-primary/15">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total in Watches</p>
+          <p class="font-playfair text-lg text-primary">${mc(p.totalCost || 0)}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">active list ${mc(p.totalListValueActive || 0)}</p>
+        </div>
+      </div>
+
+      <!-- Row 2: Raw P&L -->
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <div class="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Profit</p>
+          <p class="font-playfair text-lg text-emerald-400">${p.totalProfit > 0 ? '+' : ''}${mc(p.totalProfit || 0)}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profitable sale${p.profitWatchCount !== 1 ? 's' : ''}</p>
+        </div>
+        <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Loss</p>
+          <p class="font-playfair text-lg ${p.totalLoss < 0 ? 'text-error' : 'text-on-surface-variant'}">${p.totalLoss < 0 ? sgn(p.totalLoss) + mc(p.totalLoss) : mc(0)}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} loss sale${p.lossWatchCount !== 1 ? 's' : ''}</p>
+        </div>
+        <div class="bg-white/[0.03] rounded-xl p-3.5 border ${(p.myPnl || 0) >= 0 ? 'border-emerald-500/20' : 'border-error/20'}">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My P&amp;L</p>
+          <p class="font-playfair text-lg ${cls(p.myPnl || 0)}">${sgn(p.myPnl || 0)}${mc(p.myPnl || 0)}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${myPnlNote}</p>
+        </div>
+      </div>
+
+      <!-- Row 3: Client side + proceeds + count -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-white/[0.03] rounded-xl p-3.5 border ${(p.clientPnl || 0) >= 0 ? 'border-emerald-500/20' : 'border-error/20'}">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client P&amp;L</p>
+          <p class="font-playfair text-lg ${cls(p.clientPnl || 0)}">${sgn(p.clientPnl || 0)}${mc(p.clientPnl || 0)}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${clientPnlNote}</p>
+        </div>
+        <div class="bg-white/[0.03] rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sale Proceeds</p>
+          <p class="font-playfair text-lg text-on-surface">${mc(p.totalSaleValue || 0)}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
+        </div>
+        <div class="bg-white/[0.03] rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Watches</p>
+          <p class="font-playfair text-lg text-on-surface">${p.totalWatches}</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${p.wishlistCount} 🔖 · ${p.purchasedCount} 📦 · ${p.soldCount} ✅</p>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderProfilePnl(profile) {
@@ -2657,16 +2682,38 @@ function renderProfilePnl(profile) {
         </div>` : ''}
       </div>
       ` : `
-      <!-- P&L Breakdown (split mode) -->
+      <!-- P&L Breakdown (split mode) — with per-watch detail -->
       <div class="glass-surface rounded-2xl p-6">
         <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-5">Rules Applied to P&amp;L</p>
-        <div class="space-y-3 text-sm">
+
+        ${p.soldWatches.length > 0 ? `
+        <div class="mb-5 space-y-0">
+          <div class="grid grid-cols-12 gap-2 text-[9px] uppercase tracking-widest text-outline pb-2 border-b border-outline-variant/10 mb-1">
+            <div class="col-span-4">Timepiece</div>
+            <div class="col-span-2 text-right">List</div>
+            <div class="col-span-2 text-right">Sold</div>
+            <div class="col-span-4 text-right">P&amp;L</div>
+          </div>
+          ${p.soldWatches.filter(w => w.list_price != null && w.sale_price != null).map(w => {
+            const diff = w.sale_price - w.list_price;
+            return `
+            <div class="grid grid-cols-12 gap-2 text-xs py-1.5 border-b border-outline-variant/[0.04] last:border-0">
+              <div class="col-span-4 truncate text-on-surface">${esc(w.model)}</div>
+              <div class="col-span-2 text-right text-on-surface-variant font-mono">${mc(w.list_price)}</div>
+              <div class="col-span-2 text-right text-on-surface-variant font-mono">${mc(w.sale_price)}</div>
+              <div class="col-span-4 text-right font-mono ${cls(diff)} font-medium">${sgn(diff)}${mc(diff)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        ` : '<p class="text-xs text-on-surface-variant/60 italic mb-5">No sold watches yet — P&L will populate as you mark sales.</p>'}
+
+        <div class="space-y-3 text-sm border-t border-outline-variant/10 pt-4">
           <div class="flex justify-between">
-            <span class="text-on-surface-variant">Gross profit (sold)</span>
+            <span class="text-on-surface-variant">Gross profit (${p.profitWatchCount} watch${p.profitWatchCount !== 1 ? 'es' : ''})</span>
             <span class="${cls(p.grossProfit)} font-medium">${sgn(p.grossProfit)}${mc(p.grossProfit)}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-on-surface-variant">Gross loss (sold)</span>
+            <span class="text-on-surface-variant">Gross loss (${p.lossWatchCount} watch${p.lossWatchCount !== 1 ? 'es' : ''})</span>
             <span class="${cls(p.grossLoss)} font-medium">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${mc(p.grossLoss)}</span>
           </div>
           <div class="flex justify-between border-t border-outline-variant/10 pt-3 mt-1">
@@ -2693,128 +2740,8 @@ function renderProfilePnl(profile) {
       </div>
       `}
 
-      <!-- Portfolio Summary -->
-      <div class="glass-surface rounded-2xl p-6">
-        <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-4">Portfolio Summary</p>
-
-        ${p.isDiscount ? `
-        <!-- DISCOUNT MODE: aligned with Panel A / Panel B model -->
-        <!-- Row 1: Inventory I'm fronting + rate + proceeds -->
-        <div class="grid grid-cols-3 gap-3 mb-3">
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Active Inventory (List)</p>
-            <p class="font-playfair text-lg text-primary">${mc(p.totalListValueActive || 0)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount} purchased — fronted by me</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Discount Rate</p>
-            <p class="font-playfair text-lg text-amber-400">${(p.discountSplit * 100).toFixed(2)}%</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">of sale price · profit only</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sale Proceeds</p>
-            <p class="font-playfair text-lg text-on-surface">${mc(p.totalSaleValue || 0)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
-          </div>
-        </div>
-
-        <!-- Row 2: Panel A & Panel B summary -->
-        <div class="grid grid-cols-3 gap-3 mb-3">
-          <div class="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Panel A · Income</p>
-            <p class="font-playfair text-lg text-amber-400">+${mc(p.discountIncome)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profitable sale${p.profitWatchCount !== 1 ? 's' : ''}</p>
-          </div>
-          <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Panel B · Loss Exposure</p>
-            <p class="font-playfair text-lg ${p.totalLossAmount > 0 ? 'text-error' : 'text-on-surface-variant'}">${mc(p.totalLossAmount)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} loss watch${p.lossWatchCount !== 1 ? 'es' : ''}</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5 border ${p.lossOutstanding > 0 ? 'border-amber-500/20' : 'border-emerald-500/20'}">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Receivable</p>
-            <p class="font-playfair text-lg ${p.lossOutstanding > 0 ? 'text-amber-400' : 'text-emerald-400'}">${mc(p.lossOutstanding)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">client still owes</p>
-          </div>
-        </div>
-
-        <!-- Row 3: Watch counts -->
-        <div class="grid grid-cols-3 gap-3">
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Wishlist</p>
-            <p class="font-playfair text-lg text-amber-400">${p.wishlistCount}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">watches waiting</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sold</p>
-            <p class="font-playfair text-lg text-emerald-400">${p.soldCount}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profit · ${p.lossWatchCount} loss</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Watches</p>
-            <p class="font-playfair text-lg text-on-surface">${p.totalWatches}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">in membership</p>
-          </div>
-        </div>
-        ` : `
-        <!-- SPLIT MODE -->
-        <!-- Row 1: Capital in active watches -->
-        <div class="grid grid-cols-3 gap-3 mb-3">
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Cost in Watches</p>
-            <p class="font-playfair text-lg text-emerald-400">${mc(p.myCostInWatches || 0)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount} purchased</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Cost in Watches</p>
-            <p class="font-playfair text-lg text-purple-300">${mc(p.clientCostInWatches || 0)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount} purchased</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5 border border-primary/15">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total in Watches</p>
-            <p class="font-playfair text-lg text-primary">${mc(p.totalCostInWatches || 0)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">list value ${mc(p.totalListValueActive || 0)}</p>
-          </div>
-        </div>
-
-        <!-- Row 2: P&L performance -->
-        <div class="grid grid-cols-3 gap-3 mb-3">
-          <div class="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Profit Incurred</p>
-            <p class="font-playfair text-lg text-emerald-400">${sgn(p.grossProfit)}${mc(p.grossProfit)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} watch${p.profitWatchCount !== 1 ? 'es' : ''}</p>
-          </div>
-          <div class="bg-error/5 border border-error/15 rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Loss Sustained</p>
-            <p class="font-playfair text-lg ${p.grossLoss < 0 ? 'text-error' : 'text-on-surface-variant'}">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${mc(p.grossLoss)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} watch${p.lossWatchCount !== 1 ? 'es' : ''}</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5 border ${p.netPnl >= 0 ? 'border-emerald-500/20' : 'border-error/20'}">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Net P&amp;L</p>
-            <p class="font-playfair text-lg ${cls(p.netPnl)}">${sgn(p.netPnl)}${mc(p.netPnl)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
-          </div>
-        </div>
-
-        <!-- Row 3: Totals & sale proceeds -->
-        <div class="grid grid-cols-3 gap-3">
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Wishlist</p>
-            <p class="font-playfair text-lg text-amber-400">${p.wishlistCount}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">watches waiting</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sale Proceeds</p>
-            <p class="font-playfair text-lg text-on-surface">${mc(p.totalSaleValue || 0)}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">total received</p>
-          </div>
-          <div class="bg-white/[0.03] rounded-xl p-3.5">
-            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Watches</p>
-            <p class="font-playfair text-lg text-on-surface">${p.totalWatches}</p>
-            <p class="text-[10px] text-on-surface-variant mt-0.5">in membership</p>
-          </div>
-        </div>
-        `}
-      </div>
+      <!-- Portfolio Summary — unified 9-tile layout -->
+      ${renderPortfolioSummary9(p, mc, sgn, cls)}
 
     </div>
   `;
