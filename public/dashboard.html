@@ -2044,16 +2044,19 @@ function renderMembershipCard(client, m, masterIdBadge) {
           <thead>
             <tr class="border-b border-outline-variant/10" style="background:rgba(255,255,255,0.02)">
               <th class="px-8 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status</th>
               <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
               <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
-              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Purchase Date</th>
-              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
-              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Notes</th>
+              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">List Price</th>
+              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Sale Price</th>
+              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Date</th>
               <th class="px-6 py-3"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/[0.04]">
-            ${watches.map(w => `
+            ${watches.map(w => {
+              const wc = w.currency || 'CHF';
+              return `
             <tr class="tbl-row">
               <td class="px-8 py-4">
                 <div class="flex items-center gap-3">
@@ -2067,11 +2070,12 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   </div>
                 </div>
               </td>
+              <td class="px-6 py-4">${statusBadge(w.status)}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
+              <td class="px-6 py-4 text-on-surface-variant text-sm">${w.list_price != null ? fmt.price(w.list_price, wc) : '<span class="text-outline">—</span>'}</td>
+              <td class="px-6 py-4 text-sm">${w.status === 'sold' && w.sale_price != null ? `<span class="text-primary font-semibold">${fmt.price(w.sale_price, wc)}</span>` : '<span class="text-outline">—</span>'}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
-              <td class="px-6 py-4 font-semibold text-primary text-sm">${fmt.money(w.price)}</td>
-              <td class="px-6 py-4 text-on-surface-variant text-xs max-w-[180px] truncate">${esc(w.notes || '—')}</td>
               <td class="px-6 py-4">
                 <div class="flex items-center justify-end gap-1">
                   ${w.status === 'purchased' ? `
@@ -2086,7 +2090,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   </button>
                 </div>
               </td>
-            </tr>`).join('')}
+            </tr>`;}).join('')}
           </tbody>
         </table>
       </div>` : `
