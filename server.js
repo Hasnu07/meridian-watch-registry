@@ -28,17 +28,16 @@ app.use(session({
   cookie:            { httpOnly: true, maxAge: 8 * 60 * 60 * 1000 }, // 8 h
 }));
 
-// Serve uploaded files
 app.use('/uploads', express.static(UPLOADS_DIR));
-
-// Serve public files (login page, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Auth guard for all /api routes except login ───────────────────────────
+// Auth guard — also makes the session user info easy to read downstream
 function requireAuth(req, res, next) {
-  if (req.session?.authenticated) return next();
+  if (req.session?.authenticated && req.session?.user) return next();
   res.status(401).json({ error: 'Unauthorised' });
 }
+
+const uid = req => req.session.user.id;
 
 // ── Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
@@ -46,7 +45,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/shops',                             requireAuth, require('./routes/shops'));
 app.use('/api/portfolios',                        requireAuth, require('./routes/portfolios'));
 app.use('/api/clients',                           requireAuth, require('./routes/clients'));
-app.use('/api/_restore',                          require('./routes/restore')); // TEMP — remove after use
+app.use('/api/_restore',                          require('./routes/restore'));
 app.use('/api/profiles',                          requireAuth, require('./routes/profiles'));
 app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes/company-docs'));
 app.use('/api/watches',                           requireAuth, require('./routes/watches'));
@@ -67,12 +66,12 @@ app.get('/api/share/:token', (req, res) => {
   res.json({ portfolio, clients });
 });
 
-// Stats endpoint
+// Stats — scoped to current user
 app.get('/api/stats', requireAuth, (req, res) => {
-  res.json(db.getStats());
+  res.json(db.getStats(uid(req)));
 });
 
-// Change admin password
+// Change password — updates the CURRENT user (not the legacy admin row)
 app.post('/api/settings/password', requireAuth, async (req, res) => {
   const { current_password, new_password } = req.body;
   if (!current_password || !new_password) {
@@ -82,21 +81,22 @@ app.post('/api/settings/password', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'New password must be at least 6 characters' });
   }
 
-  const hash = db.getAdminHash();
-  const ok   = await bcrypt.compare(current_password, hash);
+  const user = db.getUserByUsername(req.session.user.username);
+  if (!user) return res.status(401).json({ error: 'User not found' });
+
+  const ok = await bcrypt.compare(current_password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
 
   const newHash = await bcrypt.hash(new_password, 10);
-  db.setAdminPassword(newHash);
+  db.setUserPassword(user.id, newHash);
   res.json({ ok: true });
 });
 
-// ── App Settings (GreenAPI etc.) ─────────────────────────────────────────
+// ── App Settings (per-user GreenAPI etc.) ────────────────────────────────
 const ALLOWED_SETTINGS = ['greenapi_api_url','greenapi_instance_id','greenapi_api_token','greenapi_group_id','greenapi_notify_hour'];
 
 app.get('/api/settings', requireAuth, (req, res) => {
-  const all = db.getAllSettings();
-  // Never expose API token in plaintext — mask it
+  const all = db.getAllSettings(uid(req));
   if (all.greenapi_api_token) all.greenapi_api_token = '••••••••';
   res.json(all);
 });
@@ -104,65 +104,66 @@ app.get('/api/settings', requireAuth, (req, res) => {
 app.post('/api/settings', requireAuth, (req, res) => {
   for (const key of ALLOWED_SETTINGS) {
     if (req.body[key] !== undefined && req.body[key] !== '') {
-      db.setSetting(key, req.body[key]);
+      db.setSetting(uid(req), key, req.body[key]);
     }
   }
-  // Re-register cron whenever hour setting changes
   scheduleCron();
   res.json({ ok: true });
 });
 
-// Manual trigger — send wishlist reminder right now
+// Manual trigger — only sends for the calling user's settings/group
 app.post('/api/settings/whatsapp/trigger', requireAuth, async (req, res) => {
-  const result = await notifier.checkAndNotify({ force: false });
+  const result = await notifier.checkAndNotifyForUser(uid(req), { force: false });
   res.json(result);
 });
 
-// Test message — always sends regardless of milestones
 app.post('/api/settings/whatsapp/test', requireAuth, async (req, res) => {
-  const result = await notifier.checkAndNotify({ force: true });
+  const result = await notifier.checkAndNotifyForUser(uid(req), { force: true });
   res.json(result);
 });
 
-// Protected dashboard — serve dashboard.html for any non-API route when authed
+// Protected dashboard
 app.get('/dashboard', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// Fallback: redirect to login
+// Fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Global error handler — returns JSON instead of Express HTML error page
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err.stack || err.message || err);
   if (res.headersSent) return next(err);
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
-// ── WhatsApp wishlist cron ────────────────────────────────────────────────
+// ── WhatsApp wishlist cron — fires every user's reminders separately ─────
 let _cronJob = null;
 
 function scheduleCron() {
   if (_cronJob) { _cronJob.stop(); _cronJob = null; }
-  const hourStr = db.getSetting('greenapi_notify_hour') || '09';
-  const hour    = Math.max(0, Math.min(23, parseInt(hourStr, 10) || 9));
-  // Run daily at the configured hour (minute 0)
+  // Use any user's configured hour as the schedule time, falling back to 09.
+  // (Cron fires once per day; inside the callback we iterate all users.)
+  const users = db.listUsers();
+  let hour = 9;
+  for (const u of users) {
+    const h = db.getSetting(u.id, 'greenapi_notify_hour');
+    if (h != null && h !== '') { hour = Math.max(0, Math.min(23, parseInt(h, 10) || 9)); break; }
+  }
   _cronJob = cron.schedule(`0 ${hour} * * *`, async () => {
-    console.log(`[WhatsApp] Running wishlist milestone check (${hour}:00)…`);
-    const result = await notifier.checkAndNotify();
-    if (result.sent)  console.log(`[WhatsApp] Sent — ${result.count} milestone watch(es).`);
-    else if (result.error) console.warn(`[WhatsApp] Error: ${result.error}`);
-    else console.log('[WhatsApp] No milestone watches today.');
+    console.log(`[WhatsApp] Daily wishlist check at ${hour}:00`);
+    for (const u of db.listUsers()) {
+      const result = await notifier.checkAndNotifyForUser(u.id);
+      if (result.sent)        console.log(`[WhatsApp] [${u.username}] sent ${result.count} reminder(s)`);
+      else if (result.error)  console.warn(`[WhatsApp] [${u.username}] error: ${result.error}`);
+    }
   });
-  console.log(`[WhatsApp] Scheduled daily wishlist reminder at ${hour}:00`);
+  console.log(`[WhatsApp] Daily reminder scheduled at ${hour}:00 (fans out to all users)`);
 }
 
-// Kick off on startup
 scheduleCron();
 
-// ── Start ─────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Meridian Watch Registry running at http://localhost:${PORT}`);
 });

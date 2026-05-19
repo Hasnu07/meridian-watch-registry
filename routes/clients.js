@@ -7,6 +7,7 @@ const db      = require('../db');
 const storage = require('../lib/storage');
 
 const router = express.Router();
+const uid    = req => req.session.user.id;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -19,7 +20,7 @@ const upload = multer({
 
 // GET /api/clients
 router.get('/', (req, res) => {
-  res.json(db.listClients());
+  res.json(db.listClients(uid(req)));
 });
 
 // POST /api/clients
@@ -33,38 +34,38 @@ router.post('/', (req, res) => {
     if (!name) return res.status(400).json({ error: 'name required' });
     try {
       const photoUrl = req.file ? await storage.uploadFile(req.file, 'meridian/clients/photos') : null;
-      const id = db.createClient({ name: name.trim(), photo_path: photoUrl });
-      res.status(201).json(db.getClient(id));
+      const id = db.createClient({ name: name.trim(), photo_path: photoUrl, ownerId: uid(req) });
+      res.status(201).json(db.getClient(id, uid(req)));
     } catch (e) {
       res.status(500).json({ error: e.message || 'Database error' });
     }
   });
 });
 
-// GET /api/clients/lookup?master_id=001  — look up by master ID (used for auto-fill)
+// GET /api/clients/lookup?master_id=001
 router.get('/lookup', (req, res) => {
   const { master_id } = req.query;
   if (!master_id) return res.status(400).json({ error: 'master_id query param required' });
-  const client = db.getClientByMasterId(master_id.trim());
+  const client = db.getClientByMasterId(master_id.trim(), uid(req));
   if (!client) return res.status(404).json({ error: 'No client found with that Master ID' });
-  res.json(db.getClientWithMemberships(client.id));
+  res.json(db.getClientWithMemberships(client.id, uid(req)));
 });
 
-// GET /api/clients/:id  — with all memberships + watches
+// GET /api/clients/:id
 router.get('/:id', (req, res) => {
-  const client = db.getClientWithMemberships(req.params.id);
+  const client = db.getClientWithMemberships(req.params.id, uid(req));
   if (!client) return res.status(404).json({ error: 'Not found' });
   res.json(client);
 });
 
-// PUT /api/clients/:id  — update name and/or photo (syncs to all linked profiles)
+// PUT /api/clients/:id
 router.put('/:id', (req, res) => {
   upload.single('photo')(req, res, async (err) => {
     if (err) {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
     }
-    const client = db.getClient(req.params.id);
+    const client = db.getClient(req.params.id, uid(req));
     if (!client) return res.status(404).json({ error: 'Not found' });
 
     const updates = {};
@@ -75,8 +76,8 @@ router.put('/:id', (req, res) => {
         await storage.deleteFile(client.photo_path);
         updates.photo_path = await storage.uploadFile(req.file, 'meridian/clients/photos');
       }
-      db.updateClient(req.params.id, updates);
-      res.json(db.getClient(req.params.id));
+      db.updateClient(req.params.id, updates, uid(req));
+      res.json(db.getClient(req.params.id, uid(req)));
     } catch (e) {
       res.status(500).json({ error: e.message || 'Database error' });
     }
@@ -85,15 +86,14 @@ router.put('/:id', (req, res) => {
 
 // DELETE /api/clients/:id
 router.delete('/:id', async (req, res) => {
-  const client = db.getClientWithMemberships(req.params.id);
+  const client = db.getClientWithMemberships(req.params.id, uid(req));
   if (!client) return res.status(404).json({ error: 'Not found' });
-  // Clean up all linked membership files (id_cards) and watch images
   for (const m of client.memberships || []) {
     await storage.deleteFile(m.id_card_path);
     for (const w of m.watches || []) await storage.deleteFile(w.image_path);
   }
   await storage.deleteFile(client.photo_path);
-  db.deleteClient(req.params.id);
+  db.deleteClient(req.params.id, uid(req));
   res.json({ ok: true });
 });
 

@@ -8,6 +8,7 @@ const storage  = require('../lib/storage');
 const notifier = require('../lib/event-notifier');
 
 const router = express.Router();
+const uid    = req => req.session.user.id;
 
 const ALLOWED = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
 
@@ -26,7 +27,7 @@ const watchUpload = upload.single('image');
 
 // GET /api/profiles
 router.get('/', (req, res) => {
-  res.json(db.listProfiles());
+  res.json(db.listProfiles(uid(req)));
 });
 
 // POST /api/profiles
@@ -43,16 +44,23 @@ router.post('/', (req, res) => {
             my_capital, my_remaining, client_capital, client_remaining,
             trading_rule, discount_split } = req.body;
 
-    // If linking to an existing master client, name + photo come from that record
     let resolvedName      = name;
     let resolvedPhotoPath = null;
     if (client_id) {
-      const master = db.getClient(Number(client_id));
+      const master = db.getClient(Number(client_id), uid(req));
       if (!master) return res.status(400).json({ error: 'Master client not found' });
       resolvedName      = master.name;
       resolvedPhotoPath = master.photo_path;
     }
     if (!resolvedName) return res.status(400).json({ error: 'name required' });
+
+    // Verify shop / portfolio belong to this user when provided
+    if (shop_id && !db.getShop(Number(shop_id), uid(req))) {
+      return res.status(400).json({ error: 'Shop not found' });
+    }
+    if (portfolio_id && !db.getPortfolio(Number(portfolio_id), uid(req))) {
+      return res.status(400).json({ error: 'Portfolio not found' });
+    }
 
     try {
       const photoUrl   = !client_id && req.files?.photo?.[0]
@@ -60,14 +68,12 @@ router.post('/', (req, res) => {
         : resolvedPhotoPath;
       const idCardUrl  = req.files?.id_card?.[0] ? await storage.uploadFile(req.files.id_card[0], 'meridian/profiles/id-cards') : null;
 
-      // Auto-create master client record when creating a standalone profile (no existing client_id)
       let resolvedClientId = client_id ? Number(client_id) : null;
       if (!resolvedClientId) {
-        resolvedClientId = db.createClient({ name: resolvedName, photo_path: photoUrl });
+        resolvedClientId = db.createClient({ name: resolvedName, photo_path: photoUrl, ownerId: uid(req) });
       }
 
       const id = db.createProfile({
-
         name:          resolvedName,
         email:         email || null,
         address,
@@ -94,8 +100,9 @@ router.post('/', (req, res) => {
         client_remaining: client_remaining != null ? Number(client_remaining) : 0,
         trading_rule:     trading_rule     || 'split',
         discount_split:   discount_split   != null ? Number(discount_split)   : 0.08,
+        ownerId:          uid(req),
       });
-      const created = db.getProfile(id);
+      const created = db.getProfile(id, uid(req));
       notifier.onProfileCreated(created);
       res.status(201).json(created);
     } catch (e) {
@@ -107,9 +114,9 @@ router.post('/', (req, res) => {
 
 // GET /api/profiles/:id
 router.get('/:id', (req, res) => {
-  const profile = db.getProfile(req.params.id);
+  const profile = db.getProfile(req.params.id, uid(req));
   if (!profile) return res.status(404).json({ error: 'Not found' });
-  const watches = db.listWatchesForProfile(req.params.id).map(w => ({
+  const watches = db.listWatchesForProfile(req.params.id, uid(req)).map(w => ({
     ...w,
     loss_payments: db.listLossPayments(w.id),
   }));
@@ -124,11 +131,10 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: msg });
     }
 
-    const profile = db.getProfile(req.params.id);
+    const profile = db.getProfile(req.params.id, uid(req));
     if (!profile) return res.status(404).json({ error: 'Not found' });
 
     const updates = {};
-    // If profile is linked to a master client, name + photo are managed there — skip them here
     const isLinked = !!profile.client_id;
     const TEXT_FIELDS = isLinked
       ? ['email','address','pp_urn','title','first_name','last_name','gender','dob','postal_code','city','country','trading_rule']
@@ -157,8 +163,8 @@ router.put('/:id', (req, res) => {
         updates.id_card_path = await storage.uploadFile(req.files.id_card[0], 'meridian/profiles/id-cards');
       }
 
-      db.updateProfile(req.params.id, updates);
-      res.json(db.getProfile(req.params.id));
+      db.updateProfile(req.params.id, updates, uid(req));
+      res.json(db.getProfile(req.params.id, uid(req)));
     } catch (e) {
       if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Email already exists' });
       return res.status(500).json({ error: e.message || 'Database error' });
@@ -168,30 +174,30 @@ router.put('/:id', (req, res) => {
 
 // DELETE /api/profiles/:id
 router.delete('/:id', async (req, res) => {
-  const profile = db.getProfile(req.params.id);
+  const profile = db.getProfile(req.params.id, uid(req));
   if (!profile) return res.status(404).json({ error: 'Not found' });
   await storage.deleteFile(profile.photo_path);
   await storage.deleteFile(profile.id_card_path);
-  db.deleteProfile(req.params.id);
+  db.deleteProfile(req.params.id, uid(req));
   notifier.onProfileDeleted(profile);
   res.json({ ok: true });
 });
 
-// DELETE /api/profiles/:id/id-card  — remove just the ID card file
+// DELETE /api/profiles/:id/id-card
 router.delete('/:id/id-card', async (req, res) => {
-  const profile = db.getProfile(req.params.id);
+  const profile = db.getProfile(req.params.id, uid(req));
   if (!profile) return res.status(404).json({ error: 'Not found' });
   if (profile.id_card_path) {
     await storage.deleteFile(profile.id_card_path);
-    db.updateProfile(req.params.id, { id_card_path: null });
+    db.updateProfile(req.params.id, { id_card_path: null }, uid(req));
   }
   res.json({ ok: true });
 });
 
 // GET /api/profiles/:id/watches
 router.get('/:id/watches', (req, res) => {
-  if (!db.getProfile(req.params.id)) return res.status(404).json({ error: 'Not found' });
-  res.json(db.listWatchesForProfile(req.params.id));
+  if (!db.getProfile(req.params.id, uid(req))) return res.status(404).json({ error: 'Not found' });
+  res.json(db.listWatchesForProfile(req.params.id, uid(req)));
 });
 
 // POST /api/profiles/:id/watches
@@ -201,7 +207,7 @@ router.post('/:id/watches', (req, res) => {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
     }
-    const profile = db.getProfile(req.params.id);
+    const profile = db.getProfile(req.params.id, uid(req));
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
     const { model, source } = req.body;
     if (!model || !source) return res.status(400).json({ error: 'model and source required' });
@@ -219,7 +225,7 @@ router.post('/:id/watches', (req, res) => {
         status:      ['wishlist','purchased','sold'].includes(req.body.status) ? req.body.status : 'wishlist',
         image_path:  imageUrl,
       });
-      const created = db.getWatch(id);
+      const created = db.getWatch(id, uid(req));
       notifier.onWatchCreated(created, profile);
       res.status(201).json(created);
     } catch (e) {

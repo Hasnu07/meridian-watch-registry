@@ -75,8 +75,19 @@
       <p class="text-on-surface-variant text-sm mb-6 text-center">Sign in to access the vault</p>
 
       <form id="loginForm" autocomplete="off">
+        <div class="mb-4">
+          <label class="block text-xs text-outline uppercase tracking-widest mb-2">Username</label>
+          <input
+            type="text"
+            id="username"
+            autocomplete="username"
+            required
+            class="w-full bg-[#110e07] border border-[#4d4635]/60 rounded-lg px-4 py-3 text-on-surface text-sm placeholder-outline/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+            placeholder="username"
+          >
+        </div>
         <div class="mb-5">
-          <label class="block text-xs text-outline uppercase tracking-widest mb-2">Admin Password</label>
+          <label class="block text-xs text-outline uppercase tracking-widest mb-2">Password</label>
           <div class="relative">
             <input
               type="password"
@@ -128,7 +139,10 @@
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: document.getElementById('password').value }),
+          body: JSON.stringify({
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value,
+          }),
         });
         if (res.ok) {
           window.location.href = '/dashboard';

@@ -8,6 +8,7 @@ const storage  = require('../lib/storage');
 const notifier = require('../lib/event-notifier');
 
 const router = express.Router();
+const uid    = req => req.session.user.id;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -21,7 +22,7 @@ const upload = multer({
 // GET /api/watches
 router.get('/', (req, res) => {
   const { q, source, profile_id } = req.query;
-  res.json(db.listAllWatches({ q, source, profile_id }));
+  res.json(db.listAllWatches({ q, source, profile_id, ownerId: uid(req) }));
 });
 
 // PUT /api/watches/:id
@@ -31,7 +32,7 @@ router.put('/:id', (req, res) => {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
     }
-    const watch = db.getWatch(req.params.id);
+    const watch = db.getWatch(req.params.id, uid(req));
     if (!watch) return res.status(404).json({ error: 'Not found' });
     if (req.body.source && !['Company', 'Dealer'].includes(req.body.source)) {
       return res.status(400).json({ error: 'source must be Company or Dealer' });
@@ -52,20 +53,19 @@ router.put('/:id', (req, res) => {
       const oldStatus = watch.status;
       const newStatus = updates.status || oldStatus;
 
-      // Lock discount_rate_applied when first transitioning to 'sold' under a discount profile
+      // Lock discount_rate_applied on first transition to 'sold' for discount profiles
       if (newStatus === 'sold' && oldStatus !== 'sold' && watch.discount_rate_applied == null) {
-        const profile = db.getProfile(watch.profile_id);
+        const profile = db.getProfile(watch.profile_id, uid(req));
         if (profile?.trading_rule === 'discount') {
           updates.discount_rate_applied = profile.discount_split ?? 0.08;
         }
       }
 
-      db.updateWatch(req.params.id, updates);
-      const updated = db.getWatch(req.params.id);
+      db.updateWatch(req.params.id, updates, uid(req));
+      const updated = db.getWatch(req.params.id, uid(req));
 
-      // Fire status-change notification if status actually changed
       if (updates.status && updates.status !== oldStatus) {
-        const profile = db.getProfile(watch.profile_id);
+        const profile = db.getProfile(watch.profile_id, uid(req));
         notifier.onWatchStatusChanged(watch, newStatus, updates, profile);
       }
 
@@ -78,11 +78,11 @@ router.put('/:id', (req, res) => {
 
 // DELETE /api/watches/:id
 router.delete('/:id', async (req, res) => {
-  const watch = db.getWatch(req.params.id);
+  const watch = db.getWatch(req.params.id, uid(req));
   if (!watch) return res.status(404).json({ error: 'Not found' });
-  const profile = db.getProfile(watch.profile_id);
+  const profile = db.getProfile(watch.profile_id, uid(req));
   await storage.deleteFile(watch.image_path);
-  db.deleteWatch(req.params.id);
+  db.deleteWatch(req.params.id, uid(req));
   notifier.onWatchDeleted(watch, profile);
   res.json({ ok: true });
 });

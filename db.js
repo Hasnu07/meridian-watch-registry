@@ -28,6 +28,14 @@ function init() {
       password_hash TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS users (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      username      TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role          TEXT NOT NULL DEFAULT 'admin',
+      created_at    DATETIME DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS shops (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       name       TEXT NOT NULL,
@@ -242,15 +250,76 @@ function init() {
   const backfill = db.prepare("UPDATE portfolios SET share_token = ? WHERE id = ?");
   for (const pt of unshared) backfill.run(crypto.randomBytes(32).toString('hex'), pt.id);
 
-  // Seed admin row if missing
+  // Seed admin row if missing (legacy fallback only)
   const row = db.prepare('SELECT id FROM admin WHERE id = 1').get();
   if (!row) {
     const hash = bcrypt.hashSync(process.env.ADMIN_PASSWORD || 'admin123', 10);
     db.prepare('INSERT INTO admin (id, password_hash) VALUES (1, ?)').run(hash);
   }
+
+  // ── Seed user accounts (multi-tenancy) ───────────────────────────────────
+  function ensureUser(username, password, role) {
+    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    if (existing) return existing.id;
+    const hash = bcrypt.hashSync(password, 10);
+    const r = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(username, hash, role);
+    return r.lastInsertRowid;
+  }
+  const JHONNY_ID = ensureUser('jhonny', 'Pakistan@125', 'admin');
+  const ROBIN_ID  = ensureUser('robin',  'Robin@123',    'admin');
+
+  // ── Add owner_id to top-level tables ─────────────────────────────────────
+  function addOwnerCol(table, defaultOwner) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+    if (!cols.includes('owner_id')) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE`);
+      db.prepare(`UPDATE ${table} SET owner_id = ? WHERE owner_id IS NULL`).run(defaultOwner);
+    }
+  }
+  // All existing data belongs to jhonny — the original owner of the registry
+  addOwnerCol('shops',      JHONNY_ID);
+  addOwnerCol('clients',    JHONNY_ID);
+  addOwnerCol('portfolios', JHONNY_ID);
+  addOwnerCol('profiles',   JHONNY_ID);
+
+  // ── Settings: rebuild as per-user key/value store ────────────────────────
+  // Old: PRIMARY KEY (key). New: PRIMARY KEY (user_id, key)
+  const settingsCols = db.prepare("PRAGMA table_info(settings)").all().map(c => c.name);
+  if (!settingsCols.includes('user_id')) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN TRANSACTION');
+    db.exec(`
+      CREATE TABLE settings_new (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        key     TEXT    NOT NULL,
+        value   TEXT,
+        PRIMARY KEY (user_id, key)
+      );
+    `);
+    // Migrate existing global settings → jhonny's account
+    const existing = db.prepare('SELECT key, value FROM settings').all();
+    const insStmt  = db.prepare('INSERT OR REPLACE INTO settings_new (user_id, key, value) VALUES (?, ?, ?)');
+    for (const s of existing) insStmt.run(JHONNY_ID, s.key, s.value);
+    db.exec('DROP TABLE settings');
+    db.exec('ALTER TABLE settings_new RENAME TO settings');
+    db.exec('COMMIT');
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+
+  // ── Per-user shop seeding ────────────────────────────────────────────────
+  // Every user who has zero shops gets the default catalogue. This way Robin
+  // starts with the same boutique list jhonny had, but in his own namespace.
+  function seedShopsForUser(userId) {
+    const count = db.prepare('SELECT COUNT(*) AS c FROM shops WHERE owner_id = ?').get(userId).c;
+    if (count > 0) return;
+    const ins = db.prepare('INSERT INTO shops (name, address, owner_id) VALUES (?, ?, ?)');
+    SHOPS_SEED.forEach(s => ins.run(s.name, s.address, userId));
+  }
+  seedShopsForUser(JHONNY_ID);
+  seedShopsForUser(ROBIN_ID);
 }
 
-// ── Admin ──────────────────────────────────────────────────────────────────
+// ── Admin (legacy single-password — retained for back-compat only) ────────
 
 function getAdminHash() {
   return db.prepare('SELECT password_hash FROM admin WHERE id = 1').get()?.password_hash;
@@ -260,67 +329,87 @@ function setAdminPassword(hash) {
   db.prepare('UPDATE admin SET password_hash = ? WHERE id = 1').run(hash);
 }
 
-// ── Shops ──────────────────────────────────────────────────────────────────
+// ── Users (multi-tenant accounts) ─────────────────────────────────────────
 
-function listShops() {
+function getUserByUsername(username) {
+  return db.prepare('SELECT id, username, password_hash, role, created_at FROM users WHERE username = ?').get(username);
+}
+
+function getUserById(id) {
+  return db.prepare('SELECT id, username, role, created_at FROM users WHERE id = ?').get(id);
+}
+
+function setUserPassword(id, hash) {
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, id);
+}
+
+function listUsers() {
+  return db.prepare('SELECT id, username, role FROM users ORDER BY username ASC').all();
+}
+
+// ── Shops ─────────────────────────────────────────────────────────────────
+// Every list/get/update/delete is owner-scoped. Create stamps owner_id.
+
+function listShops(ownerId) {
   return db.prepare(`
     SELECT s.*, COUNT(p.id) AS client_count
     FROM shops s
-    LEFT JOIN profiles p ON p.shop_id = s.id
+    LEFT JOIN profiles p ON p.shop_id = s.id AND p.owner_id = s.owner_id
+    WHERE s.owner_id = ?
     GROUP BY s.id
     ORDER BY client_count DESC, s.name ASC
-  `).all();
+  `).all(ownerId);
 }
 
-function getShop(id) {
-  return db.prepare('SELECT * FROM shops WHERE id = ?').get(id);
+function getShop(id, ownerId) {
+  return db.prepare('SELECT * FROM shops WHERE id = ? AND owner_id = ?').get(id, ownerId);
 }
 
-function createShop({ name, address }) {
-  const result = db.prepare('INSERT INTO shops (name, address) VALUES (?, ?)').run(name, address ?? null);
+function createShop({ name, address, ownerId }) {
+  const result = db.prepare('INSERT INTO shops (name, address, owner_id) VALUES (?, ?, ?)').run(name, address ?? null, ownerId);
   return result.lastInsertRowid;
 }
 
-function updateShop(id, updates) {
+function updateShop(id, updates, ownerId) {
   const fields = [], values = [];
   if (updates.name    !== undefined) { fields.push('name = ?');    values.push(updates.name); }
   if (updates.address !== undefined) { fields.push('address = ?'); values.push(updates.address); }
   if (!fields.length) return;
-  values.push(id);
-  db.prepare(`UPDATE shops SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  values.push(id, ownerId);
+  db.prepare(`UPDATE shops SET ${fields.join(', ')} WHERE id = ? AND owner_id = ?`).run(...values);
 }
 
-function deleteShop(id) {
-  db.prepare('DELETE FROM shops WHERE id = ?').run(id);
+function deleteShop(id, ownerId) {
+  db.prepare('DELETE FROM shops WHERE id = ? AND owner_id = ?').run(id, ownerId);
 }
 
-function listProfilesForShop(shopId) {
+function listProfilesForShop(shopId, ownerId) {
   return db.prepare(`
     SELECT p.*, COUNT(w.id) AS watch_count,
            pt.name AS portfolio_name
     FROM profiles p
     LEFT JOIN watches w ON w.profile_id = p.id
     LEFT JOIN portfolios pt ON pt.id = p.portfolio_id
-    WHERE p.shop_id = ?
+    WHERE p.shop_id = ? AND p.owner_id = ?
     GROUP BY p.id
     ORDER BY p.created_at DESC
-  `).all(shopId);
+  `).all(shopId, ownerId);
 }
 
-function listIndividualProfilesForShop(shopId) {
+function listIndividualProfilesForShop(shopId, ownerId) {
   return db.prepare(`
     SELECT p.*, COUNT(w.id) AS watch_count
     FROM profiles p
     LEFT JOIN watches w ON w.profile_id = p.id
-    WHERE p.shop_id = ? AND p.portfolio_id IS NULL
+    WHERE p.shop_id = ? AND p.portfolio_id IS NULL AND p.owner_id = ?
     GROUP BY p.id
     ORDER BY p.created_at DESC
-  `).all(shopId);
+  `).all(shopId, ownerId);
 }
 
-// ── Portfolios ─────────────────────────────────────────────────────────────
+// ── Portfolios ────────────────────────────────────────────────────────────
 
-function listPortfolios(shopId) {
+function listPortfolios(shopId, ownerId) {
   return db.prepare(`
     SELECT pt.*,
            COUNT(DISTINCT p.id) AS client_count,
@@ -328,40 +417,41 @@ function listPortfolios(shopId) {
     FROM portfolios pt
     LEFT JOIN profiles p ON p.portfolio_id = pt.id
     LEFT JOIN watches w ON w.profile_id = p.id
-    WHERE pt.shop_id = ?
+    WHERE pt.shop_id = ? AND pt.owner_id = ?
     GROUP BY pt.id
     ORDER BY pt.name ASC
-  `).all(shopId);
+  `).all(shopId, ownerId);
 }
 
-function getPortfolio(id) {
+function getPortfolio(id, ownerId) {
   return db.prepare(`
     SELECT pt.*, s.name AS shop_name
     FROM portfolios pt
     LEFT JOIN shops s ON s.id = pt.shop_id
-    WHERE pt.id = ?
-  `).get(id);
+    WHERE pt.id = ? AND pt.owner_id = ?
+  `).get(id, ownerId);
 }
 
-function createPortfolio({ name, shop_id }) {
+function createPortfolio({ name, shop_id, ownerId }) {
   const token  = crypto.randomBytes(32).toString('hex');
-  const result = db.prepare('INSERT INTO portfolios (name, shop_id, share_token) VALUES (?, ?, ?)').run(name, Number(shop_id), token);
+  const result = db.prepare('INSERT INTO portfolios (name, shop_id, share_token, owner_id) VALUES (?, ?, ?, ?)').run(name, Number(shop_id), token, ownerId);
   return result.lastInsertRowid;
 }
 
-function updatePortfolio(id, { name }) {
+function updatePortfolio(id, { name }, ownerId) {
   if (!name) return;
-  db.prepare('UPDATE portfolios SET name = ? WHERE id = ?').run(name, id);
+  db.prepare('UPDATE portfolios SET name = ? WHERE id = ? AND owner_id = ?').run(name, id, ownerId);
 }
 
-function deletePortfolio(id) {
-  db.prepare('DELETE FROM portfolios WHERE id = ?').run(id);
+function deletePortfolio(id, ownerId) {
+  db.prepare('DELETE FROM portfolios WHERE id = ? AND owner_id = ?').run(id, ownerId);
 }
 
-function setPortfolioToken(id, token) {
-  db.prepare('UPDATE portfolios SET share_token = ? WHERE id = ?').run(token, id);
+function setPortfolioToken(id, token, ownerId) {
+  db.prepare('UPDATE portfolios SET share_token = ? WHERE id = ? AND owner_id = ?').run(token, id, ownerId);
 }
 
+// PUBLIC: portfolio share link — no auth, no ownership check
 function getPortfolioByToken(token) {
   return db.prepare(`
     SELECT pt.*, s.name AS shop_name
@@ -372,6 +462,9 @@ function getPortfolioByToken(token) {
 }
 
 function listProfilesForPortfolio(portfolioId) {
+  // Used both by the authenticated portfolio detail view and the public
+  // share link. Ownership is enforced by getPortfolio()/getPortfolioByToken()
+  // upstream, so we don't filter here.
   return db.prepare(`
     SELECT p.*, COUNT(w.id) AS watch_count
     FROM profiles p
@@ -382,34 +475,35 @@ function listProfilesForPortfolio(portfolioId) {
   `).all(portfolioId);
 }
 
-// ── Master Clients ─────────────────────────────────────────────────────────
+// ── Master Clients ────────────────────────────────────────────────────────
 
-function listClients() {
+function listClients(ownerId) {
   return db.prepare(`
     SELECT c.*, COUNT(DISTINCT p.id) AS membership_count, COUNT(DISTINCT w.id) AS watch_count
     FROM clients c
     LEFT JOIN profiles p ON p.client_id = c.id
     LEFT JOIN watches w  ON w.profile_id = p.id
+    WHERE c.owner_id = ?
     GROUP BY c.id
     ORDER BY c.name ASC
-  `).all();
+  `).all(ownerId);
 }
 
-function getClient(id) {
-  return db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+function getClient(id, ownerId) {
+  return db.prepare('SELECT * FROM clients WHERE id = ? AND owner_id = ?').get(id, ownerId);
 }
 
-function getClientWithMemberships(id) {
-  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+function getClientWithMemberships(id, ownerId) {
+  const client = db.prepare('SELECT * FROM clients WHERE id = ? AND owner_id = ?').get(id, ownerId);
   if (!client) return null;
   const memberships = db.prepare(`
     SELECT p.*, s.name AS shop_name, s.id AS shop_id_val, pt.name AS portfolio_name
     FROM profiles p
     LEFT JOIN shops s      ON s.id  = p.shop_id
     LEFT JOIN portfolios pt ON pt.id = p.portfolio_id
-    WHERE p.client_id = ?
+    WHERE p.client_id = ? AND p.owner_id = ?
     ORDER BY p.created_at ASC
-  `).all(id);
+  `).all(id, ownerId);
   memberships.forEach(m => {
     const raw = db.prepare('SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
     m.watches      = raw.map(w => ({ ...w, loss_payments: listLossPayments(w.id) }));
@@ -418,59 +512,57 @@ function getClientWithMemberships(id) {
   return { ...client, memberships };
 }
 
-function createClient({ name, photo_path }) {
-  const result = db.prepare('INSERT INTO clients (name, photo_path) VALUES (?, ?)').run(name, photo_path ?? null);
+function createClient({ name, photo_path, ownerId }) {
+  const result = db.prepare('INSERT INTO clients (name, photo_path, owner_id) VALUES (?, ?, ?)').run(name, photo_path ?? null, ownerId);
   const id = result.lastInsertRowid;
-  // Auto-assign master_id as zero-padded row id (e.g. 001, 002…)
-  // Use the actual row id so it's always unique even if rows were deleted
   db.prepare("UPDATE clients SET master_id = ? WHERE id = ? AND master_id IS NULL")
     .run(String(id).padStart(3, '0'), id);
   return id;
 }
 
-function updateClient(id, updates) {
+function updateClient(id, updates, ownerId) {
   const fields = [], values = [];
   if (updates.name       !== undefined) { fields.push('name = ?');       values.push(updates.name); }
   if (updates.photo_path !== undefined) { fields.push('photo_path = ?'); values.push(updates.photo_path); }
   if (updates.master_id  !== undefined) { fields.push('master_id = ?');  values.push(updates.master_id); }
   if (!fields.length) return;
-  values.push(id);
-  db.prepare(`UPDATE clients SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-  // Keep denormalised copies on profiles in sync
-  if (updates.name       !== undefined) db.prepare("UPDATE profiles SET name       = ? WHERE client_id = ?").run(updates.name, id);
-  if (updates.photo_path !== undefined) db.prepare("UPDATE profiles SET photo_path = ? WHERE client_id = ?").run(updates.photo_path, id);
+  values.push(id, ownerId);
+  db.prepare(`UPDATE clients SET ${fields.join(', ')} WHERE id = ? AND owner_id = ?`).run(...values);
+  // Keep denormalised copies on profiles in sync (scoped to same owner)
+  if (updates.name       !== undefined) db.prepare("UPDATE profiles SET name       = ? WHERE client_id = ? AND owner_id = ?").run(updates.name, id, ownerId);
+  if (updates.photo_path !== undefined) db.prepare("UPDATE profiles SET photo_path = ? WHERE client_id = ? AND owner_id = ?").run(updates.photo_path, id, ownerId);
 }
 
-function getClientByMasterId(masterId) {
-  return db.prepare('SELECT * FROM clients WHERE master_id = ?').get(masterId);
+function getClientByMasterId(masterId, ownerId) {
+  return db.prepare('SELECT * FROM clients WHERE master_id = ? AND owner_id = ?').get(masterId, ownerId);
 }
 
-function deleteClient(id) {
-  // Delete all profile memberships (which cascade-deletes their watches via FK)
-  db.prepare('DELETE FROM profiles WHERE client_id = ?').run(id);
-  db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+function deleteClient(id, ownerId) {
+  db.prepare('DELETE FROM profiles WHERE client_id = ? AND owner_id = ?').run(id, ownerId);
+  db.prepare('DELETE FROM clients WHERE id = ? AND owner_id = ?').run(id, ownerId);
 }
 
-// ── Profiles ───────────────────────────────────────────────────────────────
+// ── Profiles ──────────────────────────────────────────────────────────────
 
-function listProfiles() {
+function listProfiles(ownerId) {
   return db.prepare(`
     SELECT p.*, COUNT(w.id) AS watch_count, s.name AS shop_name
     FROM profiles p
     LEFT JOIN watches w ON w.profile_id = p.id
     LEFT JOIN shops s ON s.id = p.shop_id
+    WHERE p.owner_id = ?
     GROUP BY p.id
     ORDER BY p.created_at DESC
-  `).all();
+  `).all(ownerId);
 }
 
-function getProfile(id) {
+function getProfile(id, ownerId) {
   return db.prepare(`
     SELECT p.*, s.name AS shop_name
     FROM profiles p
     LEFT JOIN shops s ON s.id = p.shop_id
-    WHERE p.id = ?
-  `).get(id);
+    WHERE p.id = ? AND p.owner_id = ?
+  `).get(id, ownerId);
 }
 
 function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
@@ -478,15 +570,15 @@ function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path
                           shop_id, portfolio_id, client_id,
                           profit_split_me, loss_split_me,
                           my_capital, my_remaining, client_capital, client_remaining,
-                          trading_rule, discount_split }) {
+                          trading_rule, discount_split, ownerId }) {
   const result = db.prepare(`
     INSERT INTO profiles
       (name, email, address, subscriber_id, pp_urn, photo_path, id_card_path,
        title, first_name, last_name, gender, dob, postal_code, city, country,
        shop_id, portfolio_id, client_id,
        profit_split_me, loss_split_me, my_capital, my_remaining, client_capital, client_remaining,
-       trading_rule, discount_split)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       trading_rule, discount_split, owner_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(name, email, address ?? null, subscriber_id ?? null, pp_urn ?? null,
          photo_path ?? null, id_card_path ?? null,
          title ?? null, first_name ?? null, last_name ?? null,
@@ -494,11 +586,11 @@ function createProfile({ name, email, address, subscriber_id, pp_urn, photo_path
          shop_id ?? null, portfolio_id ?? null, client_id ?? null,
          profit_split_me ?? 100, loss_split_me ?? 100,
          my_capital ?? 0, my_remaining ?? 0, client_capital ?? 0, client_remaining ?? 0,
-         trading_rule ?? 'split', discount_split ?? 0.08);
+         trading_rule ?? 'split', discount_split ?? 0.08, ownerId);
   return result.lastInsertRowid;
 }
 
-function updateProfile(id, updates) {
+function updateProfile(id, updates, ownerId) {
   const FIELDS = ['name','email','address','subscriber_id','pp_urn','photo_path','id_card_path',
                   'title','first_name','last_name','gender','dob','postal_code','city','country',
                   'shop_id','portfolio_id','client_id',
@@ -510,23 +602,32 @@ function updateProfile(id, updates) {
     if (updates[f] !== undefined) { fields.push(`${f} = ?`); values.push(updates[f]); }
   }
   if (!fields.length) return;
-  values.push(id);
-  db.prepare(`UPDATE profiles SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  values.push(id, ownerId);
+  db.prepare(`UPDATE profiles SET ${fields.join(', ')} WHERE id = ? AND owner_id = ?`).run(...values);
 }
 
-function deleteProfile(id) {
-  db.prepare('DELETE FROM profiles WHERE id = ?').run(id);
+function deleteProfile(id, ownerId) {
+  db.prepare('DELETE FROM profiles WHERE id = ? AND owner_id = ?').run(id, ownerId);
 }
 
-// ── Watches ────────────────────────────────────────────────────────────────
+// ── Watches ───────────────────────────────────────────────────────────────
+// Watch ownership inherited from profile.owner_id. Every authenticated
+// query JOINs profiles to enforce this. `ownerId` is mandatory.
 
-function listWatchesForProfile(profileId) {
-  return db.prepare(
-    'SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC'
-  ).all(profileId);
+function listWatchesForProfile(profileId, ownerId) {
+  if (ownerId == null) {
+    // Public share path — profile ownership is verified upstream
+    return db.prepare('SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC').all(profileId);
+  }
+  return db.prepare(`
+    SELECT w.* FROM watches w
+    JOIN profiles p ON p.id = w.profile_id
+    WHERE w.profile_id = ? AND p.owner_id = ?
+    ORDER BY w.created_at DESC
+  `).all(profileId, ownerId);
 }
 
-function listAllWatches({ q, source, profile_id } = {}) {
+function listAllWatches({ q, source, profile_id, ownerId } = {}) {
   let sql = `
     SELECT w.*, p.name AS client_name, p.email AS client_email,
            p.profit_split_me, p.loss_split_me,
@@ -534,9 +635,9 @@ function listAllWatches({ q, source, profile_id } = {}) {
     FROM watches w
     JOIN profiles p ON p.id = w.profile_id
     LEFT JOIN shops s ON s.id = p.shop_id
-    WHERE 1=1
+    WHERE p.owner_id = ?
   `;
-  const params = [];
+  const params = [ownerId];
 
   if (q) {
     sql += ` AND (w.model LIKE ? OR w.serial_number LIKE ? OR w.reference_number LIKE ? OR p.name LIKE ?)`;
@@ -556,13 +657,21 @@ function listAllWatches({ q, source, profile_id } = {}) {
   return db.prepare(sql).all(...params);
 }
 
-function getWatch(id) {
-  return db.prepare('SELECT * FROM watches WHERE id = ?').get(id);
+function getWatch(id, ownerId) {
+  if (ownerId == null) {
+    return db.prepare('SELECT * FROM watches WHERE id = ?').get(id);
+  }
+  return db.prepare(`
+    SELECT w.* FROM watches w
+    JOIN profiles p ON p.id = w.profile_id
+    WHERE w.id = ? AND p.owner_id = ?
+  `).get(id, ownerId);
 }
 
 function createWatch(profileId, { model, serial_number, source, purchase_date, price,
                                    reference_number, notes, image_path, movement_number, case_number,
                                    list_price, sale_price, status, currency, my_cost, client_cost }) {
+  // Caller has already verified profileId belongs to current user
   const result = db.prepare(`
     INSERT INTO watches
       (profile_id, model, serial_number, source, purchase_date, price,
@@ -584,37 +693,57 @@ function createWatch(profileId, { model, serial_number, source, purchase_date, p
   return result.lastInsertRowid;
 }
 
-function updateWatch(id, updates) {
+function updateWatch(id, updates, ownerId) {
   const FIELDS = ['model','serial_number','source','purchase_date','price',
                   'reference_number','notes','image_path','movement_number','case_number',
                   'list_price','sale_price','status','currency','sold_to',
                   'my_cost','client_cost','loss_status','discount_rate_applied'];
-  const fields = [];
+  const setParts = [];
   const values = [];
   for (const f of FIELDS) {
     if (updates[f] !== undefined) {
-      fields.push(`${f} = ?`);
+      setParts.push(`w.${f} = ?`);
       const numericFields = ['price','list_price','sale_price','discount_rate_applied'];
       values.push(numericFields.includes(f) ? (updates[f] != null && updates[f] !== '' ? Number(updates[f]) : null) : updates[f]);
     }
   }
-  if (!fields.length) return;
-  values.push(id);
-  db.prepare(`UPDATE watches SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  if (!setParts.length) return;
+  // SQLite UPDATE-with-JOIN substitute: scope via subquery
+  const sql = `UPDATE watches SET ${setParts.map(s => s.replace(/^w\./, '')).join(', ')}
+               WHERE id = ? AND profile_id IN (SELECT id FROM profiles WHERE owner_id = ?)`;
+  values.push(id, ownerId);
+  db.prepare(sql).run(...values);
 }
 
-function deleteWatch(id) {
-  db.prepare('DELETE FROM watches WHERE id = ?').run(id);
+function deleteWatch(id, ownerId) {
+  db.prepare(
+    'DELETE FROM watches WHERE id = ? AND profile_id IN (SELECT id FROM profiles WHERE owner_id = ?)'
+  ).run(id, ownerId);
 }
 
-// ── Company Docs ───────────────────────────────────────────────────────────
+// ── Company Docs ──────────────────────────────────────────────────────────
 
-function listCompanyDocs(profileId) {
-  return db.prepare('SELECT * FROM company_docs WHERE profile_id = ? ORDER BY created_at DESC').all(profileId);
+function listCompanyDocs(profileId, ownerId) {
+  if (ownerId == null) {
+    return db.prepare('SELECT * FROM company_docs WHERE profile_id = ? ORDER BY created_at DESC').all(profileId);
+  }
+  return db.prepare(`
+    SELECT cd.* FROM company_docs cd
+    JOIN profiles p ON p.id = cd.profile_id
+    WHERE cd.profile_id = ? AND p.owner_id = ?
+    ORDER BY cd.created_at DESC
+  `).all(profileId, ownerId);
 }
 
-function getCompanyDoc(id) {
-  return db.prepare('SELECT * FROM company_docs WHERE id = ?').get(id);
+function getCompanyDoc(id, ownerId) {
+  if (ownerId == null) {
+    return db.prepare('SELECT * FROM company_docs WHERE id = ?').get(id);
+  }
+  return db.prepare(`
+    SELECT cd.* FROM company_docs cd
+    JOIN profiles p ON p.id = cd.profile_id
+    WHERE cd.id = ? AND p.owner_id = ?
+  `).get(id, ownerId);
 }
 
 function createCompanyDoc(profileId, { shop_name, doc_path }) {
@@ -624,46 +753,82 @@ function createCompanyDoc(profileId, { shop_name, doc_path }) {
   return result.lastInsertRowid;
 }
 
-function deleteCompanyDoc(id) {
-  db.prepare('DELETE FROM company_docs WHERE id = ?').run(id);
+function deleteCompanyDoc(id, ownerId) {
+  db.prepare(
+    'DELETE FROM company_docs WHERE id = ? AND profile_id IN (SELECT id FROM profiles WHERE owner_id = ?)'
+  ).run(id, ownerId);
 }
 
-function getStats() {
-  const { total_profiles } = db.prepare('SELECT COUNT(*) AS total_profiles FROM profiles').get();
-  const { total_watches }  = db.prepare('SELECT COUNT(*) AS total_watches  FROM watches').get();
-  const { company_watches } = db.prepare("SELECT COUNT(*) AS company_watches FROM watches WHERE source = 'Company'").get();
-  const { dealer_watches }  = db.prepare("SELECT COUNT(*) AS dealer_watches  FROM watches WHERE source = 'Dealer'").get();
-  const { total_value }    = db.prepare('SELECT COALESCE(SUM(price), 0) AS total_value FROM watches').get();
+function getStats(ownerId) {
+  const { total_profiles } = db.prepare('SELECT COUNT(*) AS total_profiles FROM profiles WHERE owner_id = ?').get(ownerId);
+  const { total_watches }  = db.prepare(
+    'SELECT COUNT(*) AS total_watches FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE p.owner_id = ?'
+  ).get(ownerId);
+  const { company_watches } = db.prepare(
+    "SELECT COUNT(*) AS company_watches FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE w.source = 'Company' AND p.owner_id = ?"
+  ).get(ownerId);
+  const { dealer_watches }  = db.prepare(
+    "SELECT COUNT(*) AS dealer_watches FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE w.source = 'Dealer' AND p.owner_id = ?"
+  ).get(ownerId);
+  const { total_value }    = db.prepare(
+    'SELECT COALESCE(SUM(w.price), 0) AS total_value FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE p.owner_id = ?'
+  ).get(ownerId);
   return { total_profiles, total_watches, company_watches, dealer_watches, total_value };
 }
 
-// ── Settings (key-value store) ─────────────────────────────────────────────
+// ── Per-user Settings ─────────────────────────────────────────────────────
 
-function getSetting(key) {
-  return db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value ?? null;
+function getSetting(userId, key) {
+  return db.prepare('SELECT value FROM settings WHERE user_id = ? AND key = ?').get(userId, key)?.value ?? null;
 }
 
-function setSetting(key, value) {
-  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+function setSetting(userId, key, value) {
+  db.prepare(
+    'INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value'
+  ).run(userId, key, value);
 }
 
-function getAllSettings() {
-  const rows = db.prepare('SELECT key, value FROM settings').all();
+function getAllSettings(userId) {
+  const rows = db.prepare('SELECT key, value FROM settings WHERE user_id = ?').all(userId);
   return Object.fromEntries(rows.map(r => [r.key, r.value]));
 }
 
 // ── Wishlist watches with days waiting (for WhatsApp notifications) ─────────
 
-function listWishlistWatchesWithDays() {
+function listWishlistWatchesWithDays(ownerId) {
+  if (ownerId == null) {
+    // Legacy aggregate path
+    return db.prepare(`
+      SELECT w.id, w.model, w.created_at, w.image_path, w.currency,
+             p.name AS client_name, p.id AS profile_id, p.owner_id,
+             CAST((julianday('now') - julianday(w.created_at)) AS INTEGER) AS days_waiting
+      FROM watches w
+      JOIN profiles p ON p.id = w.profile_id
+      WHERE w.status = 'wishlist'
+      ORDER BY days_waiting DESC
+    `).all();
+  }
   return db.prepare(`
     SELECT w.id, w.model, w.created_at, w.image_path, w.currency,
            p.name AS client_name, p.id AS profile_id,
            CAST((julianday('now') - julianday(w.created_at)) AS INTEGER) AS days_waiting
     FROM watches w
     JOIN profiles p ON p.id = w.profile_id
-    WHERE w.status = 'wishlist'
+    WHERE w.status = 'wishlist' AND p.owner_id = ?
     ORDER BY days_waiting DESC
-  `).all();
+  `).all(ownerId);
+}
+
+// Find the owner_id of a given profile (used by event-notifier to fan out
+// to the right WhatsApp group when a watch event fires).
+function getOwnerIdForProfile(profileId) {
+  return db.prepare('SELECT owner_id FROM profiles WHERE id = ?').get(profileId)?.owner_id ?? null;
+}
+
+function getOwnerIdForWatch(watchId) {
+  return db.prepare(
+    'SELECT p.owner_id FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE w.id = ?'
+  ).get(watchId)?.owner_id ?? null;
 }
 
 // ── Loss Payments ──────────────────────────────────────────────────────────
@@ -715,6 +880,7 @@ function _syncLossStatus(watchId) {
 module.exports = {
   init,
   getAdminHash, setAdminPassword,
+  getUserByUsername, getUserById, setUserPassword, listUsers,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
   listClients, getClient, getClientByMasterId, getClientWithMemberships, createClient, updateClient, deleteClient,
@@ -723,6 +889,6 @@ module.exports = {
   listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,
   getStats,
   getSetting, setSetting, getAllSettings,
-  listWishlistWatchesWithDays,
+  listWishlistWatchesWithDays, getOwnerIdForProfile, getOwnerIdForWatch,
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
 };

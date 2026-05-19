@@ -7,6 +7,7 @@ const db      = require('../db');
 const storage = require('../lib/storage');
 
 const router = express.Router({ mergeParams: true });
+const uid    = req => req.session.user.id;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -19,8 +20,8 @@ const upload = multer({
 
 // GET /api/profiles/:id/company-docs
 router.get('/', (req, res) => {
-  if (!db.getProfile(req.params.id)) return res.status(404).json({ error: 'Profile not found' });
-  res.json(db.listCompanyDocs(req.params.id));
+  if (!db.getProfile(req.params.id, uid(req))) return res.status(404).json({ error: 'Profile not found' });
+  res.json(db.listCompanyDocs(req.params.id, uid(req)));
 });
 
 // POST /api/profiles/:id/company-docs
@@ -30,7 +31,7 @@ router.post('/', (req, res) => {
       const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 20 MB)' : err.message || 'Upload error';
       return res.status(400).json({ error: msg });
     }
-    if (!db.getProfile(req.params.id)) return res.status(404).json({ error: 'Profile not found' });
+    if (!db.getProfile(req.params.id, uid(req))) return res.status(404).json({ error: 'Profile not found' });
     const { shop_name } = req.body;
     if (!shop_name?.trim()) return res.status(400).json({ error: 'shop_name is required' });
     if (!req.file) return res.status(400).json({ error: 'Document file is required' });
@@ -41,7 +42,7 @@ router.post('/', (req, res) => {
         shop_name: shop_name.trim(),
         doc_path:  docUrl,
       });
-      res.status(201).json(db.getCompanyDoc(docId));
+      res.status(201).json(db.getCompanyDoc(docId, uid(req)));
     } catch (e) {
       return res.status(500).json({ error: e.message || 'Upload failed' });
     }
@@ -50,12 +51,12 @@ router.post('/', (req, res) => {
 
 // DELETE /api/profiles/:id/company-docs/:docId
 router.delete('/:docId', async (req, res) => {
-  const doc = db.getCompanyDoc(req.params.docId);
+  const doc = db.getCompanyDoc(req.params.docId, uid(req));
   if (!doc || String(doc.profile_id) !== String(req.params.id)) {
     return res.status(404).json({ error: 'Not found' });
   }
   await storage.deleteFile(doc.doc_path);
-  db.deleteCompanyDoc(req.params.docId);
+  db.deleteCompanyDoc(req.params.docId, uid(req));
   res.json({ ok: true });
 });
 

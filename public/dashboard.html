@@ -89,6 +89,13 @@
 
     <!-- Footer -->
     <div class="px-3 pb-6 mt-auto border-t border-outline-variant/15 pt-4">
+      <div id="currentUserBadge" class="px-4 py-2 mb-1 flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-[11px] font-semibold text-primary uppercase" id="currentUserInitial">·</div>
+        <div class="min-w-0">
+          <p class="text-[9px] uppercase tracking-widest text-outline">Signed in as</p>
+          <p class="text-xs font-medium text-on-surface truncate" id="currentUserName">—</p>
+        </div>
+      </div>
       <button id="logoutBtn" class="nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-error hover:bg-error/5">
         <span class="material-symbols-outlined">logout</span>
         <span>Sign Out</span>
@@ -1444,6 +1451,19 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   await api('POST', '/api/auth/logout');
   window.location.href = '/';
 });
+
+// ── Current user (populated from session on load) ─────────────────────────
+let currentUser = null;
+(async function loadCurrentUser() {
+  try {
+    currentUser = await api('GET', '/api/auth/me');
+    document.getElementById('currentUserName').textContent    = currentUser.username;
+    document.getElementById('currentUserInitial').textContent = (currentUser.username || '?')[0].toUpperCase();
+  } catch (e) {
+    // Not authenticated — redirect to login
+    window.location.href = '/';
+  }
+})();
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 async function loadDashboard() {
