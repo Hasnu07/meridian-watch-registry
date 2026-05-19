@@ -123,7 +123,7 @@
     </div>
 
     <!-- Topbar -->
-    <header class="fixed top-0 right-0 left-64 h-16 flex items-center justify-between px-6 bg-background/80 backdrop-blur-md border-b border-outline-variant/10 z-40">
+    <header id="topbar" class="fixed top-0 right-0 left-64 h-16 flex items-center justify-between px-6 bg-background/80 backdrop-blur-md border-b border-outline-variant/10 z-40 transition-all">
       <div id="topbarTitle" class="font-playfair text-xl text-on-surface"></div>
       <div class="flex items-center gap-4">
         <!-- Search -->
@@ -148,7 +148,7 @@
     </header>
 
     <!-- Page content -->
-    <main class="pt-16 flex-1 flex flex-col">
+    <main id="mainContent" class="pt-16 flex-1 flex flex-col transition-all">
 
       <!-- ── Dashboard ───────────────────────────────────────────────── -->
       <div id="page-dashboard" class="hidden p-10 max-w-[1280px] w-full mx-auto">
@@ -1623,15 +1623,21 @@ async function refreshCurrentUser() {
     const navAdmin = document.getElementById('navAdmin');
     if (currentUser.role === 'master') navAdmin.classList.replace('hidden', 'flex');
     else                                navAdmin.classList.add('hidden');
-    // Impersonation banner
-    const banner = document.getElementById('impersonationBanner');
+    // Impersonation banner — when visible, push topbar + main content down
+    // so the amber bar doesn't overlap the page header buttons.
+    const banner  = document.getElementById('impersonationBanner');
+    const topbar  = document.getElementById('topbar');
+    const main    = document.getElementById('mainContent');
+    const BANNER_HEIGHT = 44; // py-2.5 + text-xs + border ≈ 44px
     if (currentUser.viewing_as) {
       document.getElementById('impersonationName').textContent = currentUser.viewing_as.username;
       banner.classList.replace('hidden', 'flex');
-      document.body.style.paddingTop = '42px';
+      if (topbar) topbar.style.top         = BANNER_HEIGHT + 'px';
+      if (main)   main.style.paddingTop    = (BANNER_HEIGHT + 64) + 'px'; // banner + h-16 topbar
     } else {
       banner.classList.add('hidden');
-      document.body.style.paddingTop = '0px';
+      if (topbar) topbar.style.top         = '';
+      if (main)   main.style.paddingTop    = '';
     }
   } catch (e) {
     window.location.href = '/';
