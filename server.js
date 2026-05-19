@@ -13,10 +13,12 @@ const bcrypt      = require('bcrypt');
 const cron        = require('node-cron');
 const db          = require('./db');
 const notifier    = require('./lib/wishlist-notifier');
+const seedDemo    = require('./lib/seed-demo-data');
 const { UPLOADS_DIR } = require('./config');
 
 // ── Initialise database ───────────────────────────────────────────────────
 db.init();
+try { seedDemo.run(db); } catch (e) { console.warn('[seed] demo data error:', e.message); }
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
