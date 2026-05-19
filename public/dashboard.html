@@ -1069,11 +1069,14 @@
                   class="flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30">
             <span class="material-symbols-outlined text-[14px] align-middle mr-1">inventory_2</span> Purchased
           </button>
+          <!-- Sold button is hidden in Add Watch; revealed only when EDITING an already-sold watch.
+               To mark a purchased watch as sold, use the green Sold action button in the table row. -->
           <button type="button" id="wStatusSoldBtn" onclick="setWatchStatus('sold')"
-                  class="flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30">
+                  class="flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all border-emerald-500/30 text-emerald-400 bg-emerald-500/5 hidden">
             <span class="material-symbols-outlined text-[14px] align-middle mr-1">check_circle</span> Sold
           </button>
         </div>
+        <p id="wStatusHint" class="text-[10px] text-on-surface-variant/70 mt-2">To mark a watch as sold use the green <span class="material-symbols-outlined text-[10px] align-middle">sell</span> button in the watches table — it captures the sale price and how the proceeds were split.</p>
       </div>
 
       <!-- ── From System search ── -->
@@ -1221,6 +1224,29 @@
             class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface font-mono focus:outline-none focus:border-primary/60"
             oninput="formatMoneyInput(this); updateSoldPnl()">
         </div>
+      </div>
+
+      <!-- Sale Proceeds split -->
+      <div class="border border-outline-variant/20 rounded-xl p-4 space-y-3 bg-white/[0.02]">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-widest text-outline">Sale Proceeds Split</p>
+          <button type="button" onclick="autoFillSoldSplit()" class="text-[9px] uppercase tracking-widest font-semibold text-primary border border-primary/30 px-2 py-0.5 rounded hover:bg-primary/10 transition-all">Auto-split</button>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] text-on-surface-variant mb-1.5">I Received <span id="soldMyCurLabel" class="font-mono text-outline">(CHF)</span></label>
+            <input id="soldMyReceived" type="text" inputmode="decimal" placeholder="0"
+              oninput="formatMoneyInput(this); updateSoldSplitFooter()"
+              class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-on-surface font-mono focus:outline-none focus:border-primary/60">
+          </div>
+          <div>
+            <label class="block text-[10px] text-on-surface-variant mb-1.5">Client Received <span id="soldClientCurLabel" class="font-mono text-outline">(CHF)</span></label>
+            <input id="soldClientReceived" type="text" inputmode="decimal" placeholder="0"
+              oninput="formatMoneyInput(this); updateSoldSplitFooter()"
+              class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-on-surface font-mono focus:outline-none focus:border-primary/60">
+          </div>
+        </div>
+        <p id="soldSplitFooter" class="text-[10px] text-on-surface-variant/70"></p>
       </div>
 
       <!-- Sold To -->
@@ -2755,20 +2781,47 @@ function computePnl(profile) {
     netPnlByCur[c] = (totalProfitByCur[c] || 0) + (totalLossByCur[c] || 0);
   }
 
-  // My P&L / Client P&L per currency
-  let myPnlByCur = {}, clientPnlByCur = {};
-  if (isDiscount) {
-    // My income = sum(sale_price × rate) per currency, over profitable watches
-    myPnlByCur = byCur(profitWatches, w => w.sale_price * (w.discount_rate_applied ?? discountSplit));
-    // Client liability = -loss amount per currency
-    clientPnlByCur = byCur(lossWatches, w => -(w.list_price - w.sale_price));
-  } else {
-    // Split mode: apply % of net per currency
-    for (const [c, net] of Object.entries(netPnlByCur)) {
-      const splitMe = net >= 0 ? profitSplit : lossSplit;
-      myPnlByCur[c]     = (splitMe / 100) * net;
-      clientPnlByCur[c] = ((100 - splitMe) / 100) * net;
+  // My P&L / Client P&L per currency.
+  // PREFERRED method: my_received - my_cost (and client equivalent) per watch.
+  // This is the actual cash gain/loss recorded against each sale.
+  // FALLBACK (only when received fields aren't filled in): use the trading-
+  // rule split as a derivation, so legacy data still displays something
+  // sensible until the user fills in the new fields.
+  const myPnlByCur     = byCur(soldWatches, w => (w.my_received     != null && w.my_cost     != null) ? (w.my_received     - w.my_cost)     : 0);
+  const clientPnlByCur = byCur(soldWatches, w => (w.client_received != null && w.client_cost != null) ? (w.client_received - w.client_cost) : 0);
+
+  // Watches that have received data on at least one side → covered by the
+  // per-watch method. The rest fall back to the legacy split-rule calc.
+  const coveredIds = new Set(soldWatches.filter(w =>
+    (w.my_received != null && w.my_cost != null) ||
+    (w.client_received != null && w.client_cost != null)
+  ).map(w => w.id));
+  const uncovered = soldWatches.filter(w => !coveredIds.has(w.id));
+  if (uncovered.length) {
+    if (isDiscount) {
+      for (const w of uncovered) {
+        if (w.list_price == null || w.sale_price == null) continue;
+        const c = w.currency || 'CHF';
+        if (w.sale_price > w.list_price) {
+          const inc = w.sale_price * (w.discount_rate_applied ?? discountSplit);
+          myPnlByCur[c] = (myPnlByCur[c] || 0) + inc;
+        } else if (w.sale_price < w.list_price) {
+          clientPnlByCur[c] = (clientPnlByCur[c] || 0) - (w.list_price - w.sale_price);
+        }
+      }
+    } else {
+      // Split mode legacy fallback
+      const ucNet = byCur(uncovered, w => (w.list_price != null && w.sale_price != null) ? (w.sale_price - w.list_price) : 0);
+      for (const [c, net] of Object.entries(ucNet)) {
+        const splitMe = net >= 0 ? profitSplit : lossSplit;
+        myPnlByCur[c]     = (myPnlByCur[c]     || 0) + (splitMe / 100) * net;
+        clientPnlByCur[c] = (clientPnlByCur[c] || 0) + ((100 - splitMe) / 100) * net;
+      }
     }
+  }
+  // Drop zero entries so fmt.byCurrency renders cleanly
+  for (const m of [myPnlByCur, clientPnlByCur]) {
+    for (const k of Object.keys(m)) if (!m[k]) delete m[k];
   }
 
   // Legacy single-currency totals (used by older code paths / displays)
@@ -3644,6 +3697,79 @@ function plBadge(listPrice, salePrice, cur) {
   return `<span class="text-xs font-semibold font-mono ${cls}">${sign}${fmt.price(diff, cur || 'CHF')}</span>`;
 }
 
+// Track which rows are expanded (across re-renders) so the user's "open" state survives a refresh
+const _expandedWatchRows = new Set();
+function toggleWatchRow(id) {
+  if (_expandedWatchRows.has(id)) _expandedWatchRows.delete(id);
+  else                            _expandedWatchRows.add(id);
+  const detailEl = document.getElementById(`watchDetail-${id}`);
+  const chev     = document.getElementById(`watchChev-${id}`);
+  if (detailEl) detailEl.classList.toggle('hidden', !_expandedWatchRows.has(id));
+  if (chev)     chev.style.transform = _expandedWatchRows.has(id) ? 'rotate(90deg)' : '';
+}
+
+// Build the expandable details banner for a single watch
+function watchDetailBanner(w) {
+  const cur = w.currency || 'CHF';
+  const mc  = v => v == null || v === '' ? '<span class="text-outline">—</span>' : fmt.price(v, cur);
+
+  if (w.status === 'wishlist') {
+    return `
+      <div class="px-12 py-4 bg-amber-500/[0.04] border-y border-amber-500/15 grid grid-cols-3 gap-6 text-[11px]">
+        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Wishlist Since</p><p class="text-on-surface">${fmt.date(w.purchase_date) || ((w.created_at || '').split(' ')[0]) || '—'}</p></div>
+        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Reference</p><p class="text-on-surface font-mono">${esc(w.reference_number || '—')}</p></div>
+        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Notes</p><p class="text-on-surface-variant truncate">${esc(w.notes || '—')}</p></div>
+      </div>`;
+  }
+
+  if (w.status === 'purchased') {
+    return `
+      <div class="px-12 py-4 bg-blue-500/[0.04] border-y border-blue-500/15 grid grid-cols-4 gap-6 text-[11px]">
+        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">I Paid</p><p class="font-mono text-emerald-400">${mc(w.my_cost)}</p></div>
+        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Client Paid</p><p class="font-mono text-purple-300">${mc(w.client_cost)}</p></div>
+        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Total Invested</p><p class="font-mono text-primary">${mc((w.my_cost || 0) + (w.client_cost || 0))}</p></div>
+        <div class="flex items-end justify-end">
+          <button onclick="openMarkSoldModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[14px]">sell</span> Mark Sold
+          </button>
+        </div>
+      </div>`;
+  }
+
+  if (w.status === 'sold') {
+    const list = w.list_price, sale = w.sale_price;
+    const gross = (list != null && sale != null) ? (sale - list) : null;
+    const myGain     = (w.my_received     != null && w.my_cost     != null) ? (w.my_received - w.my_cost) : null;
+    const clientGain = (w.client_received != null && w.client_cost != null) ? (w.client_received - w.client_cost) : null;
+    const sgn = v => v > 0 ? '+' : '';
+    const cls = v => v == null ? 'text-outline' : v >= 0 ? 'text-emerald-400' : 'text-error';
+    return `
+      <div class="px-12 py-4 bg-emerald-500/[0.04] border-y border-emerald-500/15 text-[11px]">
+        <div class="grid grid-cols-6 gap-6 mb-3">
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">List</p><p class="font-mono text-on-surface">${mc(list)}</p></div>
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Sold For</p><p class="font-mono text-primary">${mc(sale)}</p></div>
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Gross P&amp;L</p><p class="font-mono ${cls(gross)}">${gross != null ? sgn(gross)+fmt.price(gross, cur) : '—'}</p></div>
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Sold To</p><p class="text-on-surface truncate">${esc(w.sold_to || '—')}</p></div>
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Sold Date</p><p class="text-on-surface">${fmt.date(w.purchase_date) || '—'}</p></div>
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Reference</p><p class="font-mono text-on-surface">${esc(w.reference_number || '—')}</p></div>
+        </div>
+        <div class="grid grid-cols-2 gap-6 pt-3 border-t border-emerald-500/10">
+          <div class="grid grid-cols-3 gap-3 text-[10px]">
+            <div><p class="text-on-surface-variant">My Cost</p><p class="font-mono text-on-surface">${mc(w.my_cost)}</p></div>
+            <div><p class="text-on-surface-variant">I Received</p><p class="font-mono text-emerald-400">${mc(w.my_received)}</p></div>
+            <div><p class="text-on-surface-variant">My P&amp;L</p><p class="font-mono ${cls(myGain)}">${myGain != null ? sgn(myGain)+fmt.price(myGain, cur) : '—'}</p></div>
+          </div>
+          <div class="grid grid-cols-3 gap-3 text-[10px]">
+            <div><p class="text-on-surface-variant">Client Cost</p><p class="font-mono text-purple-300">${mc(w.client_cost)}</p></div>
+            <div><p class="text-on-surface-variant">Client Received</p><p class="font-mono text-purple-300">${mc(w.client_received)}</p></div>
+            <div><p class="text-on-surface-variant">Client P&amp;L</p><p class="font-mono ${cls(clientGain)}">${clientGain != null ? sgn(clientGain)+fmt.price(clientGain, cur) : '—'}</p></div>
+          </div>
+        </div>
+      </div>`;
+  }
+  return '';
+}
+
 function watchRow(w, detail, opts) {
   const isDiscountRow = !!(opts?.isDiscount);
   const thumb = w.image_path
@@ -3696,10 +3822,27 @@ function watchRow(w, detail, opts) {
       <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
       <td class="px-6 py-6 font-semibold text-primary text-sm">${fmt.price(w.list_price ?? w.price, cur)}</td>
       <td class="px-6 py-6 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>`;
+  // Detail view: include an expand chevron + emit a second row with the banner.
+  // Default-collapsed; user toggles it via the chevron.
+  const isOpen = _expandedWatchRows.has(w.id);
+  const expandChev = detail ? `
+    <button onclick="toggleWatchRow(${w.id})" class="p-1 -ml-1 mr-1 rounded hover:bg-white/[0.04] transition-colors flex-shrink-0" title="${isOpen ? 'Collapse' : 'Expand'}">
+      <span id="watchChev-${w.id}" class="material-symbols-outlined text-on-surface-variant text-[18px] transition-transform" style="transform:${isOpen ? 'rotate(90deg)' : 'rotate(0deg)'}">chevron_right</span>
+    </button>` : '';
+
+  const colSpan = detail ? 7 : 7; // adjust if other tables need different
+  const detailBannerRow = detail ? `
+    <tr id="watchDetail-${w.id}" class="${isOpen ? '' : 'hidden'}">
+      <td colspan="${colSpan}" class="p-0">
+        ${watchDetailBanner(w)}
+      </td>
+    </tr>` : '';
+
   return `
     <tr class="tbl-row">
       <td class="px-6 py-6">
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
+          ${expandChev}
           <div class="w-12 h-12 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
             ${thumb}
           </div>
@@ -3727,7 +3870,8 @@ function watchRow(w, detail, opts) {
           </button>
         </div>
       </td>
-    </tr>`;
+    </tr>
+    ${detailBannerRow}`;
 }
 
 let _soldWatchData = null;
@@ -3748,14 +3892,87 @@ function openMarkSoldModal(id) {
   const cur = w.currency || 'CHF';
   document.getElementById('soldWatchListPrice').textContent = w.list_price != null ? `List: ${fmt.price(w.list_price, cur)}` : 'No list price set';
   document.getElementById('soldCurrencyBadge').textContent = cur;
+  document.getElementById('soldMyCurLabel').textContent     = `(${cur})`;
+  document.getElementById('soldClientCurLabel').textContent = `(${cur})`;
 
-  // Pre-fill sale price if already set
-  setMoneyValue('soldSalePrice', w.sale_price);
+  // Pre-fill sale price + proceeds split (if already set)
+  setMoneyValue('soldSalePrice',      w.sale_price);
+  setMoneyValue('soldMyReceived',     w.my_received);
+  setMoneyValue('soldClientReceived', w.client_received);
   document.getElementById('soldTo').value = w.sold_to || '';
 
   updateSoldPnl();
+  updateSoldSplitFooter();
   document.getElementById('markSoldModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('soldSalePrice').focus(), 50);
+}
+
+// Auto-split: use the trading rule to suggest a fair proceeds split.
+// - Split mode: applies profit_split_me / loss_split_me to (sale - list), then
+//   adds each party's original cost contribution → ends at totals summing to sale.
+// - Discount mode: I take discount% × sale (commission); client gets the rest.
+//   For loss watches in discount mode, client is fully liable → my_received = sale,
+//   client_received = 0 (the loss-receivable mechanism handles the recovery).
+function autoFillSoldSplit() {
+  const w = _soldWatchData;
+  if (!w) return;
+  const cur       = w.currency || 'CHF';
+  const sale      = parseFloat(readMoneyInput('soldSalePrice'));
+  const list      = w.list_price ?? 0;
+  const myCost    = w.my_cost     || 0;
+  const clientCost = w.client_cost || 0;
+  if (isNaN(sale)) { alert('Enter a sale price first.'); return; }
+
+  const isDiscount  = (w.trading_rule || 'split') === 'discount';
+  const profitSplit = w.profit_split_me ?? 100;
+  const lossSplit   = w.loss_split_me   ?? 100;
+  let myShare, clientShare;
+  if (isDiscount) {
+    const rate = w.discount_split ?? 0.08;
+    if (sale >= list) {
+      myShare     = sale * rate;
+      clientShare = sale - myShare;
+    } else {
+      // Loss in discount mode: I'm reimbursed via Panel B receivable, not here.
+      myShare     = sale;
+      clientShare = 0;
+    }
+  } else {
+    // Split mode: PNL share + original cost contribution
+    const pnl     = sale - list;
+    const splitMe = pnl >= 0 ? profitSplit : lossSplit;
+    const myPnl     = (splitMe / 100) * pnl;
+    const clientPnl = ((100 - splitMe) / 100) * pnl;
+    myShare     = myCost     + myPnl;
+    clientShare = clientCost + clientPnl;
+  }
+  setMoneyValue('soldMyReceived',     Math.max(0, Math.round(myShare)));
+  setMoneyValue('soldClientReceived', Math.max(0, Math.round(clientShare)));
+  updateSoldSplitFooter();
+}
+
+function updateSoldSplitFooter() {
+  const w = _soldWatchData;
+  if (!w) return;
+  const cur    = w.currency || 'CHF';
+  const sale   = parseFloat(readMoneyInput('soldSalePrice'));
+  const mine   = parseFloat(readMoneyInput('soldMyReceived'));
+  const client = parseFloat(readMoneyInput('soldClientReceived'));
+  const footer = document.getElementById('soldSplitFooter');
+  if (isNaN(sale) || (isNaN(mine) && isNaN(client))) {
+    footer.innerHTML = `Leave blank to keep capital contributions as proceeds. Click <em>Auto-split</em> to apply the configured rule.`;
+    footer.className = 'text-[10px] text-on-surface-variant/70';
+    return;
+  }
+  const total = (isNaN(mine) ? 0 : mine) + (isNaN(client) ? 0 : client);
+  const diff  = total - sale;
+  if (Math.abs(diff) < 0.5) {
+    footer.innerHTML = `✓ Splits to <span class="text-emerald-400 font-mono">${fmt.price(total, cur)}</span> · matches sale price.`;
+    footer.className = 'text-[10px] text-on-surface-variant';
+  } else {
+    footer.innerHTML = `⚠ Total <span class="font-mono">${fmt.price(total, cur)}</span> is ${diff > 0 ? 'over' : 'under'} sale price by <span class="text-amber-400 font-mono">${fmt.price(Math.abs(diff), cur)}</span>.`;
+    footer.className = 'text-[10px] text-amber-400/80';
+  }
 }
 
 function closeMarkSoldModal() {
@@ -4000,13 +4217,17 @@ function updateSoldPnl() {
 async function submitMarkSold() {
   if (!_soldWatchData) return;
   const id = _soldWatchData.id;
-  const salePrice = readMoneyInput('soldSalePrice');
-  const soldTo    = document.getElementById('soldTo').value.trim();
+  const salePrice      = readMoneyInput('soldSalePrice');
+  const myReceived     = readMoneyInput('soldMyReceived');
+  const clientReceived = readMoneyInput('soldClientReceived');
+  const soldTo         = document.getElementById('soldTo').value.trim();
 
   const fd = new FormData();
   fd.append('status', 'sold');
-  if (salePrice !== '') fd.append('sale_price', salePrice);
-  if (soldTo)           fd.append('sold_to', soldTo);
+  if (salePrice      !== '') fd.append('sale_price',      salePrice);
+  if (myReceived     !== '') fd.append('my_received',     myReceived);
+  if (clientReceived !== '') fd.append('client_received', clientReceived);
+  if (soldTo)                fd.append('sold_to',         soldTo);
 
   try {
     const result = await api('PUT', `/api/watches/${id}`, fd);
@@ -4453,13 +4674,14 @@ function setWatchStatus(status) {
   const costClient = document.getElementById('wCostCurrencyClient');
   if (costMe)     costMe.textContent     = `(${cur})`;
   if (costClient) costClient.textContent = `(${cur})`;
-  // Dynamic contribution labels: "Paid" when buying, "Received" when sold
+  // Capital Contributions = what each party paid upfront. Always.
+  // Sale proceeds (my_received / client_received) live on the Mark-Sold modal.
   const sectionTitle = document.getElementById('wCostSectionTitle');
   const labelMe      = document.getElementById('wCostLabelMe');
   const labelClient  = document.getElementById('wCostLabelClient');
-  if (sectionTitle) sectionTitle.textContent = status === 'sold' ? 'Sale Proceeds' : 'Capital Contributions';
-  if (labelMe)      labelMe.textContent      = status === 'sold' ? 'I Received'      : 'I Paid';
-  if (labelClient)  labelClient.textContent  = status === 'sold' ? 'Client Received' : 'Client Paid';
+  if (sectionTitle) sectionTitle.textContent = 'Capital Contributions';
+  if (labelMe)      labelMe.textContent      = 'I Paid';
+  if (labelClient)  labelClient.textContent  = 'Client Paid';
   const dateLabels = { wishlist: 'Wishlist Date', purchased: 'Purchase Date', sold: 'Sold Date' };
   const wDateLabel = document.getElementById('wDateLabel');
   if (wDateLabel) wDateLabel.textContent = dateLabels[status] || 'Date';
@@ -4515,6 +4737,9 @@ async function openAddWatch(profileId) {
   document.getElementById('watchImgChosen').classList.add('hidden');
   document.getElementById('wSystemResults').classList.add('hidden');
   resetWatchImgPreview(null);
+  // Add Watch: hide the Sold status button — sold is reached via Mark-Sold flow only
+  document.getElementById('wStatusSoldBtn').classList.add('hidden');
+  document.getElementById('wStatusHint').classList.remove('hidden');
   setWatchStatus('wishlist');
   document.getElementById('watchModalTitle').textContent = 'Add Watch';
   document.getElementById('watchFormError').classList.add('hidden');
@@ -4569,6 +4794,15 @@ async function openEditWatch(id) {
   document.getElementById('watchImgChosen').classList.add('hidden');
   document.getElementById('wSystemResults').classList.add('hidden');
   resetWatchImgPreview(wt.image_path || null);
+  // Edit Watch: reveal the Sold status button ONLY when the watch is already sold
+  // (so user can stay on Sold or toggle off). Hidden for wishlist/purchased edits.
+  if (wt.status === 'sold') {
+    document.getElementById('wStatusSoldBtn').classList.remove('hidden');
+    document.getElementById('wStatusHint').classList.add('hidden');
+  } else {
+    document.getElementById('wStatusSoldBtn').classList.add('hidden');
+    document.getElementById('wStatusHint').classList.remove('hidden');
+  }
   setWatchStatus(wt.status || 'wishlist');
   document.getElementById('watchModalTitle').textContent = 'Edit Watch';
   document.getElementById('watchFormError').classList.add('hidden');

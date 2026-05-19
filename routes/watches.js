@@ -40,7 +40,7 @@ router.put('/:id', (req, res) => {
     }
 
     const updates = { ...req.body };
-    ['price','list_price','sale_price','my_cost','client_cost'].forEach(f => {
+    ['price','list_price','sale_price','my_cost','client_cost','my_received','client_received'].forEach(f => {
       if (updates[f] !== undefined) updates[f] = updates[f] !== '' ? Number(updates[f]) : null;
     });
     if (updates.status && !['wishlist','purchased','sold'].includes(updates.status)) delete updates.status;

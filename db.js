@@ -169,6 +169,9 @@ function init() {
   if (!wcols2.includes('client_cost'))          db.exec("ALTER TABLE watches ADD COLUMN client_cost REAL");
   if (!wcols2.includes('loss_status'))          db.exec("ALTER TABLE watches ADD COLUMN loss_status TEXT DEFAULT 'open'");
   if (!wcols2.includes('discount_rate_applied')) db.exec("ALTER TABLE watches ADD COLUMN discount_rate_applied REAL");
+  // Sale-proceeds split (separate from my_cost/client_cost which are upfront capital)
+  if (!wcols2.includes('my_received'))           db.exec("ALTER TABLE watches ADD COLUMN my_received REAL");
+  if (!wcols2.includes('client_received'))       db.exec("ALTER TABLE watches ADD COLUMN client_received REAL");
   // Rename legacy 'pipeline' status to 'wishlist'
   db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
@@ -756,14 +759,15 @@ function getWatch(id, ownerId) {
 
 function createWatch(profileId, { model, serial_number, source, purchase_date, price,
                                    reference_number, notes, image_path, movement_number, case_number,
-                                   list_price, sale_price, status, currency, my_cost, client_cost }) {
-  // Caller has already verified profileId belongs to current user
+                                   list_price, sale_price, status, currency,
+                                   my_cost, client_cost, my_received, client_received }) {
   const result = db.prepare(`
     INSERT INTO watches
       (profile_id, model, serial_number, source, purchase_date, price,
        reference_number, notes, image_path, movement_number, case_number,
-       list_price, sale_price, status, currency, my_cost, client_cost)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+       list_price, sale_price, status, currency,
+       my_cost, client_cost, my_received, client_received)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     profileId, model, serial_number ?? null, source,
     purchase_date ?? null, price != null ? Number(price) : null,
@@ -773,8 +777,10 @@ function createWatch(profileId, { model, serial_number, source, purchase_date, p
     sale_price  != null ? Number(sale_price)  : null,
     status ?? 'wishlist',
     currency ?? 'CHF',
-    my_cost     != null ? Number(my_cost)     : null,
-    client_cost != null ? Number(client_cost) : null
+    my_cost         != null ? Number(my_cost)         : null,
+    client_cost     != null ? Number(client_cost)     : null,
+    my_received     != null ? Number(my_received)     : null,
+    client_received != null ? Number(client_received) : null
   );
   return result.lastInsertRowid;
 }
@@ -783,13 +789,14 @@ function updateWatch(id, updates, ownerId) {
   const FIELDS = ['model','serial_number','source','purchase_date','price',
                   'reference_number','notes','image_path','movement_number','case_number',
                   'list_price','sale_price','status','currency','sold_to',
-                  'my_cost','client_cost','loss_status','discount_rate_applied'];
+                  'my_cost','client_cost','my_received','client_received',
+                  'loss_status','discount_rate_applied'];
   const setParts = [];
   const values = [];
   for (const f of FIELDS) {
     if (updates[f] !== undefined) {
       setParts.push(`w.${f} = ?`);
-      const numericFields = ['price','list_price','sale_price','discount_rate_applied'];
+      const numericFields = ['price','list_price','sale_price','discount_rate_applied','my_received','client_received'];
       values.push(numericFields.includes(f) ? (updates[f] != null && updates[f] !== '' ? Number(updates[f]) : null) : updates[f]);
     }
   }

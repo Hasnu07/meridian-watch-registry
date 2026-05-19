@@ -219,15 +219,19 @@ router.post('/:id/watches', (req, res) => {
 
     try {
       const imageUrl = req.file ? await storage.uploadFile(req.file, 'meridian/watches') : null;
+      const num = v => v != null && v !== '' ? Number(v) : null;
       const id = db.createWatch(req.params.id, {
         ...req.body,
-        price:       req.body.price       != null && req.body.price       !== '' ? Number(req.body.price)       : null,
-        list_price:  req.body.list_price  != null && req.body.list_price  !== '' ? Number(req.body.list_price)  : null,
-        sale_price:  req.body.sale_price  != null && req.body.sale_price  !== '' ? Number(req.body.sale_price)  : null,
-        my_cost:     req.body.my_cost     != null && req.body.my_cost     !== '' ? Number(req.body.my_cost)     : null,
-        client_cost: req.body.client_cost != null && req.body.client_cost !== '' ? Number(req.body.client_cost) : null,
-        status:      ['wishlist','purchased','sold'].includes(req.body.status) ? req.body.status : 'wishlist',
-        image_path:  imageUrl,
+        price:           num(req.body.price),
+        list_price:      num(req.body.list_price),
+        sale_price:      num(req.body.sale_price),
+        my_cost:         num(req.body.my_cost),
+        client_cost:     num(req.body.client_cost),
+        my_received:     num(req.body.my_received),
+        client_received: num(req.body.client_received),
+        // Add Watch only lets users pick wishlist or purchased — sold goes via Mark-Sold flow
+        status:          ['wishlist','purchased'].includes(req.body.status) ? req.body.status : 'wishlist',
+        image_path:      imageUrl,
       });
       const created = db.getWatch(id, uid(req));
       audit(req, { action: 'create', targetType: 'watch', targetId: id, details: { model: created.model, status: created.status, profile_id: created.profile_id } });
