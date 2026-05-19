@@ -760,20 +760,70 @@ function deleteCompanyDoc(id, ownerId) {
 }
 
 function getStats(ownerId) {
-  const { total_profiles } = db.prepare('SELECT COUNT(*) AS total_profiles FROM profiles WHERE owner_id = ?').get(ownerId);
-  const { total_watches }  = db.prepare(
-    'SELECT COUNT(*) AS total_watches FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE p.owner_id = ?'
-  ).get(ownerId);
-  const { company_watches } = db.prepare(
-    "SELECT COUNT(*) AS company_watches FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE w.source = 'Company' AND p.owner_id = ?"
-  ).get(ownerId);
-  const { dealer_watches }  = db.prepare(
-    "SELECT COUNT(*) AS dealer_watches FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE w.source = 'Dealer' AND p.owner_id = ?"
-  ).get(ownerId);
-  const { total_value }    = db.prepare(
-    'SELECT COALESCE(SUM(w.price), 0) AS total_value FROM watches w JOIN profiles p ON p.id = w.profile_id WHERE p.owner_id = ?'
-  ).get(ownerId);
-  return { total_profiles, total_watches, company_watches, dealer_watches, total_value };
+  // Counts (currency-agnostic)
+  const counts = db.prepare(`
+    SELECT
+      COUNT(DISTINCT p.id)                                              AS total_profiles,
+      COUNT(w.id)                                                       AS total_watches,
+      SUM(CASE WHEN w.status = 'wishlist'  THEN 1 ELSE 0 END)           AS wishlist_count,
+      SUM(CASE WHEN w.status = 'purchased' THEN 1 ELSE 0 END)           AS purchased_count,
+      SUM(CASE WHEN w.status = 'sold'      THEN 1 ELSE 0 END)           AS sold_count
+    FROM profiles p
+    LEFT JOIN watches w ON w.profile_id = p.id
+    WHERE p.owner_id = ?
+  `).get(ownerId);
+
+  // Money sums grouped by currency so the frontend never mixes apples and
+  // oranges. Each row contributes only to its own currency bucket.
+  const moneyRows = db.prepare(`
+    SELECT
+      COALESCE(w.currency, 'CHF') AS currency,
+      COALESCE(SUM(CASE WHEN w.status = 'purchased' THEN w.list_price ELSE 0 END), 0) AS active_list_value,
+      COALESCE(SUM(CASE WHEN w.status = 'wishlist'  THEN w.list_price ELSE 0 END), 0) AS wishlist_list_value,
+      COALESCE(SUM(CASE WHEN w.status = 'sold'      THEN w.sale_price ELSE 0 END), 0) AS total_sale_value,
+      COALESCE(SUM(CASE WHEN w.status = 'sold' AND w.list_price IS NOT NULL AND w.sale_price IS NOT NULL
+                        THEN (w.sale_price - w.list_price) ELSE 0 END), 0)            AS net_pnl,
+      COALESCE(SUM(CASE WHEN w.status IN ('purchased','sold') THEN w.my_cost     ELSE 0 END), 0) AS my_total_cost,
+      COALESCE(SUM(CASE WHEN w.status IN ('purchased','sold') THEN w.client_cost ELSE 0 END), 0) AS client_total_cost
+    FROM watches w
+    JOIN profiles p ON p.id = w.profile_id
+    WHERE p.owner_id = ? AND w.id IS NOT NULL
+    GROUP BY COALESCE(w.currency, 'CHF')
+  `).all(ownerId);
+
+  // Build { CHF: 10000, EUR: 2500 } maps. Empty result = empty map.
+  const groupMap = key => {
+    const m = {};
+    for (const r of moneyRows) if (r[key]) m[r.currency] = (m[r.currency] || 0) + r[key];
+    return m;
+  };
+  const active_list_value   = groupMap('active_list_value');
+  const wishlist_list_value = groupMap('wishlist_list_value');
+  const total_sale_value    = groupMap('total_sale_value');
+  const net_pnl             = groupMap('net_pnl');
+  const my_total_cost       = groupMap('my_total_cost');
+  const client_total_cost   = groupMap('client_total_cost');
+
+  // total_value = active list + sold proceeds (per currency)
+  const total_value = {};
+  for (const cur of new Set([...Object.keys(active_list_value), ...Object.keys(total_sale_value)])) {
+    total_value[cur] = (active_list_value[cur] || 0) + (total_sale_value[cur] || 0);
+  }
+
+  return {
+    total_profiles:  counts.total_profiles  || 0,
+    total_watches:   counts.total_watches   || 0,
+    wishlist_count:  counts.wishlist_count  || 0,
+    purchased_count: counts.purchased_count || 0,
+    sold_count:      counts.sold_count      || 0,
+    active_list_value,
+    wishlist_list_value,
+    total_sale_value,
+    net_pnl,
+    my_total_cost,
+    client_total_cost,
+    total_value,
+  };
 }
 
 // ── Per-user Settings ─────────────────────────────────────────────────────

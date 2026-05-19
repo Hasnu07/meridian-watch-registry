@@ -438,18 +438,25 @@
           <div class="glass-surface rounded-xl p-5">
             <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Total Value</p>
             <p id="wv-value" class="font-playfair text-xl text-primary">—</p>
+            <p id="wv-value-sub" class="text-[10px] text-on-surface-variant mt-1">active + sold proceeds</p>
           </div>
           <div class="glass-surface rounded-xl p-5">
-            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Total Pieces</p>
-            <p id="wv-total" class="font-playfair text-xl text-on-surface">—</p>
+            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Active Inventory</p>
+            <p id="wv-active" class="font-playfair text-xl text-on-surface">—</p>
+            <p id="wv-active-sub" class="text-[10px] text-on-surface-variant mt-1">— purchased</p>
           </div>
           <div class="glass-surface rounded-xl p-5">
-            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Company</p>
-            <p id="wv-company" class="font-playfair text-xl text-on-surface">—</p>
+            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Sale Proceeds</p>
+            <p id="wv-proceeds" class="font-playfair text-xl text-on-surface">—</p>
+            <p id="wv-proceeds-sub" class="text-[10px] text-on-surface-variant mt-1">— sold</p>
           </div>
           <div class="glass-surface rounded-xl p-5">
-            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Dealer</p>
-            <p id="wv-dealer" class="font-playfair text-xl text-on-surface">—</p>
+            <p class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold mb-3">Net P&amp;L</p>
+            <p id="wv-pnl" class="font-playfair text-xl">—</p>
+            <p id="wv-pnl-sub" class="text-[10px] text-on-surface-variant mt-1">across sold</p>
+          </div>
+          <!-- Hidden legacy tile (kept for old script refs) -->
+          <p id="wv-total" class="hidden">—</p>
           </div>
         </div>
         <!-- Wishlist Waiting sub-section -->
@@ -1391,6 +1398,27 @@ const fmt = {
   money:    v => v != null && v !== '' ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) : '—',
   price:    (v, cur) => { if (v == null || v === '') return '—'; const s={CHF:'CHF ',EUR:'€',GBP:'£'}; return (s[cur]||((cur||'')+' '))+Number(v).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); },
   initials: n => (n||'').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2),
+  // Render a per-currency amount map. Pass { CHF: 10000, EUR: 2500 }.
+  // - empty/all-zero  → '—'
+  // - single currency → single line
+  // - multiple        → stacked lines, one per currency
+  // `signed`: prefix positive numbers with '+'.
+  byCurrency: (map, opts = {}) => {
+    const entries = Object.entries(map || {}).filter(([_, v]) => Number(v) !== 0);
+    if (!entries.length) return '<span class="text-on-surface-variant/60">—</span>';
+    const sign = opts.signed ? (v => v > 0 ? '+' : '') : (() => '');
+    const cls  = opts.colour
+      ? (v => v > 0 ? 'text-emerald-400' : v < 0 ? 'text-error' : '')
+      : (() => '');
+    if (entries.length === 1) {
+      const [cur, val] = entries[0];
+      return `<span class="${cls(val)}">${sign(val)}${fmt.price(val, cur)}</span>`;
+    }
+    return entries
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .map(([cur, val]) => `<div class="leading-tight ${cls(val)}">${sign(val)}${fmt.price(val, cur)}</div>`)
+      .join('');
+  },
 };
 
 // ── Routing ────────────────────────────────────────────────────────────────
@@ -2330,23 +2358,78 @@ function computePnl(profile) {
   const myRemaining     = profile.my_remaining     || 0;
   const clientRemaining = profile.client_remaining || 0;
 
-  // Active-only (still tied up in inventory)
+  // ── Per-currency aggregation helper ───────────────────────────────────
+  // Watches may be in different currencies; we never blend them together.
+  // Each *_byCur field is { CHF: amount, EUR: amount, ... } with only
+  // non-zero entries kept.
+  const byCur = (rows, getValue) => {
+    const m = {};
+    for (const w of rows) {
+      const v = getValue(w);
+      if (v == null || v === 0) continue;
+      const c = w.currency || 'CHF';
+      m[c] = (m[c] || 0) + v;
+    }
+    return m;
+  };
+
+  const paidWatches = watches.filter(w => w.status === 'purchased' || w.status === 'sold');
+
+  // Active-only (still tied up in inventory) — single-currency legacy fields kept
   const myCostInWatches      = activeWatches.reduce((s, w) => s + (w.my_cost     || 0), 0);
   const clientCostInWatches  = activeWatches.reduce((s, w) => s + (w.client_cost || 0), 0);
   const totalCostInWatches   = myCostInWatches + clientCostInWatches;
-  // Across all watches we've put capital into (purchased + sold) — the "lifetime" cost view
-  const paidWatches      = watches.filter(w => w.status === 'purchased' || w.status === 'sold');
-  const myTotalCost      = paidWatches.reduce((s, w) => s + (w.my_cost     || 0), 0);
-  const clientTotalCost  = paidWatches.reduce((s, w) => s + (w.client_cost || 0), 0);
-  const totalCost        = myTotalCost + clientTotalCost;
   const totalListValueActive = activeWatches.reduce((s, w) => s + (w.list_price || 0), 0);
   const totalSaleValue       = soldWatches.reduce((s, w)  => s + (w.sale_price  || 0), 0);
 
-  // Mode-agnostic "My P&L" / "Client P&L" — meaningful for both trading rules
-  const myPnl     = isDiscount ? discountIncome             : myShare;
-  const clientPnl = isDiscount ? -(totalLossAmount || 0)    : clientShare;
+  // Per-currency views — what the new tiles actually render
+  const myTotalCostByCur      = byCur(paidWatches, w => w.my_cost     || 0);
+  const clientTotalCostByCur  = byCur(paidWatches, w => w.client_cost || 0);
+  const totalCostByCur        = {};
+  for (const c of new Set([...Object.keys(myTotalCostByCur), ...Object.keys(clientTotalCostByCur)])) {
+    totalCostByCur[c] = (myTotalCostByCur[c] || 0) + (clientTotalCostByCur[c] || 0);
+  }
+  const totalListValueActiveByCur = byCur(activeWatches, w => w.list_price || 0);
+  const totalSaleValueByCur       = byCur(soldWatches,   w => w.sale_price || 0);
+  const totalProfitByCur          = byCur(soldWatches, w => {
+    if (w.list_price == null || w.sale_price == null) return 0;
+    const d = w.sale_price - w.list_price;
+    return d > 0 ? d : 0;
+  });
+  const totalLossByCur            = byCur(soldWatches, w => {
+    if (w.list_price == null || w.sale_price == null) return 0;
+    const d = w.sale_price - w.list_price;
+    return d < 0 ? d : 0;
+  });
+  const netPnlByCur = {};
+  for (const c of new Set([...Object.keys(totalProfitByCur), ...Object.keys(totalLossByCur)])) {
+    netPnlByCur[c] = (totalProfitByCur[c] || 0) + (totalLossByCur[c] || 0);
+  }
+
+  // My P&L / Client P&L per currency
+  let myPnlByCur = {}, clientPnlByCur = {};
+  if (isDiscount) {
+    // My income = sum(sale_price × rate) per currency, over profitable watches
+    myPnlByCur = byCur(profitWatches, w => w.sale_price * (w.discount_rate_applied ?? discountSplit));
+    // Client liability = -loss amount per currency
+    clientPnlByCur = byCur(lossWatches, w => -(w.list_price - w.sale_price));
+  } else {
+    // Split mode: apply % of net per currency
+    for (const [c, net] of Object.entries(netPnlByCur)) {
+      const splitMe = net >= 0 ? profitSplit : lossSplit;
+      myPnlByCur[c]     = (splitMe / 100) * net;
+      clientPnlByCur[c] = ((100 - splitMe) / 100) * net;
+    }
+  }
+
+  // Legacy single-currency totals (used by older code paths / displays)
+  const myTotalCost     = Object.values(myTotalCostByCur).reduce((s, v) => s + v, 0);
+  const clientTotalCost = Object.values(clientTotalCostByCur).reduce((s, v) => s + v, 0);
+  const totalCost       = myTotalCost + clientTotalCost;
+  const myPnl     = isDiscount ? discountIncome          : myShare;
+  const clientPnl = isDiscount ? -(totalLossAmount || 0) : clientShare;
   const totalProfit = Math.max(grossProfit, 0);
-  const totalLoss   = Math.min(grossLoss, 0);   // already <= 0
+  const totalLoss   = Math.min(grossLoss, 0);
 
   return {
     isDiscount, profitSplit, lossSplit, discountSplit,
@@ -2366,6 +2449,11 @@ function computePnl(profile) {
     myCostInWatches, clientCostInWatches, totalCostInWatches,
     myTotalCost, clientTotalCost, totalCost,
     totalListValueActive, totalSaleValue,
+    // Per-currency aggregates — drive the multi-currency tiles
+    myTotalCostByCur, clientTotalCostByCur, totalCostByCur,
+    totalListValueActiveByCur, totalSaleValueByCur,
+    totalProfitByCur, totalLossByCur, netPnlByCur,
+    myPnlByCur, clientPnlByCur,
     profitWatchCount: profitWatches.length,
     lossWatchCount:   lossWatches.length,
   };
@@ -2501,45 +2589,45 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
         <span class="text-[9px] uppercase tracking-widest text-outline">Across ${p.purchasedCount + p.soldCount} paid · ${p.wishlistCount} wishlist</span>
       </div>
 
-      <!-- Row 1: Costs -->
+      <!-- Row 1: Costs (per currency when mixed) -->
       <div class="grid grid-cols-3 gap-3 mb-3">
         <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 transition-all hover:bg-white/[0.05] hover:ring-1 hover:ring-emerald-500/20">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Total Cost</p>
-          <p class="font-playfair text-lg text-emerald-400">${mc(p.myTotalCost || 0)}</p>
+          <div class="font-playfair text-lg text-emerald-400">${fmt.byCurrency(p.myTotalCostByCur || {})}</div>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount + p.soldCount} watch${(p.purchasedCount + p.soldCount) !== 1 ? 'es' : ''} paid</p>
           <div class="tip-html hidden">${tipMyCost}</div>
         </div>
         <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 transition-all hover:bg-white/[0.05] hover:ring-1 hover:ring-purple-500/20">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Total Cost</p>
-          <p class="font-playfair text-lg text-purple-300">${mc(p.clientTotalCost || 0)}</p>
+          <div class="font-playfair text-lg text-purple-300">${fmt.byCurrency(p.clientTotalCostByCur || {})}</div>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount + p.soldCount} watch${(p.purchasedCount + p.soldCount) !== 1 ? 'es' : ''} paid</p>
           <div class="tip-html hidden">${tipClientCost}</div>
         </div>
         <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border border-primary/15 transition-all hover:bg-white/[0.05] hover:ring-1 hover:ring-primary/30">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total in Watches</p>
-          <p class="font-playfair text-lg text-primary">${mc(p.totalCost || 0)}</p>
+          <div class="font-playfair text-lg text-primary">${fmt.byCurrency(p.totalCostByCur || {})}</div>
           <p class="text-[10px] text-on-surface-variant mt-0.5">active list ${mc(p.totalListValueActive || 0)}</p>
           <div class="tip-html hidden">${tipTotalCost}</div>
         </div>
       </div>
 
-      <!-- Row 2: Raw P&L -->
+      <!-- Row 2: Raw P&L (per currency) -->
       <div class="grid grid-cols-3 gap-3 mb-3">
         <div class="has-tip cursor-help bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3.5 transition-all hover:bg-emerald-500/10">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Profit</p>
-          <p class="font-playfair text-lg text-emerald-400">${p.totalProfit > 0 ? '+' : ''}${mc(p.totalProfit || 0)}</p>
+          <div class="font-playfair text-lg text-emerald-400">${fmt.byCurrency(p.totalProfitByCur || {}, { signed: true })}</div>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.profitWatchCount} profitable sale${p.profitWatchCount !== 1 ? 's' : ''}</p>
           <div class="tip-html hidden">${tipProfit}</div>
         </div>
         <div class="has-tip cursor-help bg-error/5 border border-error/15 rounded-xl p-3.5 transition-all hover:bg-error/10">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Loss</p>
-          <p class="font-playfair text-lg ${p.totalLoss < 0 ? 'text-error' : 'text-on-surface-variant'}">${p.totalLoss < 0 ? sgn(p.totalLoss) + mc(p.totalLoss) : mc(0)}</p>
+          <div class="font-playfair text-lg text-error">${fmt.byCurrency(p.totalLossByCur || {}, { signed: true })}</div>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.lossWatchCount} loss sale${p.lossWatchCount !== 1 ? 's' : ''}</p>
           <div class="tip-html hidden">${tipLoss}</div>
         </div>
-        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border ${(p.myPnl || 0) >= 0 ? 'border-emerald-500/20' : 'border-error/20'} transition-all hover:bg-white/[0.05]">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border border-outline-variant/15 transition-all hover:bg-white/[0.05]">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My P&amp;L</p>
-          <p class="font-playfair text-lg ${cls(p.myPnl || 0)}">${sgn(p.myPnl || 0)}${mc(p.myPnl || 0)}</p>
+          <div class="font-playfair text-lg">${fmt.byCurrency(p.myPnlByCur || {}, { signed: true, colour: true })}</div>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${myPnlNote}</p>
           <div class="tip-html hidden">${tipMyPnl}</div>
         </div>
@@ -2547,15 +2635,15 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
 
       <!-- Row 3: Client side + proceeds + count -->
       <div class="grid grid-cols-3 gap-3">
-        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border ${(p.clientPnl || 0) >= 0 ? 'border-emerald-500/20' : 'border-error/20'} transition-all hover:bg-white/[0.05]">
+        <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border border-outline-variant/15 transition-all hover:bg-white/[0.05]">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client P&amp;L</p>
-          <p class="font-playfair text-lg ${cls(p.clientPnl || 0)}">${sgn(p.clientPnl || 0)}${mc(p.clientPnl || 0)}</p>
+          <div class="font-playfair text-lg">${fmt.byCurrency(p.clientPnlByCur || {}, { signed: true, colour: true })}</div>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${clientPnlNote}</p>
           <div class="tip-html hidden">${tipClientPnl}</div>
         </div>
         <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 transition-all hover:bg-white/[0.05]">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Sale Proceeds</p>
-          <p class="font-playfair text-lg text-on-surface">${mc(p.totalSaleValue || 0)}</p>
+          <div class="font-playfair text-lg text-on-surface">${fmt.byCurrency(p.totalSaleValueByCur || {})}</div>
           <p class="text-[10px] text-on-surface-variant mt-0.5">${p.soldCount} sold total</p>
           <div class="tip-html hidden">${tipProceeds}</div>
         </div>
@@ -3078,10 +3166,18 @@ let watchStatusFilter = '';
 
 async function loadWatches(q, source) {
   const stats = await api('GET', '/api/stats');
-  document.getElementById('wv-value').textContent   = fmt.money(stats.total_value);
-  document.getElementById('wv-total').textContent   = stats.total_watches.toLocaleString();
-  document.getElementById('wv-company').textContent = stats.company_watches.toLocaleString();
-  document.getElementById('wv-dealer').textContent  = stats.dealer_watches.toLocaleString();
+
+  // Multi-currency aware tiles — fall back to '—' when empty
+  document.getElementById('wv-value').innerHTML       = fmt.byCurrency(stats.total_value);
+  document.getElementById('wv-active').innerHTML      = fmt.byCurrency(stats.active_list_value);
+  document.getElementById('wv-proceeds').innerHTML    = fmt.byCurrency(stats.total_sale_value);
+  document.getElementById('wv-pnl').innerHTML         = fmt.byCurrency(stats.net_pnl, { signed: true, colour: true });
+  // Subtext: counts feeding each tile
+  document.getElementById('wv-active-sub').textContent   = `${stats.purchased_count} purchased`;
+  document.getElementById('wv-proceeds-sub').textContent = `${stats.sold_count} sold`;
+  document.getElementById('wv-pnl-sub').textContent      = `${stats.sold_count} sold · ${stats.total_watches} total pieces`;
+  // Legacy hidden element
+  document.getElementById('wv-total').textContent = stats.total_watches.toLocaleString();
 
   const params = new URLSearchParams();
   if (q)      params.set('q', q);
