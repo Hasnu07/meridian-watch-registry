@@ -1821,11 +1821,21 @@ function renderClientMasterSummary(client) {
 
   const pnls = memberships.map(m => computePnl(m));
   const sum  = key => pnls.reduce((s, x) => s + (x[key] || 0), 0);
+  // Merge per-currency maps across all memberships
+  const mergeMaps = key => {
+    const out = {};
+    for (const p of pnls) {
+      const m = p[key] || {};
+      for (const [c, v] of Object.entries(m)) out[c] = (out[c] || 0) + v;
+    }
+    return out;
+  };
 
   const splitCount    = pnls.filter(p => !p.isDiscount).length;
   const discountCount = pnls.length - splitCount;
 
-  // Aggregate `p` for the unified renderer
+  // Aggregate `p` for the unified renderer — keep both scalar and by-currency
+  // shapes so renderPortfolioSummary9 (which reads the by-currency maps) works.
   const aggP = {
     isDiscount:     discountCount > 0 && splitCount === 0,
     myTotalCost:    sum('myTotalCost'),
@@ -1846,9 +1856,25 @@ function renderClientMasterSummary(client) {
     profitWatchCount: sum('profitWatchCount'),
     lossWatchCount:   sum('lossWatchCount'),
     totalWatches:   allWatches.length,
-    // these don't apply cross-membership but the renderer references them
     profitSplit:    null,
     lossSplit:      null,
+    // Per-currency maps that the tiles actually render
+    myTotalCostByCur:        mergeMaps('myTotalCostByCur'),
+    clientTotalCostByCur:    mergeMaps('clientTotalCostByCur'),
+    totalCostByCur:          mergeMaps('totalCostByCur'),
+    totalListValueActiveByCur: mergeMaps('totalListValueActiveByCur'),
+    totalSaleValueByCur:     mergeMaps('totalSaleValueByCur'),
+    totalProfitByCur:        mergeMaps('totalProfitByCur'),
+    totalLossByCur:          mergeMaps('totalLossByCur'),
+    netPnlByCur:             mergeMaps('netPnlByCur'),
+    myPnlByCur:              mergeMaps('myPnlByCur'),
+    clientPnlByCur:          mergeMaps('clientPnlByCur'),
+    // Per-watch arrays so tooltips inside the summary still work
+    activeWatches:           pnls.flatMap(p => p.activeWatches || []),
+    soldWatches:             pnls.flatMap(p => p.soldWatches   || []),
+    wishlistWatches:         pnls.flatMap(p => p.wishlistWatches || []),
+    profitWatches:           pnls.flatMap(p => p.profitWatches || []),
+    lossWatches:             pnls.flatMap(p => p.lossWatches   || []),
   };
 
   const ruleMix = splitCount && discountCount
