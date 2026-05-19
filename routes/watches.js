@@ -6,9 +6,10 @@ const multer   = require('multer');
 const db       = require('../db');
 const storage  = require('../lib/storage');
 const notifier = require('../lib/event-notifier');
+const audit    = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.user.id;
+const uid    = req => req.session.viewing_as || req.session.user.id;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -64,10 +65,14 @@ router.put('/:id', (req, res) => {
       db.updateWatch(req.params.id, updates, uid(req));
       const updated = db.getWatch(req.params.id, uid(req));
 
+      const auditDetails = { model: watch.model, fields: Object.keys(updates) };
       if (updates.status && updates.status !== oldStatus) {
+        auditDetails.status_from = oldStatus;
+        auditDetails.status_to   = newStatus;
         const profile = db.getProfile(watch.profile_id, uid(req));
         notifier.onWatchStatusChanged(watch, newStatus, updates, profile);
       }
+      audit(req, { action: 'update', targetType: 'watch', targetId: Number(req.params.id), details: auditDetails });
 
       res.json(updated);
     } catch (e) {
@@ -83,6 +88,7 @@ router.delete('/:id', async (req, res) => {
   const profile = db.getProfile(watch.profile_id, uid(req));
   await storage.deleteFile(watch.image_path);
   db.deleteWatch(req.params.id, uid(req));
+  audit(req, { action: 'delete', targetType: 'watch', targetId: Number(req.params.id), details: { model: watch.model, status: watch.status } });
   notifier.onWatchDeleted(watch, profile);
   res.json({ ok: true });
 });

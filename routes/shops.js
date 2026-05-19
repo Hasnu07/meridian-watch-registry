@@ -2,9 +2,10 @@
 
 const express = require('express');
 const db      = require('../db');
+const audit   = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.user.id;
+const uid    = req => req.session.viewing_as || req.session.user.id;
 
 // GET /api/shops
 router.get('/', (req, res) => {
@@ -17,6 +18,7 @@ router.post('/', (req, res) => {
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
   try {
     const id = db.createShop({ name: name.trim(), address: address || null, ownerId: uid(req) });
+    audit(req, { action: 'create', targetType: 'shop', targetId: id, details: { name: name.trim(), owner_id: uid(req) } });
     res.status(201).json(db.getShop(id, uid(req)));
   } catch (e) {
     return res.status(500).json({ error: e.message || 'Database error' });
@@ -47,6 +49,7 @@ router.put('/:id', (req, res) => {
       name:    name    !== undefined ? (name.trim() || null)    : undefined,
       address: address !== undefined ? (address.trim() || null) : undefined,
     }, uid(req));
+    audit(req, { action: 'update', targetType: 'shop', targetId: Number(req.params.id), details: { name, address } });
     res.json(db.getShop(req.params.id, uid(req)));
   } catch (e) {
     return res.status(500).json({ error: e.message || 'Database error' });
@@ -55,8 +58,10 @@ router.put('/:id', (req, res) => {
 
 // DELETE /api/shops/:id
 router.delete('/:id', (req, res) => {
-  if (!db.getShop(req.params.id, uid(req))) return res.status(404).json({ error: 'Not found' });
+  const shop = db.getShop(req.params.id, uid(req));
+  if (!shop) return res.status(404).json({ error: 'Not found' });
   db.deleteShop(req.params.id, uid(req));
+  audit(req, { action: 'delete', targetType: 'shop', targetId: Number(req.params.id), details: { name: shop.name } });
   res.json({ ok: true });
 });
 

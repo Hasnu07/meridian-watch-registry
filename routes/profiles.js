@@ -6,9 +6,10 @@ const multer   = require('multer');
 const db       = require('../db');
 const storage  = require('../lib/storage');
 const notifier = require('../lib/event-notifier');
+const audit    = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.user.id;
+const uid    = req => req.session.viewing_as || req.session.user.id;
 
 const ALLOWED = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
 
@@ -103,6 +104,7 @@ router.post('/', (req, res) => {
         ownerId:          uid(req),
       });
       const created = db.getProfile(id, uid(req));
+      audit(req, { action: 'create', targetType: 'profile', targetId: id, details: { name: created.name, shop_id: created.shop_id, owner_id: uid(req) } });
       notifier.onProfileCreated(created);
       res.status(201).json(created);
     } catch (e) {
@@ -164,6 +166,7 @@ router.put('/:id', (req, res) => {
       }
 
       db.updateProfile(req.params.id, updates, uid(req));
+      audit(req, { action: 'update', targetType: 'profile', targetId: Number(req.params.id), details: { fields: Object.keys(updates) } });
       res.json(db.getProfile(req.params.id, uid(req)));
     } catch (e) {
       if (e.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Email already exists' });
@@ -179,6 +182,7 @@ router.delete('/:id', async (req, res) => {
   await storage.deleteFile(profile.photo_path);
   await storage.deleteFile(profile.id_card_path);
   db.deleteProfile(req.params.id, uid(req));
+  audit(req, { action: 'delete', targetType: 'profile', targetId: Number(req.params.id), details: { name: profile.name } });
   notifier.onProfileDeleted(profile);
   res.json({ ok: true });
 });
@@ -226,6 +230,7 @@ router.post('/:id/watches', (req, res) => {
         image_path:  imageUrl,
       });
       const created = db.getWatch(id, uid(req));
+      audit(req, { action: 'create', targetType: 'watch', targetId: id, details: { model: created.model, status: created.status, profile_id: created.profile_id } });
       notifier.onWatchCreated(created, profile);
       res.status(201).json(created);
     } catch (e) {

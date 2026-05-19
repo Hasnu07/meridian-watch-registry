@@ -85,6 +85,11 @@
         <span class="material-symbols-outlined">settings</span>
         <span>Settings</span>
       </button>
+      <!-- Master-only nav (revealed by JS when currentUser.role === 'master') -->
+      <button id="navAdmin" data-page="admin" class="nav-item nav-inactive w-full hidden items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5 border-t border-primary/10 mt-2 pt-3">
+        <span class="material-symbols-outlined text-primary">admin_panel_settings</span>
+        <span class="text-primary">Admin</span>
+      </button>
     </nav>
 
     <!-- Footer -->
@@ -105,6 +110,17 @@
 
   <!-- ── Main ─────────────────────────────────────────────────────────── -->
   <div class="ml-64 flex-1 flex flex-col min-h-screen">
+
+    <!-- Impersonation banner (visible only when master is viewing as someone else) -->
+    <div id="impersonationBanner" class="hidden fixed top-0 right-0 left-64 z-[100] bg-amber-500/15 border-b border-amber-500/40 px-6 py-2.5 flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2 text-amber-300">
+        <span class="material-symbols-outlined text-[16px]">visibility</span>
+        <span>Viewing as <strong id="impersonationName" class="text-amber-200">—</strong> · all actions performed will be logged under your account but written into their workspace</span>
+      </div>
+      <button id="impersonationExit" class="text-[10px] uppercase tracking-widest font-semibold text-amber-200 border border-amber-400/50 px-3 py-1 rounded hover:bg-amber-500/20 transition-all">
+        Return to my workspace
+      </button>
+    </div>
 
     <!-- Topbar -->
     <header class="fixed top-0 right-0 left-64 h-16 flex items-center justify-between px-6 bg-background/80 backdrop-blur-md border-b border-outline-variant/10 z-40">
@@ -578,6 +594,121 @@
                   <span class="material-symbols-outlined text-[16px]">notifications</span> Run Now
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Admin (master only) ──────────────────────────────────────── -->
+      <div id="page-admin" class="hidden p-10 max-w-[1280px] w-full mx-auto">
+        <div class="mb-8 flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <h2 class="font-playfair text-5xl font-semibold text-on-surface">Admin</h2>
+            <p class="text-on-surface-variant text-sm mt-2">Manage users, view their workspaces, and audit every change across the system.</p>
+          </div>
+          <span class="text-[10px] uppercase tracking-widest font-semibold px-3 py-1 rounded-lg border border-primary/40 text-primary bg-primary/5">Master · Full Access</span>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6 border-b border-outline-variant/15">
+          <button data-admin-tab="users" class="admin-tab text-[11px] font-semibold uppercase tracking-widest px-4 py-3 border-b-2 border-primary text-primary">Users</button>
+          <button data-admin-tab="audit" class="admin-tab text-[11px] font-semibold uppercase tracking-widest px-4 py-3 border-b-2 border-transparent text-on-surface-variant hover:text-on-surface">Audit Log</button>
+          <button data-admin-tab="addUser" class="admin-tab text-[11px] font-semibold uppercase tracking-widest px-4 py-3 border-b-2 border-transparent text-on-surface-variant hover:text-on-surface">Add User</button>
+        </div>
+
+        <!-- Tab: Users -->
+        <div id="adminTab-users" class="admin-tab-panel">
+          <div class="glass-surface rounded-xl overflow-hidden">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container border-b border-outline-variant/15">
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">User</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Role</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Clients</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Watches</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Sold</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Created</th>
+                  <th class="px-6 py-4 text-right"></th>
+                </tr>
+              </thead>
+              <tbody id="adminUsersBody" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Audit Log -->
+        <div id="adminTab-audit" class="admin-tab-panel hidden">
+          <div class="glass-surface rounded-xl overflow-hidden mb-6">
+            <div class="px-5 py-3 border-b border-outline-variant/10 flex items-center gap-2 flex-wrap">
+              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Filter</span>
+              <select id="auditFilterActor"  class="bg-transparent border border-outline-variant/30 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"><option value="">All users</option></select>
+              <select id="auditFilterType"   class="bg-transparent border border-outline-variant/30 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="">All targets</option>
+                <option value="profile">Profiles</option>
+                <option value="watch">Watches</option>
+                <option value="client">Clients</option>
+                <option value="portfolio">Portfolios</option>
+                <option value="shop">Shops</option>
+                <option value="loss_payment">Loss payments</option>
+                <option value="user">Users</option>
+                <option value="session">Sessions</option>
+              </select>
+              <select id="auditFilterAction" class="bg-transparent border border-outline-variant/30 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="">All actions</option>
+                <option value="create">create</option>
+                <option value="update">update</option>
+                <option value="delete">delete</option>
+                <option value="login">login</option>
+                <option value="logout">logout</option>
+                <option value="password_change">password_change</option>
+                <option value="password_reset">password_reset</option>
+                <option value="view_as_start">view_as_start</option>
+                <option value="view_as_end">view_as_end</option>
+                <option value="reverse">reverse</option>
+              </select>
+              <button id="auditRefresh" class="text-[10px] uppercase tracking-widest font-semibold text-primary border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-all">Refresh</button>
+              <span id="auditTotalLabel" class="ml-auto text-[10px] text-outline">—</span>
+            </div>
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="bg-white/[0.02] border-b border-outline-variant/10">
+                  <th class="px-5 py-2.5 text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant">When</th>
+                  <th class="px-5 py-2.5 text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant">Who</th>
+                  <th class="px-5 py-2.5 text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant">Action</th>
+                  <th class="px-5 py-2.5 text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant">Target</th>
+                  <th class="px-5 py-2.5 text-[9px] font-semibold uppercase tracking-widest text-on-surface-variant">Details</th>
+                </tr>
+              </thead>
+              <tbody id="adminAuditBody" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Add User -->
+        <div id="adminTab-addUser" class="admin-tab-panel hidden">
+          <div class="glass-surface rounded-xl p-8 max-w-lg">
+            <h3 class="font-playfair text-2xl text-on-surface mb-1">Create new user</h3>
+            <p class="text-xs text-on-surface-variant mb-6">A fresh workspace will be created with the default shop catalogue. The user will be able to log in immediately with the credentials below.</p>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Username</label>
+                <input id="newUserUsername" type="text" placeholder="e.g. mike" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+              </div>
+              <div>
+                <label class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Password</label>
+                <input id="newUserPassword" type="password" placeholder="at least 6 characters" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+              </div>
+              <div>
+                <label class="block text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Role</label>
+                <select id="newUserRole" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+                  <option value="admin" style="background:#231f17;color:#eae1d4">Admin · isolated workspace</option>
+                  <option value="master" style="background:#231f17;color:#eae1d4">Master · full system access</option>
+                </select>
+              </div>
+              <p id="newUserError" class="hidden text-xs text-error bg-error/10 rounded-lg px-4 py-2.5"></p>
+              <button id="newUserSubmit" class="w-full bg-primary text-on-primary font-semibold py-3 rounded-lg text-sm hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined text-[16px]">person_add</span> Create User
+              </button>
             </div>
           </div>
         </div>
@@ -1425,7 +1556,7 @@ const fmt = {
 let currentPage = 'dashboard';
 let currentProfileId = null;
 let currentShopId = null;
-const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watches','messages','settings'];
+const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watches','messages','settings','admin'];
 
 function showPage(name) {
   PAGES.forEach(p => {
@@ -1446,7 +1577,7 @@ function showPage(name) {
     }
   });
 
-  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', watches:'Watches', messages:'Messages', settings:'Settings' };
+  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', watches:'Watches', messages:'Messages', settings:'Settings', admin:'Admin' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
 
   const showAddProfile   = name === 'profiles';
@@ -1468,6 +1599,7 @@ function showPage(name) {
   if (name === 'watches')    loadWatches();
   if (name === 'settings')  resetPasswordForm();
   if (name === 'messages')  loadMsgClients();
+  if (name === 'admin')     loadAdmin();
 }
 
 document.querySelectorAll('[data-page]').forEach(el => {
@@ -1482,18 +1614,203 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 
 // ── Current user (populated from session on load) ─────────────────────────
 let currentUser = null;
-(async function loadCurrentUser() {
+async function refreshCurrentUser() {
   try {
     currentUser = await api('GET', '/api/auth/me');
     document.getElementById('currentUserName').textContent    = currentUser.username;
     document.getElementById('currentUserInitial').textContent = (currentUser.username || '?')[0].toUpperCase();
+    // Master-only Admin nav item
+    const navAdmin = document.getElementById('navAdmin');
+    if (currentUser.role === 'master') navAdmin.classList.replace('hidden', 'flex');
+    else                                navAdmin.classList.add('hidden');
+    // Impersonation banner
+    const banner = document.getElementById('impersonationBanner');
+    if (currentUser.viewing_as) {
+      document.getElementById('impersonationName').textContent = currentUser.viewing_as.username;
+      banner.classList.replace('hidden', 'flex');
+      document.body.style.paddingTop = '42px';
+    } else {
+      banner.classList.add('hidden');
+      document.body.style.paddingTop = '0px';
+    }
   } catch (e) {
-    // Not authenticated — redirect to login
     window.location.href = '/';
   }
-})();
+}
+refreshCurrentUser();
+
+// Exit impersonation
+document.getElementById('impersonationExit')?.addEventListener('click', async () => {
+  await api('POST', '/api/admin/view-as-self');
+  await refreshCurrentUser();
+  showPage('admin');
+});
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
+// ── Admin page (master only) ──────────────────────────────────────────────
+
+let _adminAuditFilters = { actor_id: '', target_type: '', action: '' };
+
+async function loadAdmin() {
+  // Default tab → users
+  showAdminTab('users');
+  await Promise.all([loadAdminUsers(), loadAdminAuditFilters()]);
+}
+
+function showAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(b => {
+    const active = b.dataset.adminTab === tab;
+    b.className = 'admin-tab text-[11px] font-semibold uppercase tracking-widest px-4 py-3 border-b-2 ' +
+      (active ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface');
+  });
+  document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById(`adminTab-${tab}`).classList.remove('hidden');
+  if (tab === 'audit') loadAdminAudit();
+  if (tab === 'users') loadAdminUsers();
+}
+
+document.querySelectorAll('.admin-tab').forEach(b => {
+  b.addEventListener('click', () => showAdminTab(b.dataset.adminTab));
+});
+
+async function loadAdminUsers() {
+  const users = await api('GET', '/api/admin/users');
+  const me    = currentUser?.id;
+  const body  = document.getElementById('adminUsersBody');
+  body.innerHTML = users.map(u => {
+    const isMe = u.id === me;
+    const created = (u.created_at || '').split(' ')[0] || '—';
+    return `
+      <tr class="hover:bg-white/[0.02]">
+        <td class="px-6 py-4">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-[12px] font-semibold text-primary uppercase">${u.username[0]}</div>
+            <div>
+              <p class="text-sm font-medium text-on-surface">${esc(u.username)}${isMe ? ' <span class="text-[9px] text-primary uppercase ml-1">(you)</span>' : ''}</p>
+              <p class="text-[10px] text-on-surface-variant">ID #${u.id}</p>
+            </div>
+          </div>
+        </td>
+        <td class="px-6 py-4">
+          <span class="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-lg border ${u.role === 'master' ? 'text-primary border-primary/40 bg-primary/5' : 'text-purple-300 border-purple-300/30 bg-purple-300/5'}">${u.role}</span>
+        </td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant">${u.clients_count || 0}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant">${u.watches_count || 0}</td>
+        <td class="px-6 py-4 text-sm text-on-surface-variant">${u.sold_count || 0}</td>
+        <td class="px-6 py-4 text-[11px] text-outline">${created}</td>
+        <td class="px-6 py-4">
+          <div class="flex items-center justify-end gap-1.5">
+            ${!isMe ? `
+            <button onclick="adminViewAs(${u.id})" title="View their workspace" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
+              <span class="material-symbols-outlined text-[16px]">visibility</span>
+            </button>` : ''}
+            <button onclick="adminResetPassword(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}' )" title="Reset password" class="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors">
+              <span class="material-symbols-outlined text-[16px]">key</span>
+            </button>
+            ${u.role === 'master' || isMe ? '' : `
+            <button onclick="adminPromote(${u.id})" title="Promote to master" class="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors">
+              <span class="material-symbols-outlined text-[16px]">workspace_premium</span>
+            </button>`}
+            ${!isMe ? `
+            <button onclick="adminDeleteUser(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}' )" title="Delete user" class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors">
+              <span class="material-symbols-outlined text-[16px]">delete</span>
+            </button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function adminViewAs(userId) {
+  try {
+    await api('POST', '/api/admin/view-as', { user_id: userId });
+    await refreshCurrentUser();
+    showPage('dashboard');
+  } catch (e) { alert(e.message); }
+}
+
+async function adminResetPassword(userId, username) {
+  const pw = prompt(`Set a new password for ${username}\n(at least 6 characters)`);
+  if (!pw) return;
+  if (pw.length < 6) { alert('Password must be at least 6 characters'); return; }
+  try {
+    await api('PUT', `/api/admin/users/${userId}/password`, { new_password: pw });
+    alert(`Password for ${username} has been reset.`);
+  } catch (e) { alert(e.message); }
+}
+
+async function adminPromote(userId) {
+  if (!confirm('Promote this user to master? They will gain full access to all workspaces.')) return;
+  try {
+    await api('PUT', `/api/admin/users/${userId}`, { role: 'master' });
+    await loadAdminUsers();
+  } catch (e) { alert(e.message); }
+}
+
+async function adminDeleteUser(userId, username) {
+  if (!confirm(`Delete user "${username}" and ALL their data (clients, watches, settings)? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', `/api/admin/users/${userId}`);
+    await loadAdminUsers();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadAdminAuditFilters() {
+  const users = await api('GET', '/api/admin/users');
+  const sel   = document.getElementById('auditFilterActor');
+  sel.innerHTML = `<option value="">All users</option>` + users.map(u => `<option value="${u.id}">${esc(u.username)}</option>`).join('');
+}
+
+async function loadAdminAudit() {
+  const qs = new URLSearchParams();
+  if (_adminAuditFilters.actor_id)    qs.set('actor_id',    _adminAuditFilters.actor_id);
+  if (_adminAuditFilters.target_type) qs.set('target_type', _adminAuditFilters.target_type);
+  if (_adminAuditFilters.action)      qs.set('action',      _adminAuditFilters.action);
+  qs.set('limit', 200);
+  const { rows, total } = await api('GET', `/api/admin/audit-log?${qs}`);
+  document.getElementById('auditTotalLabel').textContent = `Showing ${rows.length} of ${total} events`;
+  const body = document.getElementById('adminAuditBody');
+  body.innerHTML = rows.length ? rows.map(r => {
+    const colour = r.action === 'delete' ? 'text-error' : r.action === 'create' ? 'text-emerald-400' : r.action === 'view_as_start' || r.action === 'view_as_end' ? 'text-amber-400' : 'text-on-surface-variant';
+    const viewedAs = r.viewing_as ? ` <span class="text-[9px] text-amber-400/80 uppercase ml-1">[as #${r.viewing_as}]</span>` : '';
+    let details = r.details || '';
+    if (details) {
+      try { details = '<code class="text-[10px] text-outline/90 font-mono">' + esc(JSON.stringify(JSON.parse(details))) + '</code>'; }
+      catch { details = '<code class="text-[10px] text-outline/90 font-mono">' + esc(details) + '</code>'; }
+    }
+    return `
+      <tr class="hover:bg-white/[0.02]">
+        <td class="px-5 py-2 text-[10px] text-outline whitespace-nowrap">${r.ts}</td>
+        <td class="px-5 py-2 text-on-surface">${esc(r.actor_user || '—')}${viewedAs}</td>
+        <td class="px-5 py-2 ${colour} font-semibold uppercase text-[10px] tracking-widest">${r.action}</td>
+        <td class="px-5 py-2 text-on-surface-variant">${r.target_type}${r.target_id ? ' #' + r.target_id : ''}</td>
+        <td class="px-5 py-2 max-w-[420px] truncate">${details}</td>
+      </tr>`;
+  }).join('') : `<tr><td colspan="5" class="px-5 py-10 text-center text-on-surface-variant text-xs">No audit entries match this filter.</td></tr>`;
+}
+
+document.getElementById('auditFilterActor')?.addEventListener('change',  e => { _adminAuditFilters.actor_id    = e.target.value; loadAdminAudit(); });
+document.getElementById('auditFilterType')?.addEventListener('change',   e => { _adminAuditFilters.target_type = e.target.value; loadAdminAudit(); });
+document.getElementById('auditFilterAction')?.addEventListener('change', e => { _adminAuditFilters.action      = e.target.value; loadAdminAudit(); });
+document.getElementById('auditRefresh')?.addEventListener('click', loadAdminAudit);
+
+document.getElementById('newUserSubmit')?.addEventListener('click', async () => {
+  const username = document.getElementById('newUserUsername').value.trim();
+  const password = document.getElementById('newUserPassword').value;
+  const role     = document.getElementById('newUserRole').value;
+  const err      = document.getElementById('newUserError');
+  err.classList.add('hidden');
+  if (!username || !password) { err.textContent = 'Username and password are required.'; err.classList.remove('hidden'); return; }
+  try {
+    await api('POST', '/api/admin/users', { username, password, role });
+    document.getElementById('newUserUsername').value = '';
+    document.getElementById('newUserPassword').value = '';
+    showAdminTab('users');
+  } catch (e) {
+    err.textContent = e.message; err.classList.remove('hidden');
+  }
+});
+
 async function loadDashboard() {
   const shops = await api('GET', '/api/shops');
   document.getElementById('s-shops').textContent = shops.length.toLocaleString();

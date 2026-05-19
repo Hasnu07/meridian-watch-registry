@@ -21,6 +21,7 @@ router.post('/login', async (req, res) => {
 
   req.session.authenticated = true;
   req.session.user = { id: user.id, username: user.username, role: user.role };
+  db.logAudit({ actorId: user.id, actorUsername: user.username, action: 'login', targetType: 'session', targetId: user.id });
   res.json({ ok: true, user: req.session.user });
 });
 
@@ -29,10 +30,20 @@ router.get('/me', (req, res) => {
   if (!req.session?.authenticated || !req.session?.user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  res.json(req.session.user);
+  // Include any active impersonation context so the UI can show the banner
+  let viewing_as = null;
+  if (req.session.viewing_as) {
+    const target = db.getUserById(req.session.viewing_as);
+    if (target) viewing_as = { id: target.id, username: target.username, role: target.role };
+    else req.session.viewing_as = null; // target deleted → clear
+  }
+  res.json({ ...req.session.user, viewing_as });
 });
 
 router.post('/logout', (req, res) => {
+  if (req.session?.user) {
+    db.logAudit({ actorId: req.session.user.id, actorUsername: req.session.user.username, action: 'logout', targetType: 'session', targetId: req.session.user.id });
+  }
   req.session.destroy(() => res.json({ ok: true }));
 });
 

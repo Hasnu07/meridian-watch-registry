@@ -103,6 +103,20 @@ function init() {
       reversed   INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts          DATETIME DEFAULT (datetime('now')),
+      actor_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      actor_user  TEXT,
+      viewing_as  INTEGER,
+      action      TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id   INTEGER,
+      details     TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_log_ts    ON audit_log (ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log (actor_id);
   `);
 
   // Migrate profiles columns
@@ -264,8 +278,10 @@ function init() {
     const r = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(username, hash, role);
     return r.lastInsertRowid;
   }
-  const JHONNY_ID = ensureUser('jhonny', 'Pakistan@125', 'admin');
+  const JHONNY_ID = ensureUser('jhonny', 'Pakistan@125', 'master');
   const ROBIN_ID  = ensureUser('robin',  'Robin@123',    'admin');
+  // Promote jhonny if an older DB still has him on the legacy 'admin' role
+  db.prepare("UPDATE users SET role = 'master' WHERE username = 'jhonny' AND role != 'master'").run();
 
   // ── Add owner_id to top-level tables ─────────────────────────────────────
   function addOwnerCol(table, defaultOwner) {
@@ -333,7 +349,88 @@ function setUserPassword(id, hash) {
 }
 
 function listUsers() {
-  return db.prepare('SELECT id, username, role FROM users ORDER BY username ASC').all();
+  return db.prepare('SELECT id, username, role, created_at FROM users ORDER BY username ASC').all();
+}
+
+function listUsersWithStats() {
+  // Per-user counts of clients, profiles, watches, sold count
+  return db.prepare(`
+    SELECT
+      u.id, u.username, u.role, u.created_at,
+      COUNT(DISTINCT c.id) AS clients_count,
+      COUNT(DISTINCT p.id) AS profiles_count,
+      COUNT(DISTINCT w.id) AS watches_count,
+      COUNT(DISTINCT CASE WHEN w.status = 'sold' THEN w.id END) AS sold_count
+    FROM users u
+    LEFT JOIN clients  c ON c.owner_id = u.id
+    LEFT JOIN profiles p ON p.owner_id = u.id
+    LEFT JOIN watches  w ON w.profile_id = p.id
+    GROUP BY u.id
+    ORDER BY u.username ASC
+  `).all();
+}
+
+function createUser({ username, passwordHash, role }) {
+  const r = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(username, passwordHash, role || 'admin');
+  const id = r.lastInsertRowid;
+  // Seed the new user's shop catalogue
+  const count = db.prepare('SELECT COUNT(*) AS c FROM shops WHERE owner_id = ?').get(id).c;
+  if (count === 0) {
+    const ins = db.prepare('INSERT INTO shops (name, address, owner_id) VALUES (?, ?, ?)');
+    SHOPS_SEED.forEach(s => ins.run(s.name, s.address, id));
+  }
+  return id;
+}
+
+function updateUserRole(id, role) {
+  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+}
+
+function deleteUser(id) {
+  // CASCADE removes shops/clients/portfolios/profiles/settings owned by user
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+}
+
+// ── Audit log ─────────────────────────────────────────────────────────────
+
+function logAudit({ actorId, actorUsername, viewingAs, action, targetType, targetId, details }) {
+  try {
+    db.prepare(`
+      INSERT INTO audit_log (actor_id, actor_user, viewing_as, action, target_type, target_id, details)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      actorId ?? null,
+      actorUsername ?? null,
+      viewingAs ?? null,
+      action,
+      targetType,
+      targetId ?? null,
+      details ? JSON.stringify(details).slice(0, 4000) : null
+    );
+  } catch (e) {
+    console.warn('[audit] log failed:', e.message);
+  }
+}
+
+function listAuditLog({ limit = 200, offset = 0, actorId, targetType, action, viewingAs } = {}) {
+  let sql = 'SELECT * FROM audit_log WHERE 1=1';
+  const params = [];
+  if (actorId)    { sql += ' AND actor_id = ?';   params.push(Number(actorId)); }
+  if (targetType) { sql += ' AND target_type = ?'; params.push(targetType); }
+  if (action)     { sql += ' AND action = ?';      params.push(action); }
+  if (viewingAs)  { sql += ' AND viewing_as = ?';  params.push(Number(viewingAs)); }
+  sql += ' ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?';
+  params.push(Number(limit), Number(offset));
+  return db.prepare(sql).all(...params);
+}
+
+function countAuditLog(filters = {}) {
+  let sql = 'SELECT COUNT(*) AS c FROM audit_log WHERE 1=1';
+  const params = [];
+  if (filters.actorId)    { sql += ' AND actor_id = ?';   params.push(Number(filters.actorId)); }
+  if (filters.targetType) { sql += ' AND target_type = ?'; params.push(filters.targetType); }
+  if (filters.action)     { sql += ' AND action = ?';      params.push(filters.action); }
+  return db.prepare(sql).get(...params).c;
 }
 
 // ── Shops ─────────────────────────────────────────────────────────────────
@@ -918,7 +1015,9 @@ function _syncLossStatus(watchId) {
 
 module.exports = {
   init,
-  getUserByUsername, getUserById, setUserPassword, listUsers,
+  getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
+  createUser, updateUserRole, deleteUser,
+  logAudit, listAuditLog, countAuditLog,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
   listClients, getClient, getClientByMasterId, getClientWithMemberships, createClient, updateClient, deleteClient,

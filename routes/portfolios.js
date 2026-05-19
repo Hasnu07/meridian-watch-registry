@@ -3,9 +3,10 @@
 const express = require('express');
 const crypto  = require('crypto');
 const db      = require('../db');
+const audit   = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.user.id;
+const uid    = req => req.session.viewing_as || req.session.user.id;
 
 // GET /api/portfolios?shop_id=X
 router.get('/', (req, res) => {
@@ -20,6 +21,7 @@ router.post('/', (req, res) => {
   // Make sure the target shop belongs to this user
   if (!db.getShop(Number(shop_id), uid(req))) return res.status(404).json({ error: 'Shop not found' });
   const id = db.createPortfolio({ name: name.trim(), shop_id: Number(shop_id), ownerId: uid(req) });
+  audit(req, { action: 'create', targetType: 'portfolio', targetId: id, details: { name: name.trim(), shop_id: Number(shop_id), owner_id: uid(req) } });
   res.status(201).json(db.getPortfolio(id, uid(req)));
 });
 
@@ -36,13 +38,16 @@ router.put('/:id', (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   db.updatePortfolio(req.params.id, { name: name.trim() }, uid(req));
+  audit(req, { action: 'update', targetType: 'portfolio', targetId: Number(req.params.id), details: { name: name.trim() } });
   res.json(db.getPortfolio(req.params.id, uid(req)));
 });
 
 // DELETE /api/portfolios/:id
 router.delete('/:id', (req, res) => {
-  if (!db.getPortfolio(req.params.id, uid(req))) return res.status(404).json({ error: 'Not found' });
+  const pf = db.getPortfolio(req.params.id, uid(req));
+  if (!pf) return res.status(404).json({ error: 'Not found' });
   db.deletePortfolio(req.params.id, uid(req));
+  audit(req, { action: 'delete', targetType: 'portfolio', targetId: Number(req.params.id), details: { name: pf.name } });
   res.json({ ok: true });
 });
 

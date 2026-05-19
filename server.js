@@ -66,7 +66,9 @@ function requireAuth(req, res, next) {
   res.status(401).json({ error: 'Unauthorised' });
 }
 
-const uid = req => req.session.user.id;
+// uid() respects the "view-as" impersonation flag a master may have set.
+// Audit calls use req.session.user.id directly so actions stay attributable.
+const uid = req => req.session.viewing_as || req.session.user.id;
 
 // ── Routes ────────────────────────────────────────────────────────────────
 // Rate-limit login attempts (per IP) to slow down brute-force attacks.
@@ -89,6 +91,7 @@ app.use('/api/profiles',                          requireAuth, require('./routes
 app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes/company-docs'));
 app.use('/api/watches',                           requireAuth, require('./routes/watches'));
 app.use('/api',                                   requireAuth, require('./routes/loss-payments'));
+app.use('/api/admin',                             requireAuth, require('./routes/admin'));
 
 // ── Public portfolio share ────────────────────────────────────────────────
 app.get('/p/:token', (req, res) => {
@@ -128,6 +131,7 @@ app.post('/api/settings/password', requireAuth, async (req, res) => {
 
   const newHash = await bcrypt.hash(new_password, 10);
   db.setUserPassword(user.id, newHash);
+  db.logAudit({ actorId: user.id, actorUsername: user.username, action: 'password_change', targetType: 'user', targetId: user.id, details: { self: true } });
   res.json({ ok: true });
 });
 

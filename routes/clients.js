@@ -5,9 +5,10 @@ const path    = require('path');
 const multer  = require('multer');
 const db      = require('../db');
 const storage = require('../lib/storage');
+const audit   = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.user.id;
+const uid    = req => req.session.viewing_as || req.session.user.id;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -35,6 +36,7 @@ router.post('/', (req, res) => {
     try {
       const photoUrl = req.file ? await storage.uploadFile(req.file, 'meridian/clients/photos') : null;
       const id = db.createClient({ name: name.trim(), photo_path: photoUrl, ownerId: uid(req) });
+      audit(req, { action: 'create', targetType: 'client', targetId: id, details: { name: name.trim(), owner_id: uid(req) } });
       res.status(201).json(db.getClient(id, uid(req)));
     } catch (e) {
       res.status(500).json({ error: e.message || 'Database error' });
@@ -77,6 +79,7 @@ router.put('/:id', (req, res) => {
         updates.photo_path = await storage.uploadFile(req.file, 'meridian/clients/photos');
       }
       db.updateClient(req.params.id, updates, uid(req));
+      audit(req, { action: 'update', targetType: 'client', targetId: Number(req.params.id), details: { fields: Object.keys(updates) } });
       res.json(db.getClient(req.params.id, uid(req)));
     } catch (e) {
       res.status(500).json({ error: e.message || 'Database error' });
@@ -94,6 +97,7 @@ router.delete('/:id', async (req, res) => {
   }
   await storage.deleteFile(client.photo_path);
   db.deleteClient(req.params.id, uid(req));
+  audit(req, { action: 'delete', targetType: 'client', targetId: Number(req.params.id), details: { name: client.name } });
   res.json({ ok: true });
 });
 

@@ -5,9 +5,10 @@ const path    = require('path');
 const multer  = require('multer');
 const db      = require('../db');
 const storage = require('../lib/storage');
+const audit   = require('../lib/audit');
 
 const router = express.Router({ mergeParams: true });
-const uid    = req => req.session.user.id;
+const uid    = req => req.session.viewing_as || req.session.user.id;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -42,6 +43,7 @@ router.post('/', (req, res) => {
         shop_name: shop_name.trim(),
         doc_path:  docUrl,
       });
+      audit(req, { action: 'create', targetType: 'company_doc', targetId: docId, details: { profile_id: req.params.id, shop_name: shop_name.trim() } });
       res.status(201).json(db.getCompanyDoc(docId, uid(req)));
     } catch (e) {
       return res.status(500).json({ error: e.message || 'Upload failed' });
@@ -57,6 +59,7 @@ router.delete('/:docId', async (req, res) => {
   }
   await storage.deleteFile(doc.doc_path);
   db.deleteCompanyDoc(req.params.docId, uid(req));
+  audit(req, { action: 'delete', targetType: 'company_doc', targetId: Number(req.params.docId), details: { profile_id: req.params.id, shop_name: doc.shop_name } });
   res.json({ ok: true });
 });
 
