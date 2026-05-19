@@ -157,14 +157,21 @@
           <p class="text-on-surface-variant text-sm mt-2">Overview of your Meridian horology portfolio and client registry.</p>
         </div>
         <!-- Stats bento -->
-        <div class="grid grid-cols-1 max-w-[220px] gap-4 mb-10">
+        <div class="grid grid-cols-2 max-w-[460px] gap-4 mb-10">
           <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
             <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Shops</span>
             <div><div id="s-shops" class="text-3xl font-playfair font-medium text-on-surface">—</div></div>
           </div>
+          <div class="glass-surface rounded-xl p-5 flex flex-col justify-between min-h-[130px]">
+            <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Clients</span>
+            <div>
+              <div id="s-clients" class="text-3xl font-playfair font-medium text-on-surface">—</div>
+              <p id="s-clients-sub" class="text-[10px] text-on-surface-variant mt-1">— watches across all memberships</p>
+            </div>
+          </div>
         </div>
         <!-- Recent shops -->
-        <div class="glass-surface rounded-xl overflow-hidden">
+        <div class="glass-surface rounded-xl overflow-hidden mb-6">
           <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
             <h3 class="font-playfair text-xl text-on-surface">Shops</h3>
             <button class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline transition-all" data-page="shops">View All Shops</button>
@@ -180,6 +187,27 @@
                 </tr>
               </thead>
               <tbody id="recentShops" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Clients overview -->
+        <div class="glass-surface rounded-xl overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between">
+            <h3 class="font-playfair text-xl text-on-surface">Clients</h3>
+            <button class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline transition-all" data-page="profiles">View All Clients</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Master ID</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Memberships</th>
+                  <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Watches</th>
+                  <th class="px-6 py-4"></th>
+                </tr>
+              </thead>
+              <tbody id="recentClients" class="divide-y divide-white/[0.04]"></tbody>
             </table>
           </div>
         </div>
@@ -1844,8 +1872,18 @@ document.getElementById('newUserSubmit')?.addEventListener('click', async () => 
 });
 
 async function loadDashboard() {
-  const shops = await api('GET', '/api/shops');
-  document.getElementById('s-shops').textContent = shops.length.toLocaleString();
+  // Pull shops + clients in parallel; portfolio counts then per-shop
+  const [shops, clients] = await Promise.all([
+    api('GET', '/api/shops'),
+    api('GET', '/api/clients'),
+  ]);
+  document.getElementById('s-shops').textContent   = shops.length.toLocaleString();
+  document.getElementById('s-clients').textContent = clients.length.toLocaleString();
+
+  const totalWatchesAcrossClients = clients.reduce((s, c) => s + (c.watch_count || 0), 0);
+  document.getElementById('s-clients-sub').textContent = `${totalWatchesAcrossClients.toLocaleString()} watch${totalWatchesAcrossClients !== 1 ? 'es' : ''} across all memberships`;
+
+  // Shops table
   const portfoliosPerShop = await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)));
   const portfolioMap = {};
   shops.forEach((s, i) => { portfolioMap[s.id] = portfoliosPerShop[i].length; });
@@ -1866,6 +1904,25 @@ async function loadDashboard() {
       </td>
     </tr>
   `).join('') : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No shops yet.</td></tr>`;
+
+  // Clients table — sorted most watches first so the busiest stand out
+  const sortedClients = [...clients].sort((a, b) => (b.watch_count || 0) - (a.watch_count || 0));
+  document.getElementById('recentClients').innerHTML = sortedClients.length ? sortedClients.map(c => `
+    <tr class="tbl-row cursor-pointer" onclick="openClientDetail(${c.id})">
+      <td class="px-6 py-5">
+        <div class="flex items-center gap-3">
+          ${avatarHtml(c.name, c.photo_path, 'sm')}
+          <span class="text-on-surface font-medium text-sm">${esc(c.name)}</span>
+        </div>
+      </td>
+      <td class="px-6 py-5 text-on-surface-variant text-xs font-mono">${c.master_id ? '#' + esc(c.master_id) : '—'}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${c.membership_count || 0} shop${(c.membership_count || 0) !== 1 ? 's' : ''}</td>
+      <td class="px-6 py-5 text-on-surface-variant text-sm">${c.watch_count || 0} watch${(c.watch_count || 0) !== 1 ? 'es' : ''}</td>
+      <td class="px-6 py-5 text-right">
+        <button onclick="event.stopPropagation(); openClientDetail(${c.id})" class="text-[10px] font-semibold uppercase tracking-widest text-primary hover:underline px-3 py-1 border border-transparent hover:border-primary/20 rounded transition-all">View</button>
+      </td>
+    </tr>
+  `).join('') : `<tr><td colspan="5" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients yet — add one from the Clients page.</td></tr>`;
 }
 
 // ── Main KPI ───────────────────────────────────────────────────────────────
