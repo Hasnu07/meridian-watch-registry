@@ -5,3 +5,6 @@ registry.db-shm
 registry.db-wal
 uploads/
 .claude/
+sessions.sqlite
+sessions.sqlite-journal
+.session-secret

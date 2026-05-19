@@ -3297,10 +3297,6 @@ function renderWishlistWaiting() {
   }).join('');
 }
 
-function sourceBadge(source) {
-  if (source === 'Company') return `<span class="px-3 py-1 border border-primary/50 text-primary text-[10px] font-semibold uppercase tracking-wider rounded-full">Company</span>`;
-  return `<span class="px-3 py-1 border border-outline-variant/40 text-on-surface-variant text-[10px] font-semibold uppercase tracking-wider rounded-full">Dealer</span>`;
-}
 
 function avatarHtml(name, photoPath, size = 'sm') {
   const dim    = size === 'lg' ? 'w-16 h-16 text-xl' : 'w-10 h-10 text-sm';

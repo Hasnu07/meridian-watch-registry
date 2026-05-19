@@ -2,13 +2,17 @@
 
 require('dotenv').config();
 
-const express   = require('express');
-const session   = require('express-session');
-const path      = require('path');
-const bcrypt    = require('bcrypt');
-const cron      = require('node-cron');
-const db        = require('./db');
-const notifier  = require('./lib/wishlist-notifier');
+const express     = require('express');
+const session     = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
+const rateLimit   = require('express-rate-limit');
+const fs          = require('fs');
+const crypto      = require('crypto');
+const path        = require('path');
+const bcrypt      = require('bcrypt');
+const cron        = require('node-cron');
+const db          = require('./db');
+const notifier    = require('./lib/wishlist-notifier');
 const { UPLOADS_DIR } = require('./config');
 
 // ── Initialise database ───────────────────────────────────────────────────
@@ -17,12 +21,37 @@ db.init();
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Session secret (auto-generate once if env var not set) ────────────────
+// We never want to ship the literal 'fallback-secret'. If SESSION_SECRET
+// isn't set we persist a generated 64-byte hex string to .session-secret
+// the first time the server starts and reuse it on subsequent boots.
+function loadOrCreateSessionSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  const secretPath = path.join(__dirname, '.session-secret');
+  try {
+    if (fs.existsSync(secretPath)) {
+      const s = fs.readFileSync(secretPath, 'utf8').trim();
+      if (s.length >= 32) return s;
+    }
+  } catch {}
+  const generated = crypto.randomBytes(64).toString('hex');
+  try {
+    fs.writeFileSync(secretPath, generated, { mode: 0o600 });
+    console.log('[session] Generated new SESSION_SECRET → .session-secret (gitignore this file)');
+  } catch (e) {
+    console.warn('[session] Could not persist session secret:', e.message);
+  }
+  return generated;
+}
+
 // ── Middleware ────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Persistent session store — sessions survive server restarts
 app.use(session({
-  secret:            process.env.SESSION_SECRET || 'fallback-secret',
+  store:             new SQLiteStore({ db: 'sessions.sqlite', dir: __dirname }),
+  secret:            loadOrCreateSessionSecret(),
   resave:            false,
   saveUninitialized: false,
   cookie:            { httpOnly: true, maxAge: 8 * 60 * 60 * 1000 }, // 8 h
@@ -40,12 +69,22 @@ function requireAuth(req, res, next) {
 const uid = req => req.session.user.id;
 
 // ── Routes ────────────────────────────────────────────────────────────────
+// Rate-limit login attempts (per IP) to slow down brute-force attacks.
+// 10 attempts / 15 min is plenty for legitimate typos and far below what
+// a credential-stuffing bot needs.
+const loginLimiter = rateLimit({
+  windowMs:        15 * 60 * 1000,
+  max:             10,
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message:         { error: 'Too many login attempts — please wait 15 minutes and try again.' },
+});
+app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', require('./routes/auth'));
 
 app.use('/api/shops',                             requireAuth, require('./routes/shops'));
 app.use('/api/portfolios',                        requireAuth, require('./routes/portfolios'));
 app.use('/api/clients',                           requireAuth, require('./routes/clients'));
-app.use('/api/_restore',                          require('./routes/restore'));
 app.use('/api/profiles',                          requireAuth, require('./routes/profiles'));
 app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes/company-docs'));
 app.use('/api/watches',                           requireAuth, require('./routes/watches'));
@@ -138,28 +177,30 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
-// ── WhatsApp wishlist cron — fires every user's reminders separately ─────
-let _cronJob = null;
+// ── WhatsApp wishlist cron — independent schedule per user ───────────────
+// Each user picks their own notify hour in Settings. We register one cron
+// job per user so jhonny can fire at 09:00 and robin at 14:00 etc.
+const _userCronJobs = new Map();  // userId → cron task
 
 function scheduleCron() {
-  if (_cronJob) { _cronJob.stop(); _cronJob = null; }
-  // Use any user's configured hour as the schedule time, falling back to 09.
-  // (Cron fires once per day; inside the callback we iterate all users.)
-  const users = db.listUsers();
-  let hour = 9;
-  for (const u of users) {
-    const h = db.getSetting(u.id, 'greenapi_notify_hour');
-    if (h != null && h !== '') { hour = Math.max(0, Math.min(23, parseInt(h, 10) || 9)); break; }
-  }
-  _cronJob = cron.schedule(`0 ${hour} * * *`, async () => {
-    console.log(`[WhatsApp] Daily wishlist check at ${hour}:00`);
-    for (const u of db.listUsers()) {
+  // Tear down existing jobs
+  for (const job of _userCronJobs.values()) job.stop();
+  _userCronJobs.clear();
+
+  for (const u of db.listUsers()) {
+    const hourStr = db.getSetting(u.id, 'greenapi_notify_hour');
+    if (hourStr == null || hourStr === '') continue;  // user hasn't configured a time
+    const hour = Math.max(0, Math.min(23, parseInt(hourStr, 10) || 9));
+    const job  = cron.schedule(`0 ${hour} * * *`, async () => {
+      console.log(`[WhatsApp] [${u.username}] daily wishlist check at ${hour}:00`);
       const result = await notifier.checkAndNotifyForUser(u.id);
       if (result.sent)        console.log(`[WhatsApp] [${u.username}] sent ${result.count} reminder(s)`);
       else if (result.error)  console.warn(`[WhatsApp] [${u.username}] error: ${result.error}`);
-    }
-  });
-  console.log(`[WhatsApp] Daily reminder scheduled at ${hour}:00 (fans out to all users)`);
+    });
+    _userCronJobs.set(u.id, job);
+    console.log(`[WhatsApp] [${u.username}] daily reminder scheduled at ${hour}:00`);
+  }
+  if (_userCronJobs.size === 0) console.log('[WhatsApp] No users have configured a notify hour yet');
 }
 
 scheduleCron();

@@ -23,11 +23,6 @@ function init() {
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
 
-    CREATE TABLE IF NOT EXISTS admin (
-      id            INTEGER PRIMARY KEY,
-      password_hash TEXT NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       username      TEXT UNIQUE NOT NULL,
@@ -163,17 +158,23 @@ function init() {
   // Rename legacy 'pipeline' status to 'wishlist'
   db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
-  // Drop NOT NULL from profiles.email — rebuild table (SQLite 12-step procedure)
+  // Profiles email: drop NOT NULL + drop global UNIQUE in favour of per-owner UNIQUE.
+  // We detect "needs rebuild" two ways:
+  //   1) email column is still NOT NULL  (very old schema)
+  //   2) email column is still global UNIQUE (intermediate schema)
+  // After rebuild we add a partial UNIQUE INDEX on (owner_id, email).
+  const profileSchemaSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='profiles'").get()?.sql || '';
   const emailCol = db.prepare("PRAGMA table_info(profiles)").all().find(c => c.name === 'email');
-  if (emailCol && emailCol.notnull) {
+  const emailIsNotNull = emailCol && emailCol.notnull;
+  const emailIsGloballyUnique = /email\s+TEXT\s+UNIQUE/i.test(profileSchemaSql);
+  if (emailIsNotNull || emailIsGloballyUnique) {
     const allCols = db.prepare("PRAGMA table_info(profiles)").all();
     const colDefs = allCols.map(c => {
-      if (c.pk)                    return `${c.name} INTEGER PRIMARY KEY AUTOINCREMENT`;
-      if (c.name === 'email')      return 'email TEXT UNIQUE';
+      if (c.pk)               return `${c.name} INTEGER PRIMARY KEY AUTOINCREMENT`;
+      if (c.name === 'email') return 'email TEXT';   // no NOT NULL, no UNIQUE
       let def = `${c.name} ${c.type || ''}`.trim();
       if (c.notnull) def += ' NOT NULL';
       if (c.dflt_value != null) {
-        // Wrap function-call defaults (e.g. datetime('now')) in parens; leave literals alone
         const needsParens = /[()]/.test(c.dflt_value);
         def += ` DEFAULT ${needsParens ? `(${c.dflt_value})` : c.dflt_value}`;
       }
@@ -195,6 +196,11 @@ function init() {
     db.exec('COMMIT');
     db.exec('PRAGMA foreign_keys = ON');
   }
+  // Per-owner email uniqueness (NULL emails are ignored — SQLite indices treat NULL as distinct)
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_owner_email ON profiles (owner_id, email) WHERE email IS NOT NULL");
+
+  // Drop the legacy single-password admin table if it still exists
+  db.exec("DROP TABLE IF EXISTS admin");
 
   // Migrate clients columns — add master_id if missing
   const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(r => r.name);
@@ -249,13 +255,6 @@ function init() {
   const unshared = db.prepare("SELECT id FROM portfolios WHERE share_token IS NULL").all();
   const backfill = db.prepare("UPDATE portfolios SET share_token = ? WHERE id = ?");
   for (const pt of unshared) backfill.run(crypto.randomBytes(32).toString('hex'), pt.id);
-
-  // Seed admin row if missing (legacy fallback only)
-  const row = db.prepare('SELECT id FROM admin WHERE id = 1').get();
-  if (!row) {
-    const hash = bcrypt.hashSync(process.env.ADMIN_PASSWORD || 'admin123', 10);
-    db.prepare('INSERT INTO admin (id, password_hash) VALUES (1, ?)').run(hash);
-  }
 
   // ── Seed user accounts (multi-tenancy) ───────────────────────────────────
   function ensureUser(username, password, role) {
@@ -317,16 +316,6 @@ function init() {
   }
   seedShopsForUser(JHONNY_ID);
   seedShopsForUser(ROBIN_ID);
-}
-
-// ── Admin (legacy single-password — retained for back-compat only) ────────
-
-function getAdminHash() {
-  return db.prepare('SELECT password_hash FROM admin WHERE id = 1').get()?.password_hash;
-}
-
-function setAdminPassword(hash) {
-  db.prepare('UPDATE admin SET password_hash = ? WHERE id = 1').run(hash);
 }
 
 // ── Users (multi-tenant accounts) ─────────────────────────────────────────
@@ -929,7 +918,6 @@ function _syncLossStatus(watchId) {
 
 module.exports = {
   init,
-  getAdminHash, setAdminPassword,
   getUserByUsername, getUserById, setUserPassword, listUsers,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
