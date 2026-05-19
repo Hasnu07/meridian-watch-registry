@@ -2838,47 +2838,33 @@ function computePnl(profile) {
     netPnlByCur[c] = (totalProfitByCur[c] || 0) + (totalLossByCur[c] || 0);
   }
 
-  // My P&L / Client P&L per currency.
-  // PREFERRED method: my_received - my_cost (and client equivalent) per watch.
-  // This is the actual cash gain/loss recorded against each sale.
-  // FALLBACK (only when received fields aren't filled in): use the trading-
-  // rule split as a derivation, so legacy data still displays something
-  // sensible until the user fills in the new fields.
-  const myPnlByCur     = byCur(soldWatches, w => (w.my_received     != null && w.my_cost     != null) ? (w.my_received     - w.my_cost)     : 0);
-  const clientPnlByCur = byCur(soldWatches, w => (w.client_received != null && w.client_cost != null) ? (w.client_received - w.client_cost) : 0);
-
-  // Watches that have received data on at least one side → covered by the
-  // per-watch method. The rest fall back to the legacy split-rule calc.
-  const coveredIds = new Set(soldWatches.filter(w =>
-    (w.my_received != null && w.my_cost != null) ||
-    (w.client_received != null && w.client_cost != null)
-  ).map(w => w.id));
-  const uncovered = soldWatches.filter(w => !coveredIds.has(w.id));
-  if (uncovered.length) {
-    if (isDiscount) {
-      for (const w of uncovered) {
-        if (w.list_price == null || w.sale_price == null) continue;
-        const c = w.currency || 'CHF';
-        if (w.sale_price > w.list_price) {
-          const inc = w.sale_price * (w.discount_rate_applied ?? discountSplit);
-          myPnlByCur[c] = (myPnlByCur[c] || 0) + inc;
-        } else if (w.sale_price < w.list_price) {
-          clientPnlByCur[c] = (clientPnlByCur[c] || 0) - (w.list_price - w.sale_price);
-        }
-      }
-    } else {
-      // Split mode legacy fallback
-      const ucNet = byCur(uncovered, w => (w.list_price != null && w.sale_price != null) ? (w.sale_price - w.list_price) : 0);
-      for (const [c, net] of Object.entries(ucNet)) {
-        const splitMe = net >= 0 ? profitSplit : lossSplit;
-        myPnlByCur[c]     = (myPnlByCur[c]     || 0) + (splitMe / 100) * net;
-        clientPnlByCur[c] = (clientPnlByCur[c] || 0) + ((100 - splitMe) / 100) * net;
+  // My P&L / Client P&L per currency — always use the trading-rule split so
+  // the tiles are consistent with the "Rules Applied to P&L" section and the
+  // hover tooltip.  Per-watch received/cost data is still shown in the watch
+  // expansion banner; it is not used here to avoid tile/tooltip divergence when
+  // the user has partially or incorrectly filled in those fields.
+  const myPnlByCur     = {};
+  const clientPnlByCur = {};
+  if (isDiscount) {
+    // Discount mode: per-watch income (Panel A) / liability (Panel B)
+    for (const w of soldWatches) {
+      if (w.list_price == null || w.sale_price == null) continue;
+      const c = w.currency || 'CHF';
+      if (w.sale_price > w.list_price) {
+        const inc = w.sale_price * (w.discount_rate_applied ?? discountSplit);
+        myPnlByCur[c] = (myPnlByCur[c] || 0) + inc;
+      } else if (w.sale_price < w.list_price) {
+        clientPnlByCur[c] = (clientPnlByCur[c] || 0) - (w.list_price - w.sale_price);
       }
     }
-  }
-  // Drop zero entries so fmt.byCurrency renders cleanly
-  for (const m of [myPnlByCur, clientPnlByCur]) {
-    for (const k of Object.keys(m)) if (!m[k]) delete m[k];
+  } else {
+    // Split mode: apply profit/loss split to the net P&L per currency
+    for (const [c, net] of Object.entries(netPnlByCur)) {
+      if (!net) continue;
+      const splitMe = net >= 0 ? profitSplit : lossSplit;
+      myPnlByCur[c]     = (splitMe / 100) * net;
+      clientPnlByCur[c] = ((100 - splitMe) / 100) * net;
+    }
   }
 
   // Legacy single-currency totals (used by older code paths / displays)
@@ -2930,8 +2916,9 @@ function computePnl(profile) {
 //   "My P&L"     = Panel A (discount income)
 //   "Client P&L" = -Total Loss Exposure (client liability via Panel B)
 function renderPortfolioSummary9(p, mc, sgn, cls) {
-  const myPnlNote     = p.isDiscount ? `Panel A · ${p.profitWatchCount} sale${p.profitWatchCount !== 1 ? 's' : ''}` : `${p.netPnl >= 0 ? p.profitSplit : p.lossSplit}% of net`;
-  const clientPnlNote = p.isDiscount ? `Panel B liability` : `${p.netPnl >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}% of net`;
+  const activeSplit   = (p.netPnl || 0) >= 0 ? p.profitSplit : p.lossSplit;
+  const myPnlNote     = p.isDiscount ? `Panel A · ${p.profitWatchCount} sale${p.profitWatchCount !== 1 ? 's' : ''}` : (activeSplit != null ? `${activeSplit}% of net` : 'split rule');
+  const clientPnlNote = p.isDiscount ? `Panel B liability` : (activeSplit != null ? `${100 - activeSplit}% of net` : 'split rule');
 
   // ── Build per-tile tooltip HTML ────────────────────────────────────────
   const paidWatches = [...(p.activeWatches || []), ...(p.soldWatches || [])];
@@ -2997,7 +2984,7 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
           <div class="flex justify-between"><span class="text-on-surface-variant">Gross profit</span><span class="font-mono text-emerald-400">+${mc(p.totalProfit || 0)}</span></div>
           <div class="flex justify-between"><span class="text-on-surface-variant">Gross loss</span><span class="font-mono ${(p.totalLoss || 0) < 0 ? 'text-error' : 'text-on-surface-variant'}">${mc(p.totalLoss || 0)}</span></div>
           <div class="flex justify-between border-t border-outline-variant/15 pt-1.5"><span class="text-on-surface font-semibold">Net P&amp;L</span><span class="font-mono ${cls(p.netPnl || 0)}">${sgn(p.netPnl || 0)}${mc(p.netPnl || 0)}</span></div>
-          <div class="flex justify-between"><span class="text-on-surface-variant">Split applied</span><span class="font-mono text-on-surface">${(p.netPnl || 0) >= 0 ? p.profitSplit : p.lossSplit}%</span></div>
+          ${activeSplit != null ? `<div class="flex justify-between"><span class="text-on-surface-variant">Split applied</span><span class="font-mono text-on-surface">${activeSplit}%</span></div>` : ''}
           <div class="flex justify-between border-t border-outline-variant/15 pt-1.5"><span class="text-on-surface font-semibold">My share</span><span class="font-mono ${cls(p.myPnl || 0)}">${sgn(p.myPnl || 0)}${mc(p.myPnl || 0)}</span></div>
         </div>
       </div>`;
@@ -3017,7 +3004,7 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
         <p class="text-[10px] uppercase tracking-widest text-primary font-semibold mb-2">Client Share Calculation</p>
         <div class="space-y-1.5 text-[11px]">
           <div class="flex justify-between"><span class="text-on-surface-variant">Net P&amp;L</span><span class="font-mono ${cls(p.netPnl || 0)}">${sgn(p.netPnl || 0)}${mc(p.netPnl || 0)}</span></div>
-          <div class="flex justify-between"><span class="text-on-surface-variant">Split applied</span><span class="font-mono text-on-surface">${(p.netPnl || 0) >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}%</span></div>
+          ${activeSplit != null ? `<div class="flex justify-between"><span class="text-on-surface-variant">Split applied</span><span class="font-mono text-on-surface">${100 - activeSplit}%</span></div>` : ''}
           <div class="flex justify-between border-t border-outline-variant/15 pt-1.5"><span class="text-on-surface font-semibold">Client share</span><span class="font-mono ${cls(p.clientPnl || 0)}">${sgn(p.clientPnl || 0)}${mc(p.clientPnl || 0)}</span></div>
         </div>
       </div>`;
@@ -3059,7 +3046,7 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
         <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 transition-all hover:bg-white/[0.05] hover:ring-1 hover:ring-purple-500/20">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Total Cost</p>
           <div class="font-playfair text-lg text-purple-300">${fmt.byCurrency(p.clientTotalCostByCur || {})}</div>
-          <p class="text-[10px] text-on-surface-variant mt-0.5">${p.purchasedCount + p.soldCount} watch${(p.purchasedCount + p.soldCount) !== 1 ? 'es' : ''} paid</p>
+          <p class="text-[10px] text-on-surface-variant mt-0.5">${p.clientTotalCost > 0 ? `${p.purchasedCount + p.soldCount} watch${(p.purchasedCount + p.soldCount) !== 1 ? 'es' : ''} paid` : 'no client capital'}</p>
           <div class="tip-html hidden">${tipClientCost}</div>
         </div>
         <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border border-primary/15 transition-all hover:bg-white/[0.05] hover:ring-1 hover:ring-primary/30">
