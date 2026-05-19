@@ -4659,11 +4659,16 @@ function resetWatchImgPreview(src) {
 // ── Watch status toggle ────────────────────────────────────────
 function setWatchStatus(status) {
   document.getElementById('wStatus').value = status;
+  // Use classList instead of reassigning className so the 'hidden' class
+  // that openAddWatch/openEditWatch puts on the Sold button is preserved.
+  const ACTIVE   = ['bg-primary/15','border-primary/40','text-primary'];
+  const INACTIVE = ['border-outline-variant/30','text-on-surface-variant','hover:bg-surface-variant/30'];
   ['wishlist','purchased','sold'].forEach(s => {
     const idMap = {wishlist:'wStatusWishlistBtn',purchased:'wStatusPurchasedBtn',sold:'wStatusSoldBtn'};
     const btn = document.getElementById(idMap[s]);
     if (!btn) return;
-    btn.className = 'flex-1 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-widest border transition-all ' + (s === status ? 'bg-primary/15 border-primary/40 text-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30');
+    btn.classList.remove(...ACTIVE, ...INACTIVE);
+    btn.classList.add(...(s === status ? ACTIVE : INACTIVE));
   });
   document.getElementById('wSalePriceWrap').classList.toggle('hidden', status !== 'sold');
   document.getElementById('wCostWrap').classList.toggle('hidden', status === 'wishlist');
