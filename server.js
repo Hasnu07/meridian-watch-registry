@@ -94,6 +94,7 @@ app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes
 app.use('/api/watches',                           requireAuth, require('./routes/watches'));
 app.use('/api',                                   requireAuth, require('./routes/loss-payments'));
 app.use('/api',                                   requireAuth, require('./routes/expenses'));
+app.use('/api',                                   requireAuth, require('./routes/payouts'));
 app.use('/api/admin',                             requireAuth, require('./routes/admin'));
 
 // ── Public portfolio share ────────────────────────────────────────────────

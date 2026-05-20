@@ -120,8 +120,10 @@ router.get('/:id', (req, res) => {
   if (!profile) return res.status(404).json({ error: 'Not found' });
   const watches = db.listWatchesForProfile(req.params.id, uid(req)).map(w => ({
     ...w,
-    loss_payments: db.listLossPayments(w.id),
-    expenses:      db.listExpenses(w.id),
+    loss_payments:  db.listLossPayments(w.id),
+    expenses:       db.listExpenses(w.id),
+    client_payouts: db.listClientPayouts(w.id),
+    my_payouts:     db.listMyPayouts(w.id),
   }));
   res.json({ ...profile, watches });
 });

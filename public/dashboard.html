@@ -1286,6 +1286,7 @@
           </div>
         </div>
         <p id="soldSplitFooter" class="text-[10px] text-on-surface-variant/70"></p>
+        <p class="text-[10px] text-sky-400/60 italic">Initial payout ledger entries will be created from these values. Record further payouts on the Watch Detail page.</p>
       </div>
 
       <!-- Sold To -->
@@ -1465,6 +1466,75 @@
       <button onclick="closeAddExpenseModal()" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
       <button onclick="submitExpense()" class="bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 font-semibold px-6 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2">
         <span class="material-symbols-outlined text-[16px]">add_circle</span> Save Expense
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RECORD PAYOUT MODAL ═════════════════════════════════════════════ -->
+<div id="recordPayoutModal" class="fixed inset-0 z-[115] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-md bg-[#161B22] border border-white/10 rounded-2xl shadow-2xl">
+    <div class="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 id="poTitle" class="font-playfair text-2xl text-sky-400">Record Payout</h2>
+      <button onclick="closeRecordPayoutModal()" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Watch + owing banner -->
+    <div id="poBanner" class="flex items-center gap-4 px-6 py-4 bg-white/[0.02] border-b border-white/[0.06]">
+      <div id="poIconBox" class="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center flex-shrink-0">
+        <span id="poIcon" class="material-symbols-outlined text-sky-400 text-xl">payments</span>
+      </div>
+      <div class="min-w-0 flex-1">
+        <p id="poWatchModel" class="font-semibold text-on-surface text-sm truncate">—</p>
+        <p id="poOwingInfo" class="text-xs text-on-surface-variant mt-0.5">—</p>
+      </div>
+      <span id="poStatusBadge" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-lg border">—</span>
+    </div>
+
+    <div class="p-6 space-y-4">
+      <!-- Date -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Date</label>
+        <input id="poDate" type="date"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-sky-500/60">
+      </div>
+      <!-- Amount -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Amount</label>
+        <div class="flex gap-2">
+          <span id="poCurrencyBadge" class="flex-shrink-0 px-3 py-2.5 bg-surface-variant/30 border border-outline-variant/30 rounded-lg text-sm font-mono text-on-surface-variant">CHF</span>
+          <input id="poAmount" type="text" inputmode="decimal" placeholder="0"
+            oninput="formatMoneyInput(this)"
+            class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-sky-500/60 font-mono">
+        </div>
+        <p id="poRemainingHint" class="text-[10px] text-on-surface-variant mt-1.5"></p>
+      </div>
+      <!-- Method -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Method</label>
+        <select id="poMethod"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-sky-500/60">
+          <option value="BANK_TRANSFER" style="background:#161B22;color:#eae1d4">Bank Transfer</option>
+          <option value="CASH"          style="background:#161B22;color:#eae1d4">Cash</option>
+          <option value="OTHER"         style="background:#161B22;color:#eae1d4">Other</option>
+        </select>
+      </div>
+      <!-- Notes -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Notes (optional)</label>
+        <input id="poNotes" type="text" placeholder="Reference, transaction ID…"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-sky-500/60">
+      </div>
+      <!-- Error -->
+      <p id="poError" class="hidden text-xs text-error bg-error/10 rounded-lg px-4 py-2.5"></p>
+    </div>
+
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+      <button onclick="closeRecordPayoutModal()" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button id="poSaveBtn" onclick="submitRecordPayout()" class="bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 font-semibold px-6 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">payments</span> Save Payout
       </button>
     </div>
   </div>
@@ -2054,6 +2124,13 @@ async function loadMainKpi() {
     }
     const totalExpenses = watches.reduce((s, w) =>
       s + (w.expenses || []).filter(ex => !ex.reversed).reduce((es, ex) => es + ex.amount, 0), 0);
+    // Aggregate payout balances across this profile's watches (paid only — wishlist excluded)
+    let clientRemaining = 0, myRemaining = 0;
+    for (const w of watches.filter(x => x.status !== 'wishlist')) {
+      const enriched = { ...w, profile: prof };
+      clientRemaining += Math.max(0, watchPayoutBalance(enriched, 'client').remaining);
+      myRemaining     += Math.max(0, watchPayoutBalance(enriched, 'my'    ).remaining);
+    }
     return {
       ...prof,
       watches,
@@ -2067,6 +2144,7 @@ async function loadMainKpi() {
       capitalDeployed: (prof.my_capital || 0) + (prof.client_capital || 0),
       available:       (prof.my_remaining || 0) + (prof.client_remaining || 0),
       totalExpenses,
+      clientRemaining, myRemaining,
     };
   });
 
@@ -2081,8 +2159,10 @@ async function loadMainKpi() {
     acc.myShare         += p.myShare;
     acc.clientShare     += p.clientShare;
     acc.totalExpenses   += p.totalExpenses;
+    acc.clientRemaining += p.clientRemaining;
+    acc.myRemaining     += p.myRemaining;
     return acc;
-  }, { capitalDeployed:0, available:0, soldCount:0, activeCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0, totalExpenses:0 });
+  }, { capitalDeployed:0, available:0, soldCount:0, activeCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0, totalExpenses:0, clientRemaining:0, myRemaining:0 });
 
   const m   = v => fmt.money(v);
   const sgn = v => v > 0 ? '+' : '';
@@ -2097,6 +2177,8 @@ async function loadMainKpi() {
     { label: 'Gross Profit',     value: m(totals.grossProfit),      cls: totals.grossProfit >= 0 ? 'text-emerald-400' : 'text-error' },
     { label: 'Gross Loss',       value: m(totals.grossLoss),        cls: totals.grossLoss >= 0 ? 'text-emerald-400' : 'text-error' },
     { label: 'Total Expenses',   value: totals.totalExpenses > 0 ? m(totals.totalExpenses) : '—', cls: totals.totalExpenses > 0 ? 'text-sky-300' : 'text-on-surface-variant/40' },
+    { label: 'Client Outstanding', value: totals.clientRemaining > 0 ? m(totals.clientRemaining) : '—', cls: totals.clientRemaining > 0 ? 'text-purple-300' : 'text-on-surface-variant/40', sub: totals.clientRemaining > 0 ? 'owed to clients' : 'settled' },
+    { label: 'My Outstanding',     value: totals.myRemaining     > 0 ? m(totals.myRemaining)     : '—', cls: totals.myRemaining     > 0 ? 'text-amber-300'  : 'text-on-surface-variant/40', sub: totals.myRemaining     > 0 ? 'not yet withdrawn' : 'settled' },
   ].map(t => `
     <div class="glass-surface rounded-xl p-4">
       <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">${t.label}</p>
@@ -2374,6 +2456,13 @@ function renderClientMasterSummary(client) {
     totalExpenses:           sum('totalExpenses'),
     totalExpensesByCur:      mergeMaps('totalExpensesByCur'),
     adjustedNetPnlByCur:     mergeMaps('adjustedNetPnlByCur'),
+    // Funding & Payouts
+    clientPaidByCur:         mergeMaps('clientPaidByCur'),
+    clientOwedByCur:         mergeMaps('clientOwedByCur'),
+    clientRemainingByCur:    mergeMaps('clientRemainingByCur'),
+    myPaidByCur:             mergeMaps('myPaidByCur'),
+    myOwedByCur:             mergeMaps('myOwedByCur'),
+    myRemainingByCur:        mergeMaps('myRemainingByCur'),
     // Per-watch arrays so tooltips inside the summary still work
     activeWatches:           pnls.flatMap(p => p.activeWatches || []),
     soldWatches:             pnls.flatMap(p => p.soldWatches   || []),
@@ -2992,6 +3081,48 @@ function computePnl(profile) {
     adjustedNetPnlByCur[c] = (adjustedNetPnlByCur[c] || 0) - v;
   }
 
+  // ── Funding & Payouts (per-side balances) ─────────────────────────────────
+  // For each watch, compute contribution + share (sold only) = owed; ledger
+  // sum = paid; remaining = max(0, owed - paid). Grouped by currency for tiles.
+  const clientPaidByCur      = {};
+  const clientOwedByCur      = {};
+  const clientRemainingByCur = {};
+  const myPaidByCur          = {};
+  const myOwedByCur          = {};
+  const myRemainingByCur     = {};
+
+  for (const w of paidWatches) {
+    const c    = w.currency || 'CHF';
+    const cCon = w.client_cost || 0;
+    const mCon = w.my_cost     || 0;
+
+    let cShare = 0, mShare = 0;
+    if (w.status === 'sold' && w.list_price != null && w.sale_price != null) {
+      const gross = w.sale_price - w.list_price;
+      if (isDiscount) {
+        const rate = w.discount_rate_applied ?? discountSplit;
+        mShare = gross > 0 ? w.sale_price * rate : gross * (lossSplit / 100);
+        cShare = gross > 0 ? 0 : gross * ((100 - lossSplit) / 100);
+      } else {
+        const sp = gross >= 0 ? profitSplit : lossSplit;
+        mShare = (sp / 100) * gross;
+        cShare = ((100 - sp) / 100) * gross;
+      }
+    }
+
+    const cOwed = cCon + cShare;
+    const mOwed = mCon + mShare;
+    const cPaid = (w.client_payouts || []).filter(p => !p.reversed).reduce((s, p) => s + p.amount, 0);
+    const mPaid = (w.my_payouts     || []).filter(p => !p.reversed).reduce((s, p) => s + p.amount, 0);
+
+    clientOwedByCur[c]      = (clientOwedByCur[c]      || 0) + cOwed;
+    clientPaidByCur[c]      = (clientPaidByCur[c]      || 0) + cPaid;
+    clientRemainingByCur[c] = (clientRemainingByCur[c] || 0) + Math.max(0, cOwed - cPaid);
+    myOwedByCur[c]          = (myOwedByCur[c]          || 0) + mOwed;
+    myPaidByCur[c]          = (myPaidByCur[c]          || 0) + mPaid;
+    myRemainingByCur[c]     = (myRemainingByCur[c]     || 0) + Math.max(0, mOwed - mPaid);
+  }
+
   return {
     isDiscount, profitSplit, lossSplit, discountSplit,
     grossProfit, grossLoss, discountIncome, netPnl,
@@ -3019,6 +3150,9 @@ function computePnl(profile) {
     lossWatchCount:   lossWatches.length,
     // Expenses
     totalExpenses, totalExpensesByCur, adjustedNetPnlByCur,
+    // Funding & Payouts
+    clientPaidByCur, clientOwedByCur, clientRemainingByCur,
+    myPaidByCur,     myOwedByCur,     myRemainingByCur,
   };
 }
 
@@ -3261,6 +3395,61 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
             <div class="font-playfair text-lg">${fmt.byCurrency(p.adjustedNetPnlByCur || {}, { signed: true, colour: true })}</div>
             <p class="text-[10px] text-on-surface-variant mt-0.5">net P&amp;L − expenses</p>
             <div class="tip-html hidden">${tipAdjPnl}</div>
+          </div>
+        </div>`;
+      })()}
+
+      <!-- Row 5: Client Outstanding + My Outstanding -->
+      ${(() => {
+        const cRemAny = p.clientRemainingByCur && Object.values(p.clientRemainingByCur).some(v => v > 0);
+        const mRemAny = p.myRemainingByCur     && Object.values(p.myRemainingByCur    ).some(v => v > 0);
+        const sumByCur = (a, b) => {
+          const out = { ...(a || {}) };
+          for (const [k, v] of Object.entries(b || {})) out[k] = (out[k] || 0) + v;
+          return out;
+        };
+
+        const clientWatches = paidWatches.filter(w => (w.client_cost || 0) > 0 || (w.client_payouts || []).some(px => !px.reversed));
+        const myWatches     = paidWatches.filter(w => (w.my_cost     || 0) > 0 || (w.my_payouts     || []).some(px => !px.reversed));
+
+        const tipClientOut = buildWatchListTip(
+          'Client Outstanding — per watch',
+          clientWatches,
+          w => {
+            const bal = watchPayoutBalance(w, 'client');
+            return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono ${bal.remaining > 0 ? 'text-purple-300' : 'text-emerald-400'}">${mc(Math.max(0, bal.remaining))}</span></div><div class="text-[9px] text-outline/70">Owed ${mc(bal.owed)} · Paid ${mc(bal.paid)}</div></div>`;
+          },
+          'Total remaining', fmt.byCurrency(p.clientRemainingByCur || {})
+        );
+        const tipMyOut = buildWatchListTip(
+          'My Outstanding — per watch',
+          myWatches,
+          w => {
+            const bal = watchPayoutBalance(w, 'my');
+            return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono ${bal.remaining > 0 ? 'text-amber-300' : 'text-emerald-400'}">${mc(Math.max(0, bal.remaining))}</span></div><div class="text-[9px] text-outline/70">Owed ${mc(bal.owed)} · Paid ${mc(bal.paid)}</div></div>`;
+          },
+          'Total remaining', fmt.byCurrency(p.myRemainingByCur || {})
+        );
+
+        return `
+        <div class="grid grid-cols-2 gap-3 pt-3 mt-3 border-t border-outline-variant/10">
+          <div class="has-tip cursor-help bg-purple-500/[0.04] border border-purple-500/15 rounded-xl p-3.5 transition-all hover:bg-purple-500/[0.08]">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client Outstanding</p>
+            ${cRemAny
+              ? `<div class="font-playfair text-lg text-purple-300">${fmt.byCurrency(p.clientRemainingByCur || {})}</div>
+                 <p class="text-[10px] text-on-surface-variant mt-0.5">owed ${fmt.byCurrency(p.clientOwedByCur || {})} · paid ${fmt.byCurrency(p.clientPaidByCur || {})}</p>`
+              : `<p class="font-playfair text-lg text-on-surface-variant/40">—</p>
+                 <p class="text-[10px] text-on-surface-variant/40 mt-0.5 italic">fully settled</p>`}
+            <div class="tip-html hidden">${tipClientOut}</div>
+          </div>
+          <div class="has-tip cursor-help bg-amber-500/[0.04] border border-amber-500/15 rounded-xl p-3.5 transition-all hover:bg-amber-500/[0.08]">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Outstanding</p>
+            ${mRemAny
+              ? `<div class="font-playfair text-lg text-amber-300">${fmt.byCurrency(p.myRemainingByCur || {})}</div>
+                 <p class="text-[10px] text-on-surface-variant mt-0.5">owed ${fmt.byCurrency(p.myOwedByCur || {})} · paid ${fmt.byCurrency(p.myPaidByCur || {})}</p>`
+              : `<p class="font-playfair text-lg text-on-surface-variant/40">—</p>
+                 <p class="text-[10px] text-on-surface-variant/40 mt-0.5 italic">fully settled</p>`}
+            <div class="tip-html hidden">${tipMyOut}</div>
           </div>
         </div>`;
       })()}
@@ -3896,6 +4085,29 @@ function renderWatchDetailPage(w) {
         </button>
       </div>`).join('');
 
+  // ── Funding & Payouts (both sides) ───────────────────────────────────────
+  const clientBal = watchPayoutBalance(w, 'client');
+  const myBal     = watchPayoutBalance(w, 'my');
+
+  const renderLedgerRow = (px, side) => {
+    const isAuto = (px.method || '').toUpperCase() === 'AUTO_ON_SALE';
+    const accent = side === 'client' ? 'purple-300' : 'amber-300';
+    const accentBg = side === 'client' ? 'bg-purple-500/10' : 'bg-amber-500/10';
+    return `
+      <div class="flex items-center gap-3 py-2 border-b border-outline-variant/10 last:border-0">
+        <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${px.date || '—'}</span>
+        <span class="text-[10px] font-semibold px-2 py-0.5 rounded ${accentBg} text-${accent} flex-shrink-0">${isAuto ? 'AUTO' : esc(px.method || 'Transfer')}</span>
+        <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(px.notes || '')}</span>
+        <span class="font-mono text-sm text-${accent} flex-shrink-0">${fmt.price(px.amount, px.currency || cur)}</span>
+        <button onclick="${side === 'client' ? 'reverseClientPayout' : 'reverseMyPayout'}(${px.id}, ${w.id})" title="Void" class="p-1 hover:text-error transition-colors flex-shrink-0">
+          <span class="material-symbols-outlined text-[16px] text-on-surface-variant">close</span>
+        </button>
+      </div>`;
+  };
+
+  const activeClientPayouts = (w.client_payouts || []).filter(p => !p.reversed);
+  const activeMyPayouts     = (w.my_payouts     || []).filter(p => !p.reversed);
+
   // ── Helper: info card ─────────────────────────────────────────────────────
   const infoCard = (title, items, accent) => `
     <div class="glass-surface rounded-2xl p-6 border ${accent || 'border-outline-variant/10'}">
@@ -3932,10 +4144,16 @@ function renderWatchDetailPage(w) {
                 <span class="material-symbols-outlined text-[13px]">sell</span> Mark Sold
               </button>` : ''}
               ${w.status !== 'sold' && isDiscount ? `<button onclick="openRecordPaymentModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-amber-400/30 text-amber-400 bg-amber-400/5 hover:bg-amber-400/10 transition-all flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[13px]">payments</span> Record Payment
+                <span class="material-symbols-outlined text-[13px]">payments</span> Loss Payment
               </button>` : ''}
+              <button onclick="openRecordPayoutModal(${w.id}, 'client')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-purple-400/30 text-purple-300 bg-purple-500/5 hover:bg-purple-500/15 transition-all flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[13px]">payments</span> Pay Client
+              </button>
+              <button onclick="openRecordPayoutModal(${w.id}, 'my')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-amber-400/30 text-amber-300 bg-amber-500/5 hover:bg-amber-500/15 transition-all flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[13px]">account_balance_wallet</span> Withdraw
+              </button>
               <button onclick="openAddExpenseModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-sky-500/30 text-sky-400 bg-sky-500/5 hover:bg-sky-500/10 transition-all flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[13px]">receipt_long</span> Add Expense
+                <span class="material-symbols-outlined text-[13px]">receipt_long</span> Expense
               </button>
               <button onclick="openEditWatch(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/30 transition-all flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[13px]">edit</span> Edit
@@ -4015,6 +4233,85 @@ function renderWatchDetailPage(w) {
             <span class="text-on-surface font-semibold">Adj. Gross P&amp;L</span>
             <span class="font-mono font-semibold ${cls(gross - totalExp)}">${sgn(gross-totalExp)}${fmt.price(gross-totalExp,cur)}</span>
           </div>` : ''}` : ''}
+        </div>
+
+        <!-- Funding & Payouts ─────────────────────────────────────────────── -->
+        <div class="glass-surface rounded-2xl p-6">
+          <div class="flex items-center justify-between mb-5">
+            <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant">Funding &amp; Payouts</p>
+            <p class="text-[9px] uppercase tracking-widest text-outline">${isDiscount ? 'Discount Mode' : 'P/L Split'}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <!-- ── My Side ── -->
+            <div class="bg-amber-500/[0.03] border border-amber-500/15 rounded-xl p-4 space-y-2.5">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-[10px] uppercase tracking-widest text-amber-300/80 font-semibold">My Side</p>
+                ${payoutStatusBadge(myBal.status)}
+              </div>
+              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Contribution</span><span class="font-mono text-on-surface">${mc(myBal.contribution)}</span></div>
+              ${w.status === 'sold' ? `<div class="flex justify-between text-sm">
+                <span class="text-on-surface-variant">P&amp;L share</span>
+                <span class="font-mono ${cls(myBal.share)}">${sgn(myBal.share)}${fmt.price(myBal.share, cur)}</span>
+              </div>` : ''}
+              <div class="flex justify-between text-sm pt-2 border-t border-amber-500/10">
+                <span class="text-on-surface font-semibold">Total Owed</span>
+                <span class="font-mono text-amber-300 font-semibold">${mc(myBal.owed)}</span>
+              </div>
+              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Paid to date</span><span class="font-mono text-emerald-400">${mc(myBal.paid)}</span></div>
+              <div class="flex justify-between text-sm">
+                <span class="text-on-surface font-semibold">Remaining</span>
+                <span class="font-mono font-semibold ${myBal.remaining > 0 ? 'text-amber-300' : myBal.remaining < 0 ? 'text-error' : 'text-emerald-400'}">${myBal.remaining < 0 ? '−' : ''}${fmt.price(Math.abs(myBal.remaining), cur)}</span>
+              </div>
+              <button onclick="openRecordPayoutModal(${w.id}, 'my')" class="w-full mt-2 text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-amber-400/30 text-amber-300 bg-amber-500/5 hover:bg-amber-500/15 transition-all flex items-center justify-center gap-1.5">
+                <span class="material-symbols-outlined text-[14px]">account_balance_wallet</span> Record My Withdrawal
+              </button>
+            </div>
+
+            <!-- ── Client Side ── -->
+            <div class="bg-purple-500/[0.03] border border-purple-500/15 rounded-xl p-4 space-y-2.5">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-[10px] uppercase tracking-widest text-purple-300/80 font-semibold">Client Side</p>
+                ${payoutStatusBadge(clientBal.status)}
+              </div>
+              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Contribution</span><span class="font-mono text-on-surface">${mc(clientBal.contribution)}</span></div>
+              ${w.status === 'sold' ? `<div class="flex justify-between text-sm">
+                <span class="text-on-surface-variant">P&amp;L share</span>
+                <span class="font-mono ${cls(clientBal.share)}">${sgn(clientBal.share)}${fmt.price(clientBal.share, cur)}</span>
+              </div>` : ''}
+              <div class="flex justify-between text-sm pt-2 border-t border-purple-500/10">
+                <span class="text-on-surface font-semibold">Total Owed</span>
+                <span class="font-mono text-purple-300 font-semibold">${mc(clientBal.owed)}</span>
+              </div>
+              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Paid to date</span><span class="font-mono text-emerald-400">${mc(clientBal.paid)}</span></div>
+              <div class="flex justify-between text-sm">
+                <span class="text-on-surface font-semibold">Remaining</span>
+                <span class="font-mono font-semibold ${clientBal.remaining > 0 ? 'text-purple-300' : clientBal.remaining < 0 ? 'text-error' : 'text-emerald-400'}">${clientBal.remaining < 0 ? '−' : ''}${fmt.price(Math.abs(clientBal.remaining), cur)}</span>
+              </div>
+              <button onclick="openRecordPayoutModal(${w.id}, 'client')" class="w-full mt-2 text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-purple-400/30 text-purple-300 bg-purple-500/5 hover:bg-purple-500/15 transition-all flex items-center justify-center gap-1.5">
+                <span class="material-symbols-outlined text-[14px]">payments</span> Record Client Payout
+              </button>
+            </div>
+          </div>
+
+          <!-- Ledger rows -->
+          <div class="mt-5 pt-5 border-t border-outline-variant/10">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-3">Payout Ledger</p>
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <p class="text-[9px] uppercase tracking-widest text-amber-300/60 mb-2">My Withdrawals</p>
+                ${activeMyPayouts.length === 0
+                  ? `<p class="text-xs text-on-surface-variant/40 italic">No withdrawals yet</p>`
+                  : activeMyPayouts.map(px => renderLedgerRow(px, 'my')).join('')}
+              </div>
+              <div>
+                <p class="text-[9px] uppercase tracking-widest text-purple-300/60 mb-2">Client Payouts</p>
+                ${activeClientPayouts.length === 0
+                  ? `<p class="text-xs text-on-surface-variant/40 italic">No payouts yet</p>`
+                  : activeClientPayouts.map(px => renderLedgerRow(px, 'client')).join('')}
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Expenses -->
@@ -4310,6 +4607,39 @@ function watchDetailBanner(w) {
       </div>`;
   }
 
+  // ── Outstanding sub-section (shared by purchased + sold) ───────────────
+  function outstandingSection() {
+    const cBal = watchPayoutBalance(w, 'client');
+    const mBal = watchPayoutBalance(w, 'my');
+    const hasAny = cBal.owed > 0 || mBal.owed > 0 || cBal.paid > 0 || mBal.paid > 0;
+    if (!hasAny) return '';
+    return `
+      <div class="col-span-full pt-3 mt-3 border-t border-outline-variant/10 grid grid-cols-2 gap-4">
+        <!-- Client -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <p class="text-[9px] uppercase tracking-widest text-purple-300/70">Client</p>
+          ${payoutStatusBadge(cBal.status)}
+          <span class="text-[10px] text-on-surface-variant">remaining</span>
+          <span class="font-mono text-[11px] text-purple-300">${fmt.price(Math.max(0, cBal.remaining), cur)}</span>
+          <span class="text-[9px] text-outline/60">(owed ${fmt.price(cBal.owed, cur)} · paid ${fmt.price(cBal.paid, cur)})</span>
+          <button onclick="openRecordPayoutModal(${w.id}, 'client')" class="ml-auto text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded border border-purple-400/30 text-purple-300 bg-purple-500/5 hover:bg-purple-500/10 transition-all flex items-center gap-1">
+            <span class="material-symbols-outlined text-[11px]">payments</span> Pay
+          </button>
+        </div>
+        <!-- Me -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <p class="text-[9px] uppercase tracking-widest text-amber-300/70">Me</p>
+          ${payoutStatusBadge(mBal.status)}
+          <span class="text-[10px] text-on-surface-variant">remaining</span>
+          <span class="font-mono text-[11px] text-amber-300">${fmt.price(Math.max(0, mBal.remaining), cur)}</span>
+          <span class="text-[9px] text-outline/60">(owed ${fmt.price(mBal.owed, cur)} · paid ${fmt.price(mBal.paid, cur)})</span>
+          <button onclick="openRecordPayoutModal(${w.id}, 'my')" class="ml-auto text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded border border-amber-400/30 text-amber-300 bg-amber-500/5 hover:bg-amber-500/10 transition-all flex items-center gap-1">
+            <span class="material-symbols-outlined text-[11px]">account_balance_wallet</span> Withdraw
+          </button>
+        </div>
+      </div>`;
+  }
+
   if (w.status === 'wishlist') {
     return `
       <div class="px-12 py-4 bg-amber-500/[0.04] border-y border-amber-500/15 grid grid-cols-3 gap-6 text-[11px]">
@@ -4332,6 +4662,7 @@ function watchDetailBanner(w) {
             </button>
           </div>
         </div>
+        ${outstandingSection()}
         ${expensesSection(true)}
       </div>`;
   }
@@ -4365,6 +4696,7 @@ function watchDetailBanner(w) {
             <div><p class="text-on-surface-variant">Client P&amp;L</p><p class="font-mono ${cls(clientGain)}">${clientGain != null ? sgn(clientGain)+fmt.price(clientGain, cur) : '—'}</p></div>
           </div>
         </div>
+        ${outstandingSection()}
         ${expensesSection(true)}
       </div>`;
   }
@@ -4832,6 +5164,158 @@ async function reverseExpense(expenseId, watchId) {
   } catch (e) {
     alert(e.message || 'Failed to void expense');
   }
+}
+
+// ── Payouts (client + me) ─────────────────────────────────────────────────────
+
+let _payoutSide    = 'client';   // 'client' | 'my'
+let _payoutWatchId = null;
+
+// Compute owed/paid/remaining for a single watch (mirrors db.js _computeOwed)
+function watchPayoutBalance(w, side /* 'client' | 'my' */) {
+  const con = side === 'client' ? (w.client_cost || 0) : (w.my_cost || 0);
+  const ledger = side === 'client' ? (w.client_payouts || []) : (w.my_payouts || []);
+  const paid = ledger.filter(p => !p.reversed).reduce((s, p) => s + p.amount, 0);
+
+  let share = 0;
+  if (w.status === 'sold' && w.list_price != null && w.sale_price != null) {
+    const isDiscount   = (w.profile?.trading_rule || w.trading_rule || 'split') === 'discount';
+    const profitSplit  = w.profile?.profit_split_me ?? w.profit_split_me ?? 100;
+    const lossSplit    = w.profile?.loss_split_me   ?? w.loss_split_me   ?? 100;
+    const discountRate = w.discount_rate_applied ?? w.profile?.discount_split ?? 0.08;
+    const gross        = w.sale_price - w.list_price;
+    if (isDiscount) {
+      if (side === 'my') share = gross > 0 ? w.sale_price * discountRate : gross * (lossSplit / 100);
+      else                share = gross > 0 ? 0 : gross * ((100 - lossSplit) / 100);
+    } else {
+      const sp = gross >= 0 ? profitSplit : lossSplit;
+      share = side === 'my' ? (sp / 100) * gross : ((100 - sp) / 100) * gross;
+    }
+  }
+  const owed = con + share;
+  const remaining = owed - paid;
+  let status;
+  if (owed <= 0 && paid <= 0) status = 'not_due';
+  else if (owed <= 0)         status = 'not_applicable';
+  else if (paid <= 0)         status = 'open';
+  else if (paid >= owed)      status = 'settled';
+  else                        status = 'partially_paid';
+  return { contribution: con, share, owed, paid, remaining, status };
+}
+
+function payoutStatusBadge(status, accent /* 'sky' | 'amber' */) {
+  const map = {
+    open:           'text-error border-error/30 bg-error/5',
+    partially_paid: 'text-amber-400 border-amber-400/30 bg-amber-400/5',
+    settled:        'text-emerald-400 border-emerald-400/30 bg-emerald-400/5',
+    not_due:        'text-on-surface-variant/60 border-outline-variant/20 bg-white/[0.02]',
+    not_applicable: 'text-on-surface-variant/40 border-outline-variant/20 bg-white/[0.02]',
+  };
+  const label = { open:'Open', partially_paid:'Partial', settled:'Settled', not_due:'Not Due', not_applicable:'N/A' };
+  return `<span class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md border ${map[status] || map.open}">${label[status] || status}</span>`;
+}
+
+function openRecordPayoutModal(watchId, side /* 'client' | 'my' */) {
+  const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
+  if (!w) { alert('Watch not loaded'); return; }
+  _payoutSide    = side === 'my' ? 'my' : 'client';
+  _payoutWatchId = watchId;
+
+  const isClient = _payoutSide === 'client';
+  const cur      = w.currency || 'CHF';
+  const bal      = watchPayoutBalance(w, _payoutSide);
+
+  // Themed accents
+  document.getElementById('poTitle').textContent       = isClient ? 'Payout to Client' : 'My Withdrawal';
+  document.getElementById('poTitle').className         = `font-playfair text-2xl ${isClient ? 'text-sky-400' : 'text-amber-400'}`;
+  document.getElementById('poIconBox').className       = `w-10 h-10 rounded-xl ${isClient ? 'bg-sky-500/10' : 'bg-amber-500/10'} flex items-center justify-center flex-shrink-0`;
+  document.getElementById('poIcon').className          = `material-symbols-outlined ${isClient ? 'text-sky-400' : 'text-amber-400'} text-xl`;
+  document.getElementById('poIcon').textContent        = isClient ? 'payments' : 'account_balance_wallet';
+  document.getElementById('poSaveBtn').className       = `${isClient ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'} font-semibold px-6 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2`;
+
+  document.getElementById('poWatchModel').textContent  = w.model || `Watch #${watchId}`;
+  document.getElementById('poOwingInfo').textContent   =
+    `Owed ${fmt.price(bal.owed, cur)} · Paid ${fmt.price(bal.paid, cur)} · Remaining ${fmt.price(Math.max(0, bal.remaining), cur)}`;
+  document.getElementById('poStatusBadge').outerHTML   = (() => {
+    const html = payoutStatusBadge(bal.status, isClient ? 'sky' : 'amber');
+    // Re-attach id so subsequent opens still find the element
+    return html.replace('<span', `<span id="poStatusBadge"`);
+  })();
+  document.getElementById('poCurrencyBadge').textContent = cur;
+
+  document.getElementById('poDate').value      = new Date().toISOString().split('T')[0];
+  document.getElementById('poAmount').value    = '';
+  document.getElementById('poMethod').value    = 'BANK_TRANSFER';
+  document.getElementById('poNotes').value     = '';
+  document.getElementById('poError').classList.add('hidden');
+  document.getElementById('poRemainingHint').textContent =
+    bal.remaining > 0 ? `Remaining to settle: ${fmt.price(bal.remaining, cur)}` :
+    bal.remaining < 0 ? `Already overpaid by ${fmt.price(-bal.remaining, cur)} — recording will increase overpayment` :
+                         `Fully settled.`;
+
+  document.getElementById('recordPayoutModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('poAmount').focus(), 50);
+}
+
+function closeRecordPayoutModal() {
+  document.getElementById('recordPayoutModal').classList.add('hidden');
+  _payoutWatchId = null;
+}
+
+async function submitRecordPayout() {
+  const errEl = document.getElementById('poError');
+  errEl.classList.add('hidden');
+
+  const date     = document.getElementById('poDate').value;
+  const rawAmt   = readMoneyInput('poAmount');
+  const method   = document.getElementById('poMethod').value;
+  const notes    = document.getElementById('poNotes').value.trim();
+  const currency = document.getElementById('poCurrencyBadge').textContent.trim() || 'CHF';
+
+  if (!date)   { errEl.textContent = 'Date is required.';   errEl.classList.remove('hidden'); return; }
+  if (!rawAmt) { errEl.textContent = 'Amount is required.'; errEl.classList.remove('hidden'); return; }
+  const amount = Number(rawAmt);
+  if (isNaN(amount) || amount <= 0) { errEl.textContent = 'Enter a positive amount.'; errEl.classList.remove('hidden'); return; }
+
+  const endpoint = _payoutSide === 'client'
+    ? `/api/watches/${_payoutWatchId}/client-payouts`
+    : `/api/watches/${_payoutWatchId}/my-payouts`;
+  try {
+    await api('POST', endpoint, { date, amount, currency, method, notes });
+    closeRecordPayoutModal();
+    refreshAfterPayoutChange();
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to save payout.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function reverseClientPayout(payoutId, watchId) {
+  if (!confirm('Void this payout? This cannot be undone.')) return;
+  try {
+    await api('POST', `/api/client-payouts/${payoutId}/reverse`);
+    refreshAfterPayoutChange();
+  } catch (e) {
+    alert(e.message || 'Failed to void payout');
+  }
+}
+
+async function reverseMyPayout(payoutId, watchId) {
+  if (!confirm('Void this payout? This cannot be undone.')) return;
+  try {
+    await api('POST', `/api/my-payouts/${payoutId}/reverse`);
+    refreshAfterPayoutChange();
+  } catch (e) {
+    alert(e.message || 'Failed to void payout');
+  }
+}
+
+function refreshAfterPayoutChange() {
+  if      (currentPage === 'watch-detail'    && currentWatchId)   openWatchDetail(currentWatchId);
+  else if (currentPage === 'profile-detail'  && currentProfileId) openProfileDetail(currentProfileId);
+  else if (currentPage === 'client-detail'   && currentClientId)  openClientDetail(currentClientId);
+  else if (currentPage === 'main-kpi')                            loadMainKpi();
+  else if (currentPage === 'watches')                             loadWatches(document.getElementById('watchSearch').value, '');
 }
 
 function updateSoldPnl() {
@@ -5786,7 +6270,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 }
 
 // ── Close on backdrop click ────────────────────────────────────────────────
-['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal','recordPaymentModal','addExpenseModal'].forEach(id => {
+['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal','recordPaymentModal','addExpenseModal','recordPayoutModal'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target === e.currentTarget) {
       if (id === 'profileModal') closeProfileModal();
@@ -5796,6 +6280,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
       else if (id === 'portfolioModal') closePortfolioModal();
       else if (id === 'recordPaymentModal') closeRecordPaymentModal();
       else if (id === 'addExpenseModal') closeAddExpenseModal();
+      else if (id === 'recordPayoutModal') closeRecordPayoutModal();
       else closeConfirm();
     }
   });
@@ -5805,7 +6290,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal(); closeShopModal(); closeMarkSoldModal();
-  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal();
+  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal(); closeRecordPayoutModal();
   document.getElementById('lightbox').classList.add('hidden');
 });
 

@@ -23,10 +23,15 @@ const upload = multer({
 // GET /api/watches
 router.get('/', (req, res) => {
   const { q, source, profile_id } = req.query;
-  res.json(db.listAllWatches({ q, source, profile_id, ownerId: uid(req) }).map(w => ({ ...w, expenses: db.listExpenses(w.id) })));
+  res.json(db.listAllWatches({ q, source, profile_id, ownerId: uid(req) }).map(w => ({
+    ...w,
+    expenses:       db.listExpenses(w.id),
+    client_payouts: db.listClientPayouts(w.id),
+    my_payouts:     db.listMyPayouts(w.id),
+  })));
 });
 
-// GET /api/watches/:id  — full detail (watch + profile + expenses + loss_payments)
+// GET /api/watches/:id  — full detail (watch + profile + ledgers)
 router.get('/:id', (req, res) => {
   const watch = db.getWatch(req.params.id, uid(req));
   if (!watch) return res.status(404).json({ error: 'Not found' });
@@ -34,10 +39,12 @@ router.get('/:id', (req, res) => {
   const client  = profile?.client_id ? db.getClient(profile.client_id, uid(req)) : null;
   res.json({
     ...watch,
-    expenses:      db.listExpenses(watch.id),
-    loss_payments: db.listLossPayments(watch.id),
-    profile:       profile || null,
-    client:        client  || null,
+    expenses:       db.listExpenses(watch.id),
+    loss_payments:  db.listLossPayments(watch.id),
+    client_payouts: db.listClientPayouts(watch.id),
+    my_payouts:     db.listMyPayouts(watch.id),
+    profile:        profile || null,
+    client:         client  || null,
   });
 });
 
@@ -79,6 +86,25 @@ router.put('/:id', (req, res) => {
 
       db.updateWatch(req.params.id, updates, uid(req));
       const updated = db.getWatch(req.params.id, uid(req));
+
+      // Auto-create initial payout ledger entries on Mark Sold transition.
+      // Mirrors the legacy single-snapshot UX while populating the ledger so it
+      // remains the authoritative source for "paid to date".
+      const transitioningToSold = updates.status === 'sold' && oldStatus !== 'sold';
+      if (transitioningToSold) {
+        const saleDate = updates.purchase_date || updated.purchase_date || new Date().toISOString().split('T')[0];
+        const cur      = updated.currency || 'CHF';
+        const clientRecv = req.body.client_received != null && req.body.client_received !== '' ? Number(req.body.client_received) : null;
+        const myRecv     = req.body.my_received     != null && req.body.my_received     !== '' ? Number(req.body.my_received)     : null;
+        if (clientRecv && clientRecv > 0 && db.listClientPayouts(updated.id).length === 0) {
+          const pid = db.createClientPayout({ watch_id: updated.id, date: saleDate, amount: clientRecv, currency: cur, method: 'AUTO_ON_SALE', notes: 'Recorded at sale' });
+          audit(req, { action: 'create', targetType: 'client_payout', targetId: pid, details: { watch_id: updated.id, amount: clientRecv, method: 'AUTO_ON_SALE', auto: true } });
+        }
+        if (myRecv && myRecv > 0 && db.listMyPayouts(updated.id).length === 0) {
+          const pid = db.createMyPayout({ watch_id: updated.id, date: saleDate, amount: myRecv, currency: cur, method: 'AUTO_ON_SALE', notes: 'Recorded at sale' });
+          audit(req, { action: 'create', targetType: 'my_payout', targetId: pid, details: { watch_id: updated.id, amount: myRecv, method: 'AUTO_ON_SALE', auto: true } });
+        }
+      }
 
       const auditDetails = { model: watch.model, fields: Object.keys(updates) };
       if (updates.status && updates.status !== oldStatus) {

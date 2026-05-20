@@ -119,6 +119,32 @@ function init() {
     );
     CREATE INDEX IF NOT EXISTS idx_watch_expenses_watch_id ON watch_expenses (watch_id);
 
+    CREATE TABLE IF NOT EXISTS client_payouts (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      watch_id   INTEGER NOT NULL REFERENCES watches(id) ON DELETE CASCADE,
+      date       DATE    NOT NULL,
+      amount     REAL    NOT NULL,
+      currency   TEXT    NOT NULL DEFAULT 'CHF',
+      method     TEXT    DEFAULT 'BANK_TRANSFER',
+      notes      TEXT,
+      reversed   INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_payouts_watch_id ON client_payouts (watch_id);
+
+    CREATE TABLE IF NOT EXISTS my_payouts (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      watch_id   INTEGER NOT NULL REFERENCES watches(id) ON DELETE CASCADE,
+      date       DATE    NOT NULL,
+      amount     REAL    NOT NULL,
+      currency   TEXT    NOT NULL DEFAULT 'CHF',
+      method     TEXT    DEFAULT 'BANK_TRANSFER',
+      notes      TEXT,
+      reversed   INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_my_payouts_watch_id ON my_payouts (watch_id);
+
     CREATE TABLE IF NOT EXISTS audit_log (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       ts          DATETIME DEFAULT (datetime('now')),
@@ -187,6 +213,9 @@ function init() {
   // Sale-proceeds split (separate from my_cost/client_cost which are upfront capital)
   if (!wcols2.includes('my_received'))           db.exec("ALTER TABLE watches ADD COLUMN my_received REAL");
   if (!wcols2.includes('client_received'))       db.exec("ALTER TABLE watches ADD COLUMN client_received REAL");
+  // Payout ledger statuses (denormalised; mirrors loss_status pattern)
+  if (!wcols2.includes('client_payout_status'))  db.exec("ALTER TABLE watches ADD COLUMN client_payout_status TEXT DEFAULT 'not_due'");
+  if (!wcols2.includes('my_payout_status'))      db.exec("ALTER TABLE watches ADD COLUMN my_payout_status     TEXT DEFAULT 'not_due'");
   // Rename legacy 'pipeline' status to 'wishlist'
   db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
@@ -610,7 +639,13 @@ function getClientWithMemberships(id, ownerId) {
   `).all(id, ownerId);
   memberships.forEach(m => {
     const raw = db.prepare('SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
-    m.watches      = raw.map(w => ({ ...w, loss_payments: listLossPayments(w.id), expenses: listExpenses(w.id) }));
+    m.watches      = raw.map(w => ({
+      ...w,
+      loss_payments:  listLossPayments(w.id),
+      expenses:       listExpenses(w.id),
+      client_payouts: listClientPayouts(w.id),
+      my_payouts:     listMyPayouts(w.id),
+    }));
     m.company_docs = db.prepare('SELECT * FROM company_docs WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
   });
   return { ...client, memberships };
@@ -1063,6 +1098,114 @@ function reverseExpense(expenseId) {
   return true;
 }
 
+// ── Payout Ledgers (client + me) ──────────────────────────────────────────────
+//
+// Two mirrored ledgers track cash flowing from operator → client (client_payouts)
+// and operator → self (my_payouts). The shape mirrors loss_payments. Status is
+// denormalised onto watches.client_payout_status / my_payout_status.
+
+// Shared helper: compute owed per side for a watch based on its status and the
+// trading rule on its profile. Pre-sale: owed = contribution. Sold: owed =
+// contribution + split-rule share. Mirrors the single-watch math in computePnl.
+function _computeOwed(watchId) {
+  const w = db.prepare('SELECT * FROM watches WHERE id = ?').get(watchId);
+  if (!w) return { clientOwed: 0, myOwed: 0 };
+  const mCon = w.my_cost     || 0;
+  const cCon = w.client_cost || 0;
+
+  if (w.status === 'wishlist') return { clientOwed: 0, myOwed: 0 };
+  if (w.status !== 'sold' || w.list_price == null || w.sale_price == null) {
+    return { clientOwed: cCon, myOwed: mCon };
+  }
+
+  // Sold: add split-rule share to contribution
+  const profile = db.prepare('SELECT trading_rule, profit_split_me, loss_split_me, discount_split FROM profiles WHERE id = ?').get(w.profile_id);
+  const isDiscount    = (profile?.trading_rule || 'split') === 'discount';
+  const profitSplit   = profile?.profit_split_me ?? 100;
+  const lossSplit     = profile?.loss_split_me   ?? 100;
+  const discountRate  = w.discount_rate_applied ?? profile?.discount_split ?? 0.08;
+  const gross         = w.sale_price - w.list_price;
+
+  let mShare = 0, cShare = 0;
+  if (isDiscount) {
+    mShare = gross > 0 ? w.sale_price * discountRate : gross * (lossSplit / 100);
+    cShare = gross > 0 ? 0 : gross * ((100 - lossSplit) / 100);
+  } else {
+    const sp = gross >= 0 ? profitSplit : lossSplit;
+    mShare = (sp / 100) * gross;
+    cShare = ((100 - sp) / 100) * gross;
+  }
+  return { clientOwed: cCon + cShare, myOwed: mCon + mShare };
+}
+
+// Generic status synchronizer used by both sides
+function _syncPayoutStatus(watchId, side /* 'client' | 'my' */) {
+  const ledgerTable = side === 'client' ? 'client_payouts' : 'my_payouts';
+  const statusCol   = side === 'client' ? 'client_payout_status' : 'my_payout_status';
+  const { clientOwed, myOwed } = _computeOwed(watchId);
+  const owed = side === 'client' ? clientOwed : myOwed;
+  const { total_paid } = db.prepare(
+    `SELECT COALESCE(SUM(amount), 0) AS total_paid FROM ${ledgerTable} WHERE watch_id = ? AND reversed = 0`
+  ).get(watchId);
+
+  let status;
+  if (owed <= 0 && total_paid <= 0) status = 'not_due';
+  else if (owed <= 0)               status = 'not_applicable';
+  else if (total_paid <= 0)         status = 'open';
+  else if (total_paid >= owed)      status = 'settled';
+  else                              status = 'partially_paid';
+
+  db.prepare(`UPDATE watches SET ${statusCol} = ? WHERE id = ?`).run(status, watchId);
+}
+
+// ── Client payouts ──
+function listClientPayouts(watchId) {
+  return db.prepare(
+    'SELECT * FROM client_payouts WHERE watch_id = ? ORDER BY date ASC, created_at ASC'
+  ).all(watchId);
+}
+function getClientPayout(id) {
+  return db.prepare('SELECT * FROM client_payouts WHERE id = ?').get(id);
+}
+function createClientPayout({ watch_id, date, amount, currency, method, notes }) {
+  const result = db.prepare(
+    'INSERT INTO client_payouts (watch_id, date, amount, currency, method, notes) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(watch_id, date, Number(amount), currency || 'CHF', method || 'BANK_TRANSFER', notes || null);
+  _syncPayoutStatus(watch_id, 'client');
+  return result.lastInsertRowid;
+}
+function reverseClientPayout(payoutId) {
+  const row = db.prepare('SELECT watch_id FROM client_payouts WHERE id = ?').get(payoutId);
+  if (!row) return false;
+  db.prepare('UPDATE client_payouts SET reversed = 1 WHERE id = ?').run(payoutId);
+  _syncPayoutStatus(row.watch_id, 'client');
+  return true;
+}
+
+// ── My payouts ──
+function listMyPayouts(watchId) {
+  return db.prepare(
+    'SELECT * FROM my_payouts WHERE watch_id = ? ORDER BY date ASC, created_at ASC'
+  ).all(watchId);
+}
+function getMyPayout(id) {
+  return db.prepare('SELECT * FROM my_payouts WHERE id = ?').get(id);
+}
+function createMyPayout({ watch_id, date, amount, currency, method, notes }) {
+  const result = db.prepare(
+    'INSERT INTO my_payouts (watch_id, date, amount, currency, method, notes) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(watch_id, date, Number(amount), currency || 'CHF', method || 'BANK_TRANSFER', notes || null);
+  _syncPayoutStatus(watch_id, 'my');
+  return result.lastInsertRowid;
+}
+function reverseMyPayout(payoutId) {
+  const row = db.prepare('SELECT watch_id FROM my_payouts WHERE id = ?').get(payoutId);
+  if (!row) return false;
+  db.prepare('UPDATE my_payouts SET reversed = 1 WHERE id = ?').run(payoutId);
+  _syncPayoutStatus(row.watch_id, 'my');
+  return true;
+}
+
 module.exports = {
   init,
   getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
@@ -1079,4 +1222,6 @@ module.exports = {
   listWishlistWatchesWithDays, getOwnerIdForProfile, getOwnerIdForWatch,
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
   listExpenses, getExpense, createExpense, reverseExpense,
+  listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
+  listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,
 };
