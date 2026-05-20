@@ -26,6 +26,21 @@ router.get('/', (req, res) => {
   res.json(db.listAllWatches({ q, source, profile_id, ownerId: uid(req) }).map(w => ({ ...w, expenses: db.listExpenses(w.id) })));
 });
 
+// GET /api/watches/:id  — full detail (watch + profile + expenses + loss_payments)
+router.get('/:id', (req, res) => {
+  const watch = db.getWatch(req.params.id, uid(req));
+  if (!watch) return res.status(404).json({ error: 'Not found' });
+  const profile = db.getProfile(watch.profile_id, uid(req));
+  const client  = profile?.client_id ? db.getClient(profile.client_id, uid(req)) : null;
+  res.json({
+    ...watch,
+    expenses:      db.listExpenses(watch.id),
+    loss_payments: db.listLossPayments(watch.id),
+    profile:       profile || null,
+    client:        client  || null,
+  });
+});
+
 // PUT /api/watches/:id
 router.put('/:id', (req, res) => {
   upload.single('image')(req, res, async (err) => {
