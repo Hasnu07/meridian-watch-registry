@@ -121,6 +121,7 @@ router.get('/:id', (req, res) => {
   const watches = db.listWatchesForProfile(req.params.id, uid(req)).map(w => ({
     ...w,
     loss_payments: db.listLossPayments(w.id),
+    expenses:      db.listExpenses(w.id),
   }));
   res.json({ ...profile, watches });
 });

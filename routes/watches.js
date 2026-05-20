@@ -23,7 +23,7 @@ const upload = multer({
 // GET /api/watches
 router.get('/', (req, res) => {
   const { q, source, profile_id } = req.query;
-  res.json(db.listAllWatches({ q, source, profile_id, ownerId: uid(req) }));
+  res.json(db.listAllWatches({ q, source, profile_id, ownerId: uid(req) }).map(w => ({ ...w, expenses: db.listExpenses(w.id) })));
 });
 
 // PUT /api/watches/:id

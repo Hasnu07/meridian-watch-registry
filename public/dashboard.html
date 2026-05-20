@@ -1387,6 +1387,78 @@
   </div>
 </div>
 
+<!-- ═══ ADD EXPENSE MODAL ════════════════════════════════════════════════ -->
+<div id="addExpenseModal" class="fixed inset-0 z-[115] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-md bg-[#161B22] border border-white/10 rounded-2xl shadow-2xl">
+    <div class="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 class="font-playfair text-2xl text-sky-400">Add Expense</h2>
+      <button onclick="closeAddExpenseModal()" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Watch info banner -->
+    <div class="flex items-center gap-4 px-6 py-4 bg-white/[0.02] border-b border-white/[0.06]">
+      <div class="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-sky-400 text-xl">receipt_long</span>
+      </div>
+      <div class="min-w-0 flex-1">
+        <p id="expWatchModel" class="font-semibold text-on-surface text-sm truncate">—</p>
+        <p id="expWatchInfo" class="text-xs text-on-surface-variant mt-0.5">—</p>
+      </div>
+    </div>
+
+    <div class="p-6 space-y-4">
+      <!-- Category -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Category</label>
+        <select id="expCategory"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-sky-500/60">
+          <option value="shipping"            style="background:#161B22;color:#eae1d4">Shipping</option>
+          <option value="travel"              style="background:#161B22;color:#eae1d4">Travel</option>
+          <option value="pickup_meeting"      style="background:#161B22;color:#eae1d4">Pickup / Meeting</option>
+          <option value="insurance"           style="background:#161B22;color:#eae1d4">Insurance</option>
+          <option value="restoration_service" style="background:#161B22;color:#eae1d4">Restoration / Service</option>
+          <option value="storage"             style="background:#161B22;color:#eae1d4">Storage</option>
+          <option value="commission"          style="background:#161B22;color:#eae1d4">Commission</option>
+          <option value="other"               style="background:#161B22;color:#eae1d4">Other</option>
+        </select>
+      </div>
+      <!-- Date -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Date</label>
+        <input id="expDate" type="date"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-sky-500/60">
+      </div>
+      <!-- Amount -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Amount</label>
+        <div class="flex gap-2">
+          <span id="expCurrencyBadge" class="flex-shrink-0 px-3 py-2.5 bg-surface-variant/30 border border-outline-variant/30 rounded-lg text-sm font-mono text-on-surface-variant">CHF</span>
+          <input id="expAmount" type="text" inputmode="decimal" placeholder="0"
+            oninput="formatMoneyInput(this)"
+            class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-sky-500/60 font-mono">
+        </div>
+      </div>
+      <!-- Description -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Description (optional)</label>
+        <input id="expDescription" type="text" placeholder="e.g. DHL Express, Geneva flight…"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-sky-500/60">
+      </div>
+      <!-- Error -->
+      <p id="expError" class="hidden text-xs text-error bg-error/10 rounded-lg px-4 py-2.5"></p>
+    </div>
+
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+      <button onclick="closeAddExpenseModal()" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button onclick="submitExpense()" class="bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 font-semibold px-6 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">add_circle</span> Save Expense
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ COMPANY DOC MODAL ════════════════════════════════════════════════ -->
 <div id="companyDocModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
   <div class="w-full max-w-md bg-[#161B22] border border-white/10 rounded-2xl shadow-2xl">
@@ -1969,6 +2041,8 @@ async function loadMainKpi() {
       myShare     = (splitMe / 100) * netPnl;
       clientShare = ((100 - splitMe) / 100) * netPnl;
     }
+    const totalExpenses = watches.reduce((s, w) =>
+      s + (w.expenses || []).filter(ex => !ex.reversed).reduce((es, ex) => es + ex.amount, 0), 0);
     return {
       ...prof,
       watches,
@@ -1981,6 +2055,7 @@ async function loadMainKpi() {
       purchasedCount:watches.filter(w => w.status === 'purchased').length,
       capitalDeployed: (prof.my_capital || 0) + (prof.client_capital || 0),
       available:       (prof.my_remaining || 0) + (prof.client_remaining || 0),
+      totalExpenses,
     };
   });
 
@@ -1994,8 +2069,9 @@ async function loadMainKpi() {
     acc.grossLoss       += p.grossLoss;
     acc.myShare         += p.myShare;
     acc.clientShare     += p.clientShare;
+    acc.totalExpenses   += p.totalExpenses;
     return acc;
-  }, { capitalDeployed:0, available:0, soldCount:0, activeCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0 });
+  }, { capitalDeployed:0, available:0, soldCount:0, activeCount:0, grossProfit:0, grossLoss:0, myShare:0, clientShare:0, totalExpenses:0 });
 
   const m   = v => fmt.money(v);
   const sgn = v => v > 0 ? '+' : '';
@@ -2009,6 +2085,7 @@ async function loadMainKpi() {
     { label: 'Active',           value: totals.activeCount,         sub: 'watches' },
     { label: 'Gross Profit',     value: m(totals.grossProfit),      cls: totals.grossProfit >= 0 ? 'text-emerald-400' : 'text-error' },
     { label: 'Gross Loss',       value: m(totals.grossLoss),        cls: totals.grossLoss >= 0 ? 'text-emerald-400' : 'text-error' },
+    { label: 'Total Expenses',   value: totals.totalExpenses > 0 ? m(totals.totalExpenses) : '—', cls: totals.totalExpenses > 0 ? 'text-sky-300' : 'text-on-surface-variant/40' },
   ].map(t => `
     <div class="glass-surface rounded-xl p-4">
       <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">${t.label}</p>
@@ -2017,6 +2094,7 @@ async function loadMainKpi() {
     </div>`).join('');
 
   // Net P&L bar
+  const adjMyShare = totals.myShare - totals.totalExpenses;
   document.getElementById('kpiNetBar').innerHTML = `
     <div class="flex-1">
       <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-1">My Net P&amp;L</p>
@@ -2026,7 +2104,13 @@ async function loadMainKpi() {
     <div class="border-l border-outline-variant/15 pl-6">
       <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-1">Client Net P&amp;L</p>
       <p class="font-playfair text-3xl font-semibold ${cls(totals.clientShare)}">${sgn(totals.clientShare)}${m(totals.clientShare)}</p>
-    </div>`;
+    </div>
+    ${totals.totalExpenses > 0 ? `
+    <div class="border-l border-sky-500/20 pl-6">
+      <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-sky-400/70 mb-1">Adj. Net P&amp;L</p>
+      <p class="font-playfair text-3xl font-semibold ${cls(adjMyShare)}">${sgn(adjMyShare)}${m(adjMyShare)}</p>
+      <p class="text-xs text-sky-400/50 mt-1">after ${m(totals.totalExpenses)} expenses</p>
+    </div>` : ''}`;
 
   // Per-shop breakdown
   const shopMap = {};
@@ -2275,6 +2359,10 @@ function renderClientMasterSummary(client) {
     netPnlByCur:             mergeMaps('netPnlByCur'),
     myPnlByCur:              mergeMaps('myPnlByCur'),
     clientPnlByCur:          mergeMaps('clientPnlByCur'),
+    // Expenses
+    totalExpenses:           sum('totalExpenses'),
+    totalExpensesByCur:      mergeMaps('totalExpensesByCur'),
+    adjustedNetPnlByCur:     mergeMaps('adjustedNetPnlByCur'),
     // Per-watch arrays so tooltips inside the summary still work
     activeWatches:           pnls.flatMap(p => p.activeWatches || []),
     soldWatches:             pnls.flatMap(p => p.soldWatches   || []),
@@ -2876,6 +2964,23 @@ function computePnl(profile) {
   const totalProfit = Math.max(grossProfit, 0);
   const totalLoss   = Math.min(grossLoss, 0);
 
+  // ── Expenses ──────────────────────────────────────────────────────────────
+  // Sum non-reversed expenses across all paid watches, grouped by expense currency
+  const totalExpensesByCur = {};
+  for (const w of paidWatches) {
+    for (const ex of (w.expenses || [])) {
+      if (ex.reversed) continue;
+      const c = ex.currency || w.currency || 'CHF';
+      totalExpensesByCur[c] = (totalExpensesByCur[c] || 0) + ex.amount;
+    }
+  }
+  const totalExpenses = Object.values(totalExpensesByCur).reduce((s, v) => s + v, 0);
+  // Adj. Net P&L = Net P&L minus total expenses (informational; does not affect split tiles)
+  const adjustedNetPnlByCur = { ...netPnlByCur };
+  for (const [c, v] of Object.entries(totalExpensesByCur)) {
+    adjustedNetPnlByCur[c] = (adjustedNetPnlByCur[c] || 0) - v;
+  }
+
   return {
     isDiscount, profitSplit, lossSplit, discountSplit,
     grossProfit, grossLoss, discountIncome, netPnl,
@@ -2901,6 +3006,8 @@ function computePnl(profile) {
     myPnlByCur, clientPnlByCur,
     profitWatchCount: profitWatches.length,
     lossWatchCount:   lossWatches.length,
+    // Expenses
+    totalExpenses, totalExpensesByCur, adjustedNetPnlByCur,
   };
 }
 
@@ -3080,7 +3187,7 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
       </div>
 
       <!-- Row 3: Client side + proceeds + count -->
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-3 gap-3 mb-3">
         <div class="has-tip cursor-help bg-white/[0.03] rounded-xl p-3.5 border border-outline-variant/15 transition-all hover:bg-white/[0.05]">
           <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Client P&amp;L</p>
           <div class="font-playfair text-lg">${fmt.byCurrency(p.clientPnlByCur || {}, { signed: true, colour: true })}</div>
@@ -3100,6 +3207,52 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
           <div class="tip-html hidden">${tipTotalWatches}</div>
         </div>
       </div>
+
+      <!-- Row 4: Expenses + Adj. Net P&L -->
+      ${(() => {
+        const hasExpenses = p.totalExpensesByCur && Object.keys(p.totalExpensesByCur).length > 0;
+        const expWatches = [...(p.activeWatches || []), ...(p.soldWatches || [])].filter(w => (w.expenses || []).some(ex => !ex.reversed));
+        const tipExpenses = expWatches.length === 0
+          ? `<div class="px-4 py-3 text-[11px] text-on-surface-variant italic">No expenses recorded</div>`
+          : buildWatchListTip(
+              'Expenses — per watch',
+              expWatches,
+              w => {
+                const active = (w.expenses || []).filter(ex => !ex.reversed);
+                const wtot   = active.reduce((s, ex) => s + ex.amount, 0);
+                const wCur   = active[0]?.currency || w.currency || 'CHF';
+                return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono text-sky-300">${mc(wtot)}</span></div><div class="text-[9px] text-outline/70">${active.map(ex => expenseCategoryLabel(ex.category)).join(', ')}</div></div>`;
+              },
+              'Total expenses', fmt.byCurrency(p.totalExpensesByCur || {})
+            );
+        const tipAdjPnl = `<div class="px-4 py-3">
+          <p class="text-[10px] uppercase tracking-widest text-sky-400 font-semibold mb-2">Adj. Net P&amp;L</p>
+          <div class="space-y-1.5 text-[11px]">
+            <div class="flex justify-between"><span class="text-on-surface-variant">Net P&amp;L</span><span class="font-mono ${cls(p.netPnl || 0)}">${sgn(p.netPnl || 0)}${mc(p.netPnl || 0)}</span></div>
+            <div class="flex justify-between"><span class="text-on-surface-variant">Total Expenses</span><span class="font-mono text-sky-300">−${mc(p.totalExpenses || 0)}</span></div>
+            <div class="flex justify-between border-t border-outline-variant/15 pt-1.5"><span class="text-on-surface font-semibold">Adj. Net P&amp;L</span><span class="font-mono ${cls(p.totalExpenses ? (p.netPnl || 0) - (p.totalExpenses || 0) : p.netPnl || 0)}">${fmt.byCurrency(p.adjustedNetPnlByCur || {}, { signed: true, colour: true })}</span></div>
+            <div class="text-[9px] text-outline/60 mt-1 italic">Informational only · does not affect split tiles</div>
+          </div>
+        </div>`;
+        return `
+        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-outline-variant/10">
+          <div class="has-tip cursor-help bg-sky-500/[0.04] border border-sky-500/15 rounded-xl p-3.5 transition-all hover:bg-sky-500/[0.07]">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Total Expenses</p>
+            ${hasExpenses
+              ? `<div class="font-playfair text-lg text-sky-300">${fmt.byCurrency(p.totalExpensesByCur || {})}</div>
+                 <p class="text-[10px] text-on-surface-variant mt-0.5">${expWatches.length} watch${expWatches.length !== 1 ? 'es' : ''} with expenses</p>`
+              : `<p class="font-playfair text-lg text-on-surface-variant/40">—</p>
+                 <p class="text-[10px] text-on-surface-variant/40 mt-0.5 italic">no expenses recorded</p>`}
+            <div class="tip-html hidden">${tipExpenses}</div>
+          </div>
+          <div class="has-tip cursor-help bg-sky-500/[0.04] border border-sky-500/15 rounded-xl p-3.5 transition-all hover:bg-sky-500/[0.07]">
+            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Adj. Net P&amp;L</p>
+            <div class="font-playfair text-lg">${fmt.byCurrency(p.adjustedNetPnlByCur || {}, { signed: true, colour: true })}</div>
+            <p class="text-[10px] text-on-surface-variant mt-0.5">net P&amp;L − expenses</p>
+            <div class="tip-html hidden">${tipAdjPnl}</div>
+          </div>
+        </div>`;
+      })()}
     </div>
   `;
 }
@@ -3757,6 +3910,35 @@ function watchDetailBanner(w) {
   const cur = w.currency || 'CHF';
   const mc  = v => v == null || v === '' ? '<span class="text-outline">—</span>' : fmt.price(v, cur);
 
+  // ── Expenses sub-section (shared by purchased + sold) ──────────────────
+  function expensesSection(canAdd) {
+    const activeExpenses = (w.expenses || []).filter(ex => !ex.reversed);
+    const totalExp = activeExpenses.reduce((s, ex) => s + ex.amount, 0);
+    const expCur   = activeExpenses.length > 0 ? (activeExpenses[0].currency || cur) : cur;
+    const rows = activeExpenses.map(ex => `
+      <div class="flex items-center gap-3 py-1">
+        <span class="text-[9px] font-mono text-on-surface-variant w-16 flex-shrink-0">${ex.date || '—'}</span>
+        <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 flex-shrink-0">${expenseCategoryLabel(ex.category)}</span>
+        <span class="flex-1 text-[9px] text-on-surface-variant truncate">${esc(ex.description || '')}</span>
+        <span class="font-mono text-[10px] text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
+        <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void expense" class="hover:text-error transition-colors flex-shrink-0">
+          <span class="material-symbols-outlined text-[13px] text-on-surface-variant">close</span>
+        </button>
+      </div>`).join('');
+    return `
+      <div class="col-span-full pt-3 mt-3 border-t border-sky-500/10">
+        <div class="flex items-center justify-between mb-1.5">
+          <p class="text-[9px] uppercase tracking-widest text-sky-400/70">Expenses${activeExpenses.length > 0 ? ` · ${fmt.price(totalExp, expCur)}` : ''}</p>
+          ${canAdd ? `<button onclick="openAddExpenseModal(${w.id})" class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded border border-sky-500/30 text-sky-400 bg-sky-500/5 hover:bg-sky-500/10 transition-all flex items-center gap-1">
+            <span class="material-symbols-outlined text-[11px]">add</span> Add
+          </button>` : ''}
+        </div>
+        ${activeExpenses.length === 0
+          ? `<p class="text-[9px] text-on-surface-variant/40 italic">No expenses recorded</p>`
+          : rows}
+      </div>`;
+  }
+
   if (w.status === 'wishlist') {
     return `
       <div class="px-12 py-4 bg-amber-500/[0.04] border-y border-amber-500/15 grid grid-cols-3 gap-6 text-[11px]">
@@ -3768,15 +3950,18 @@ function watchDetailBanner(w) {
 
   if (w.status === 'purchased') {
     return `
-      <div class="px-12 py-4 bg-blue-500/[0.04] border-y border-blue-500/15 grid grid-cols-4 gap-6 text-[11px]">
-        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">I Paid</p><p class="font-mono text-emerald-400">${mc(w.my_cost)}</p></div>
-        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Client Paid</p><p class="font-mono text-purple-300">${mc(w.client_cost)}</p></div>
-        <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Total Invested</p><p class="font-mono text-primary">${mc((w.my_cost || 0) + (w.client_cost || 0))}</p></div>
-        <div class="flex items-end justify-end">
-          <button onclick="openMarkSoldModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 transition-all flex items-center gap-1.5">
-            <span class="material-symbols-outlined text-[14px]">sell</span> Mark Sold
-          </button>
+      <div class="px-12 py-4 bg-blue-500/[0.04] border-y border-blue-500/15 text-[11px]">
+        <div class="grid grid-cols-4 gap-6">
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">I Paid</p><p class="font-mono text-emerald-400">${mc(w.my_cost)}</p></div>
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Client Paid</p><p class="font-mono text-purple-300">${mc(w.client_cost)}</p></div>
+          <div><p class="text-[9px] uppercase tracking-widest text-on-surface-variant mb-0.5">Total Invested</p><p class="font-mono text-primary">${mc((w.my_cost || 0) + (w.client_cost || 0))}</p></div>
+          <div class="flex items-end justify-end">
+            <button onclick="openMarkSoldModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 transition-all flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px]">sell</span> Mark Sold
+            </button>
+          </div>
         </div>
+        ${expensesSection(true)}
       </div>`;
   }
 
@@ -3809,6 +3994,7 @@ function watchDetailBanner(w) {
             <div><p class="text-on-surface-variant">Client P&amp;L</p><p class="font-mono ${cls(clientGain)}">${clientGain != null ? sgn(clientGain)+fmt.price(clientGain, cur) : '—'}</p></div>
           </div>
         </div>
+        ${expensesSection(true)}
       </div>`;
   }
   return '';
@@ -4189,6 +4375,84 @@ async function reversePayment(paymentId, watchId) {
     if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
   } catch (e) {
     alert(e.message || 'Failed to void payment');
+  }
+}
+
+// ── Expenses ──────────────────────────────────────────────────────────────────
+
+let _expWatchId = null;
+
+function expenseCategoryLabel(cat) {
+  return {
+    shipping:             'Shipping',
+    travel:               'Travel',
+    pickup_meeting:       'Pickup / Meeting',
+    insurance:            'Insurance',
+    restoration_service:  'Restoration / Service',
+    storage:              'Storage',
+    commission:           'Commission',
+    other:                'Other',
+  }[cat] || 'Other';
+}
+
+function openAddExpenseModal(watchId) {
+  const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
+  _expWatchId = watchId;
+
+  const cur = w?.currency || 'CHF';
+  document.getElementById('expWatchModel').textContent   = w?.model || `Watch #${watchId}`;
+  document.getElementById('expWatchInfo').textContent    = `${w?.status || ''} · ${cur}`;
+  document.getElementById('expCurrencyBadge').textContent = cur;
+
+  document.getElementById('expCategory').value    = 'other';
+  document.getElementById('expDate').value        = new Date().toISOString().split('T')[0];
+  document.getElementById('expAmount').value      = '';
+  document.getElementById('expDescription').value = '';
+  document.getElementById('expError').classList.add('hidden');
+
+  document.getElementById('addExpenseModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('expAmount').focus(), 50);
+}
+
+function closeAddExpenseModal() {
+  document.getElementById('addExpenseModal').classList.add('hidden');
+  _expWatchId = null;
+}
+
+async function submitExpense() {
+  const errEl = document.getElementById('expError');
+  errEl.classList.add('hidden');
+
+  const category    = document.getElementById('expCategory').value;
+  const date        = document.getElementById('expDate').value;
+  const rawAmount   = readMoneyInput('expAmount');
+  const description = document.getElementById('expDescription').value.trim();
+  const currency    = document.getElementById('expCurrencyBadge').textContent.trim() || 'CHF';
+
+  if (!date)      { errEl.textContent = 'Date is required.';            errEl.classList.remove('hidden'); return; }
+  if (!rawAmount) { errEl.textContent = 'Amount is required.';          errEl.classList.remove('hidden'); return; }
+  const amount = Number(rawAmount);
+  if (isNaN(amount) || amount <= 0) { errEl.textContent = 'Enter a valid positive amount.'; errEl.classList.remove('hidden'); return; }
+
+  try {
+    await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined });
+    closeAddExpenseModal();
+    if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
+    else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to save expense.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function reverseExpense(expenseId, watchId) {
+  if (!confirm('Void this expense? This cannot be undone.')) return;
+  try {
+    await api('POST', `/api/expenses/${expenseId}/reverse`);
+    if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
+    else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+  } catch (e) {
+    alert(e.message || 'Failed to void expense');
   }
 }
 
@@ -5143,7 +5407,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 }
 
 // ── Close on backdrop click ────────────────────────────────────────────────
-['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal','recordPaymentModal'].forEach(id => {
+['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal','recordPaymentModal','addExpenseModal'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target === e.currentTarget) {
       if (id === 'profileModal') closeProfileModal();
@@ -5152,6 +5416,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
       else if (id === 'markSoldModal') closeMarkSoldModal();
       else if (id === 'portfolioModal') closePortfolioModal();
       else if (id === 'recordPaymentModal') closeRecordPaymentModal();
+      else if (id === 'addExpenseModal') closeAddExpenseModal();
       else closeConfirm();
     }
   });
@@ -5161,7 +5426,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal(); closeShopModal(); closeMarkSoldModal();
-  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal();
+  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal();
   document.getElementById('lightbox').classList.add('hidden');
 });
 

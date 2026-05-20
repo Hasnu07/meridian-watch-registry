@@ -104,6 +104,21 @@ function init() {
       created_at DATETIME DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS watch_expenses (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      watch_id    INTEGER NOT NULL REFERENCES watches(id) ON DELETE CASCADE,
+      category    TEXT NOT NULL DEFAULT 'other'
+                  CHECK(category IN ('shipping','travel','pickup_meeting','insurance',
+                                     'restoration_service','storage','commission','other')),
+      date        DATE NOT NULL,
+      amount      REAL NOT NULL,
+      currency    TEXT NOT NULL DEFAULT 'CHF',
+      description TEXT,
+      reversed    INTEGER NOT NULL DEFAULT 0,
+      created_at  DATETIME DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_watch_expenses_watch_id ON watch_expenses (watch_id);
+
     CREATE TABLE IF NOT EXISTS audit_log (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       ts          DATETIME DEFAULT (datetime('now')),
@@ -595,7 +610,7 @@ function getClientWithMemberships(id, ownerId) {
   `).all(id, ownerId);
   memberships.forEach(m => {
     const raw = db.prepare('SELECT * FROM watches WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
-    m.watches      = raw.map(w => ({ ...w, loss_payments: listLossPayments(w.id) }));
+    m.watches      = raw.map(w => ({ ...w, loss_payments: listLossPayments(w.id), expenses: listExpenses(w.id) }));
     m.company_docs = db.prepare('SELECT * FROM company_docs WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
   });
   return { ...client, memberships };
@@ -1020,6 +1035,34 @@ function _syncLossStatus(watchId) {
   db.prepare('UPDATE watches SET loss_status = ? WHERE id = ?').run(status, watchId);
 }
 
+// ── Watch Expenses ────────────────────────────────────────────────────────────
+
+function listExpenses(watchId) {
+  return db.prepare(
+    'SELECT * FROM watch_expenses WHERE watch_id = ? ORDER BY date ASC, created_at ASC'
+  ).all(watchId);
+}
+
+function getExpense(id) {
+  return db.prepare('SELECT * FROM watch_expenses WHERE id = ?').get(id);
+}
+
+function createExpense({ watch_id, category, date, amount, currency, description }) {
+  const VALID_CATS = ['shipping','travel','pickup_meeting','insurance','restoration_service','storage','commission','other'];
+  const cat = VALID_CATS.includes(category) ? category : 'other';
+  const result = db.prepare(
+    'INSERT INTO watch_expenses (watch_id, category, date, amount, currency, description) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(watch_id, cat, date, Number(amount), currency || 'CHF', description || null);
+  return result.lastInsertRowid;
+}
+
+function reverseExpense(expenseId) {
+  const row = db.prepare('SELECT watch_id FROM watch_expenses WHERE id = ?').get(expenseId);
+  if (!row) return false;
+  db.prepare('UPDATE watch_expenses SET reversed = 1 WHERE id = ?').run(expenseId);
+  return true;
+}
+
 module.exports = {
   init,
   getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
@@ -1035,4 +1078,5 @@ module.exports = {
   getSetting, setSetting, getAllSettings,
   listWishlistWatchesWithDays, getOwnerIdForProfile, getOwnerIdForWatch,
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
+  listExpenses, getExpense, createExpense, reverseExpense,
 };
