@@ -26,14 +26,17 @@ function makeCreateHandler(side) {
     const watch = db.getWatch(req.params.watchId, uid(req));
     if (!watch) return res.status(404).json({ error: 'Watch not found' });
 
-    const { date, amount, currency, method, notes } = req.body;
+    const { date, amount, method, notes } = req.body;
     if (!date)   return res.status(400).json({ error: 'date is required' });
     if (!amount) return res.status(400).json({ error: 'amount is required' });
     const parsed = Number(amount);
     if (isNaN(parsed) || parsed <= 0) return res.status(400).json({ error: 'amount must be a positive number' });
+    // Payout currency is locked to the watch's currency to prevent cross-currency
+    // aggregation bugs in computePnl / watchPayoutBalance (issue from audit #3).
+    const currency = watch.currency || 'CHF';
 
     try {
-      const id     = createFn({ watch_id: watch.id, date, amount: parsed, currency: currency || watch.currency || 'CHF', method, notes });
+      const id     = createFn({ watch_id: watch.id, date, amount: parsed, currency, method, notes });
       const payout = getFn(id);
       const updated = db.getWatch(watch.id, uid(req));
       audit(req, { action: 'create', targetType: target, targetId: id, details: { watch_id: watch.id, model: watch.model, amount: parsed, method, date } });

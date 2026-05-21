@@ -1265,6 +1265,13 @@
         </div>
       </div>
 
+      <!-- Sale Date -->
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Sale Date</label>
+        <input id="soldSaleDate" type="date"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
+      </div>
+
       <!-- Sale Proceeds split -->
       <div class="border border-outline-variant/20 rounded-xl p-4 space-y-3 bg-white/[0.02]">
         <div class="flex items-center justify-between">
@@ -4081,7 +4088,7 @@ function renderWatchDetailPage(w) {
         <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 flex-shrink-0">${expenseCategoryLabel(ex.category)}</span>
         <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(ex.description || '')}</span>
         <span class="font-mono text-sm text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
-        <button onclick="reverseExpense(${ex.id}, ${w.id}); openWatchDetail(${w.id})" title="Void" class="p-1 hover:text-error transition-colors flex-shrink-0">
+        <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void" class="p-1 hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[16px] text-on-surface-variant">close</span>
         </button>
       </div>`).join('');
@@ -4170,12 +4177,12 @@ function renderWatchDetailPage(w) {
               ${w.status !== 'sold' && isDiscount ? `<button onclick="openRecordPaymentModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-amber-400/30 text-amber-400 bg-amber-400/5 hover:bg-amber-400/10 transition-all flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[13px]">payments</span> Loss Payment
               </button>` : ''}
-              <button onclick="openRecordPayoutModal(${w.id}, 'client')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-purple-400/30 text-purple-300 bg-purple-500/5 hover:bg-purple-500/15 transition-all flex items-center gap-1.5">
+              ${w.status !== 'wishlist' ? `<button onclick="openRecordPayoutModal(${w.id}, 'client')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-purple-400/30 text-purple-300 bg-purple-500/5 hover:bg-purple-500/15 transition-all flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[13px]">payments</span> Pay Client
-              </button>
-              <button onclick="openRecordPayoutModal(${w.id}, 'my')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-amber-400/30 text-amber-300 bg-amber-500/5 hover:bg-amber-500/15 transition-all flex items-center gap-1.5">
+              </button>` : ''}
+              ${w.status !== 'wishlist' ? `<button onclick="openRecordPayoutModal(${w.id}, 'my')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-amber-400/30 text-amber-300 bg-amber-500/5 hover:bg-amber-500/15 transition-all flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[13px]">account_balance_wallet</span> Withdraw
-              </button>
+              </button>` : ''}
               <button onclick="openAddExpenseModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-sky-500/30 text-sky-400 bg-sky-500/5 hover:bg-sky-500/10 transition-all flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[13px]">receipt_long</span> Expense
               </button>
@@ -4263,7 +4270,25 @@ function renderWatchDetailPage(w) {
         <div class="glass-surface rounded-2xl p-6">
           <div class="flex items-center justify-between mb-5">
             <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant">Funding &amp; Payouts</p>
-            <p class="text-[9px] uppercase tracking-widest text-outline">${isDiscount ? 'Discount Mode' : 'P/L Split'}</p>
+            <div class="has-tip cursor-help text-[9px] uppercase tracking-widest text-outline flex items-center gap-1">
+              ${isDiscount ? 'Discount Mode' : 'P/L Split'}
+              <span class="material-symbols-outlined text-[12px]">info</span>
+              <div class="tip-html hidden">
+                <div class="px-4 py-3 text-[11px]">
+                  <p class="text-[10px] uppercase tracking-widest text-primary font-semibold mb-2">How shares are computed</p>
+                  ${isDiscount
+                    ? `<div class="space-y-1">
+                        <div class="flex justify-between gap-4"><span class="text-on-surface-variant">Profit</span><span class="font-mono text-on-surface">my = sale × ${(discountRate*100).toFixed(2)}% · client = gross − my</span></div>
+                        <div class="flex justify-between gap-4"><span class="text-on-surface-variant">Loss</span><span class="font-mono text-on-surface">my = ${lossSplit}% × loss · client = ${100 - lossSplit}% × loss</span></div>
+                      </div>`
+                    : `<div class="space-y-1">
+                        <div class="flex justify-between gap-4"><span class="text-on-surface-variant">Profit</span><span class="font-mono text-on-surface">my = ${profitSplit}% · client = ${100 - profitSplit}%</span></div>
+                        <div class="flex justify-between gap-4"><span class="text-on-surface-variant">Loss</span><span class="font-mono text-on-surface">my = ${lossSplit}% · client = ${100 - lossSplit}%</span></div>
+                      </div>`}
+                  <p class="text-[9px] text-outline/70 mt-2">Total owed per side = contribution + share. Sum across sides = sale price.</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
@@ -4271,7 +4296,7 @@ function renderWatchDetailPage(w) {
             <div class="bg-amber-500/[0.03] border border-amber-500/15 rounded-xl p-4 space-y-2.5">
               <div class="flex items-center justify-between mb-2">
                 <p class="text-[10px] uppercase tracking-widest text-amber-300/80 font-semibold">My Side</p>
-                ${payoutStatusBadge(myBal.status)}
+                ${payoutStatusBadge(myBal.status, w.status === 'sold' ? 'post_sale' : 'pre_sale')}
               </div>
               <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Contribution</span><span class="font-mono text-on-surface">${mc(myBal.contribution)}</span></div>
               ${w.status === 'sold' ? `<div class="flex justify-between text-sm">
@@ -4280,12 +4305,13 @@ function renderWatchDetailPage(w) {
               </div>` : ''}
               <div class="flex justify-between text-sm pt-2 border-t border-amber-500/10">
                 <span class="text-on-surface font-semibold">Total Owed</span>
-                <span class="font-mono text-amber-300 font-semibold">${mc(myBal.owed)}</span>
+                <span class="font-mono text-amber-300 font-semibold">${fmt.price(Math.max(0, myBal.owed), cur)}</span>
               </div>
+              ${myBal.owed < 0 ? `<p class="text-[9px] text-error/80 italic">Loss exceeds my contribution by ${fmt.price(-myBal.owed, cur)} — may need separate settlement.</p>` : ''}
               <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Paid to date</span><span class="font-mono text-emerald-400">${mc(myBal.paid)}</span></div>
               <div class="flex justify-between text-sm">
                 <span class="text-on-surface font-semibold">Remaining</span>
-                <span class="font-mono font-semibold ${myBal.remaining > 0 ? 'text-amber-300' : myBal.remaining < 0 ? 'text-error' : 'text-emerald-400'}">${myBal.remaining < 0 ? '−' : ''}${fmt.price(Math.abs(myBal.remaining), cur)}</span>
+                <span class="font-mono font-semibold ${myBal.remaining > 0 ? 'text-amber-300' : myBal.remaining < 0 ? 'text-error' : 'text-emerald-400'}">${myBal.remaining < 0 ? 'overpaid by ' + fmt.price(-myBal.remaining, cur) : fmt.price(myBal.remaining, cur)}</span>
               </div>
               <button onclick="openRecordPayoutModal(${w.id}, 'my')" class="w-full mt-2 text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-amber-400/30 text-amber-300 bg-amber-500/5 hover:bg-amber-500/15 transition-all flex items-center justify-center gap-1.5">
                 <span class="material-symbols-outlined text-[14px]">account_balance_wallet</span> Record My Withdrawal
@@ -4296,7 +4322,7 @@ function renderWatchDetailPage(w) {
             <div class="bg-purple-500/[0.03] border border-purple-500/15 rounded-xl p-4 space-y-2.5">
               <div class="flex items-center justify-between mb-2">
                 <p class="text-[10px] uppercase tracking-widest text-purple-300/80 font-semibold">Client Side</p>
-                ${payoutStatusBadge(clientBal.status)}
+                ${payoutStatusBadge(clientBal.status, w.status === 'sold' ? 'post_sale' : 'pre_sale')}
               </div>
               <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Contribution</span><span class="font-mono text-on-surface">${mc(clientBal.contribution)}</span></div>
               ${w.status === 'sold' ? `<div class="flex justify-between text-sm">
@@ -4305,12 +4331,13 @@ function renderWatchDetailPage(w) {
               </div>` : ''}
               <div class="flex justify-between text-sm pt-2 border-t border-purple-500/10">
                 <span class="text-on-surface font-semibold">Total Owed</span>
-                <span class="font-mono text-purple-300 font-semibold">${mc(clientBal.owed)}</span>
+                <span class="font-mono text-purple-300 font-semibold">${fmt.price(Math.max(0, clientBal.owed), cur)}</span>
               </div>
+              ${clientBal.owed < 0 ? `<p class="text-[9px] text-error/80 italic">Loss exceeds client contribution by ${fmt.price(-clientBal.owed, cur)} — may need separate settlement.</p>` : ''}
               <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Paid to date</span><span class="font-mono text-emerald-400">${mc(clientBal.paid)}</span></div>
               <div class="flex justify-between text-sm">
                 <span class="text-on-surface font-semibold">Remaining</span>
-                <span class="font-mono font-semibold ${clientBal.remaining > 0 ? 'text-purple-300' : clientBal.remaining < 0 ? 'text-error' : 'text-emerald-400'}">${clientBal.remaining < 0 ? '−' : ''}${fmt.price(Math.abs(clientBal.remaining), cur)}</span>
+                <span class="font-mono font-semibold ${clientBal.remaining > 0 ? 'text-purple-300' : clientBal.remaining < 0 ? 'text-error' : 'text-emerald-400'}">${clientBal.remaining < 0 ? 'overpaid by ' + fmt.price(-clientBal.remaining, cur) : fmt.price(clientBal.remaining, cur)}</span>
               </div>
               <button onclick="openRecordPayoutModal(${w.id}, 'client')" class="w-full mt-2 text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-purple-400/30 text-purple-300 bg-purple-500/5 hover:bg-purple-500/15 transition-all flex items-center justify-center gap-1.5">
                 <span class="material-symbols-outlined text-[14px]">payments</span> Record Client Payout
@@ -4605,8 +4632,13 @@ function watchDetailBanner(w) {
   // ── Expenses sub-section (shared by purchased + sold) ──────────────────
   function expensesSection(canAdd) {
     const activeExpenses = (w.expenses || []).filter(ex => !ex.reversed);
-    const totalExp = activeExpenses.reduce((s, ex) => s + ex.amount, 0);
-    const expCur   = activeExpenses.length > 0 ? (activeExpenses[0].currency || cur) : cur;
+    // Multi-currency aware total: group by expense currency, render each line.
+    const totalByCur = {};
+    for (const ex of activeExpenses) {
+      const ec = ex.currency || cur;
+      totalByCur[ec] = (totalByCur[ec] || 0) + ex.amount;
+    }
+    const totalsLabel = Object.entries(totalByCur).map(([c, v]) => fmt.price(v, c)).join(' · ');
     const rows = activeExpenses.map(ex => `
       <div class="flex items-center gap-3 py-1">
         <span class="text-[9px] font-mono text-on-surface-variant w-16 flex-shrink-0">${ex.date || '—'}</span>
@@ -4620,7 +4652,7 @@ function watchDetailBanner(w) {
     return `
       <div class="col-span-full pt-3 mt-3 border-t border-sky-500/10">
         <div class="flex items-center justify-between mb-1.5">
-          <p class="text-[9px] uppercase tracking-widest text-sky-400/70">Expenses${activeExpenses.length > 0 ? ` · ${fmt.price(totalExp, expCur)}` : ''}</p>
+          <p class="text-[9px] uppercase tracking-widest text-sky-400/70">Expenses${activeExpenses.length > 0 ? ` · ${totalsLabel}` : ''}</p>
           ${canAdd ? `<button onclick="openAddExpenseModal(${w.id})" class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded border border-sky-500/30 text-sky-400 bg-sky-500/5 hover:bg-sky-500/10 transition-all flex items-center gap-1">
             <span class="material-symbols-outlined text-[11px]">add</span> Add
           </button>` : ''}
@@ -4642,7 +4674,7 @@ function watchDetailBanner(w) {
         <!-- Client -->
         <div class="flex items-center gap-2 flex-wrap">
           <p class="text-[9px] uppercase tracking-widest text-purple-300/70">Client</p>
-          ${payoutStatusBadge(cBal.status)}
+          ${payoutStatusBadge(cBal.status, w.status === 'sold' ? 'post_sale' : 'pre_sale')}
           <span class="text-[10px] text-on-surface-variant">remaining</span>
           <span class="font-mono text-[11px] text-purple-300">${fmt.price(Math.max(0, cBal.remaining), cur)}</span>
           <span class="text-[9px] text-outline/60">(owed ${fmt.price(cBal.owed, cur)} · paid ${fmt.price(cBal.paid, cur)})</span>
@@ -4653,7 +4685,7 @@ function watchDetailBanner(w) {
         <!-- Me -->
         <div class="flex items-center gap-2 flex-wrap">
           <p class="text-[9px] uppercase tracking-widest text-amber-300/70">Me</p>
-          ${payoutStatusBadge(mBal.status)}
+          ${payoutStatusBadge(mBal.status, w.status === 'sold' ? 'post_sale' : 'pre_sale')}
           <span class="text-[10px] text-on-surface-variant">remaining</span>
           <span class="font-mono text-[11px] text-amber-300">${fmt.price(Math.max(0, mBal.remaining), cur)}</span>
           <span class="text-[9px] text-outline/60">(owed ${fmt.price(mBal.owed, cur)} · paid ${fmt.price(mBal.paid, cur)})</span>
@@ -4863,6 +4895,8 @@ function openMarkSoldModal(id) {
   setMoneyValue('soldMyReceived',     w.my_received);
   setMoneyValue('soldClientReceived', w.client_received);
   document.getElementById('soldTo').value = w.sold_to || '';
+  // Default sale date to today; user can edit
+  document.getElementById('soldSaleDate').value = new Date().toISOString().split('T')[0];
 
   updateSoldPnl();
   updateSoldSplitFooter();
@@ -4889,28 +4923,30 @@ function autoFillSoldSplit() {
   const isDiscount  = (w.trading_rule || 'split') === 'discount';
   const profitSplit = w.profit_split_me ?? 100;
   const lossSplit   = w.loss_split_me   ?? 100;
-  let myShare, clientShare;
+  // Unified formula across both rules: side_receives = side_cost + side_pnl_share.
+  // Conservation: my_share + client_share = my_cost + client_cost + gross = sale.
+  const gross = sale - list;
+  let myPnl, clientPnl;
   if (isDiscount) {
     const rate = w.discount_split ?? 0.08;
-    if (sale >= list) {
-      myShare     = sale * rate;
-      clientShare = sale - myShare;
+    if (gross >= 0) {
+      myPnl     = sale * rate;      // commission
+      clientPnl = gross - myPnl;    // residual ensures conservation
     } else {
-      // Loss in discount mode: I'm reimbursed via Panel B receivable, not here.
-      myShare     = sale;
-      clientShare = 0;
+      myPnl     = gross * (lossSplit / 100);
+      clientPnl = gross * ((100 - lossSplit) / 100);
     }
   } else {
-    // Split mode: PNL share + original cost contribution
-    const pnl     = sale - list;
-    const splitMe = pnl >= 0 ? profitSplit : lossSplit;
-    const myPnl     = (splitMe / 100) * pnl;
-    const clientPnl = ((100 - splitMe) / 100) * pnl;
-    myShare     = myCost     + myPnl;
-    clientShare = clientCost + clientPnl;
+    const splitMe = gross >= 0 ? profitSplit : lossSplit;
+    myPnl     = (splitMe / 100) * gross;
+    clientPnl = ((100 - splitMe) / 100) * gross;
   }
-  setMoneyValue('soldMyReceived',     Math.max(0, Math.round(myShare)));
-  setMoneyValue('soldClientReceived', Math.max(0, Math.round(clientShare)));
+  const myShare     = myCost     + myPnl;
+  const clientShare = clientCost + clientPnl;
+  // Signed values preserved — Math.max(0, ...) was historically used here but
+  // hid loss-recovery scenarios. The new ledger handles deficits explicitly.
+  setMoneyValue('soldMyReceived',     Math.round(myShare));
+  setMoneyValue('soldClientReceived', Math.round(clientShare));
   updateSoldSplitFooter();
 }
 
@@ -5236,7 +5272,10 @@ function watchPayoutBalance(w, side /* 'client' | 'my' */) {
   return { contribution: con, share, owed, paid, remaining, status };
 }
 
-function payoutStatusBadge(status, accent /* 'sky' | 'amber' */) {
+// Status badge for payout balance. `phase` is 'pre_sale' | 'post_sale' — labels
+// "Partial" / "Settled" stay accurate post-sale, but pre-sale they refer only
+// to principal return, which makes more sense when called out explicitly.
+function payoutStatusBadge(status, phase /* 'pre_sale' | 'post_sale' */) {
   const map = {
     open:           'text-error border-error/30 bg-error/5',
     partially_paid: 'text-amber-400 border-amber-400/30 bg-amber-400/5',
@@ -5244,8 +5283,27 @@ function payoutStatusBadge(status, accent /* 'sky' | 'amber' */) {
     not_due:        'text-on-surface-variant/60 border-outline-variant/20 bg-white/[0.02]',
     not_applicable: 'text-on-surface-variant/40 border-outline-variant/20 bg-white/[0.02]',
   };
-  const label = { open:'Open', partially_paid:'Partial', settled:'Settled', not_due:'Not Due', not_applicable:'N/A' };
+  const postLabel = { open:'Open', partially_paid:'Partial', settled:'Settled', not_due:'Not Due', not_applicable:'N/A' };
+  const preLabel  = { open:'Principal Open', partially_paid:'Principal Partial', settled:'Principal Returned', not_due:'Not Due', not_applicable:'N/A' };
+  const label = phase === 'pre_sale' ? preLabel : postLabel;
   return `<span class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md border ${map[status] || map.open}">${label[status] || status}</span>`;
+}
+
+// Imperative variant for modal — sets className+text on a stable element so
+// repeated opens never re-attach by string replace (audit #8).
+function applyPayoutStatusBadge(el, status, phase) {
+  const map = {
+    open:           'text-error border-error/30 bg-error/5',
+    partially_paid: 'text-amber-400 border-amber-400/30 bg-amber-400/5',
+    settled:        'text-emerald-400 border-emerald-400/30 bg-emerald-400/5',
+    not_due:        'text-on-surface-variant/60 border-outline-variant/20 bg-white/[0.02]',
+    not_applicable: 'text-on-surface-variant/40 border-outline-variant/20 bg-white/[0.02]',
+  };
+  const postLabel = { open:'Open', partially_paid:'Partial', settled:'Settled', not_due:'Not Due', not_applicable:'N/A' };
+  const preLabel  = { open:'Principal Open', partially_paid:'Principal Partial', settled:'Principal Returned', not_due:'Not Due', not_applicable:'N/A' };
+  const label = phase === 'pre_sale' ? preLabel : postLabel;
+  el.className   = `text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-lg border ${map[status] || map.open}`;
+  el.textContent = label[status] || status;
 }
 
 function openRecordPayoutModal(watchId, side /* 'client' | 'my' */) {
@@ -5268,12 +5326,13 @@ function openRecordPayoutModal(watchId, side /* 'client' | 'my' */) {
 
   document.getElementById('poWatchModel').textContent  = w.model || `Watch #${watchId}`;
   document.getElementById('poOwingInfo').textContent   =
-    `Owed ${fmt.price(bal.owed, cur)} · Paid ${fmt.price(bal.paid, cur)} · Remaining ${fmt.price(Math.max(0, bal.remaining), cur)}`;
-  document.getElementById('poStatusBadge').outerHTML   = (() => {
-    const html = payoutStatusBadge(bal.status, isClient ? 'sky' : 'amber');
-    // Re-attach id so subsequent opens still find the element
-    return html.replace('<span', `<span id="poStatusBadge"`);
-  })();
+    `Owed ${fmt.price(Math.max(0, bal.owed), cur)} · Paid ${fmt.price(bal.paid, cur)} · Remaining ${fmt.price(Math.max(0, bal.remaining), cur)}`;
+  // Imperative update keeps element identity stable across reopens.
+  applyPayoutStatusBadge(
+    document.getElementById('poStatusBadge'),
+    bal.status,
+    w.status === 'sold' ? 'post_sale' : 'pre_sale'
+  );
   document.getElementById('poCurrencyBadge').textContent = cur;
 
   document.getElementById('poDate').value      = new Date().toISOString().split('T')[0];
@@ -5379,23 +5438,21 @@ function updateSoldPnl() {
   const colorClass = g => g >= 0 ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
   const sign = g => g >= 0 ? '+' : '';
 
+  // Unified P&L preview that conserves: myShare + clientShare = gross.
   let myShare, clientShare, splitHint, clientHint;
   if (isDiscount) {
     if (gross >= 0) {
-      // Profitable: I earn discount % of sale price
       myShare     = salePrice * discountSplit;
-      clientShare = 0;
-      splitHint   = `(${(discountSplit * 100).toFixed(1)}% of sale price)`;
-      clientHint  = '(discount client — no P/L share)';
+      clientShare = gross - myShare;     // residual ensures conservation
+      splitHint   = `(${(discountSplit * 100).toFixed(1)}% of sale — commission)`;
+      clientHint  = '(gross − commission)';
     } else {
-      // Loss: fronted by me, full loss is receivable from client (Panel B)
-      myShare     = 0;
-      clientShare = listPrice - salePrice; // Positive = client owes me
-      splitHint   = '(no income — loss watch)';
-      clientHint  = `(owes ${fmt.price(listPrice - salePrice, cur)} via Panel B)`;
+      myShare     = gross * (lossSplitMe / 100);
+      clientShare = gross * ((100 - lossSplitMe) / 100);
+      splitHint   = `(${lossSplitMe}% of loss)`;
+      clientHint  = `(${100 - lossSplitMe}% of loss)`;
     }
   } else {
-    // Net this watch's gross, then split (matches profile-level net-first logic)
     const splitMe = gross >= 0 ? profitSplitMe : lossSplitMe;
     myShare     = gross * splitMe / 100;
     clientShare = gross * (100 - splitMe) / 100;
@@ -5404,17 +5461,15 @@ function updateSoldPnl() {
   }
 
   document.getElementById('pnlGross').textContent = `${sign(gross)}${fmt.price(gross, cur)}`;
-  document.getElementById('pnlGross').className = colorClass(gross);
-  // Discount: loss watch shows 0 income for me, client owes the difference (Panel B)
-  const myDisplayVal = isDiscount && gross < 0 ? 0 : myShare;
-  document.getElementById('pnlMyShare').textContent = `${sign(myDisplayVal)}${fmt.price(myDisplayVal, cur)}`;
-  document.getElementById('pnlMyShare').className = colorClass(myDisplayVal) + ' font-semibold';
-  document.getElementById('pnlClientShare').textContent = isDiscount && gross < 0 ? `+${fmt.price(clientShare, cur)}` : `${sign(clientShare)}${fmt.price(clientShare, cur)}`;
-  document.getElementById('pnlClientShare').className = (isDiscount && gross < 0 ? 'font-mono text-amber-400' : colorClass(clientShare)) + ' font-semibold';
-  document.getElementById('pnlMyLabel').textContent    = isDiscount ? (gross >= 0 ? 'Discount income' : 'My income') : 'My share';
-  document.getElementById('pnlClientLabel').textContent = isDiscount ? (gross < 0 ? 'Client owes (Panel B)' : 'Client share') : 'Client share';
-  document.getElementById('pnlSplitHint').textContent = splitHint;
-  document.getElementById('pnlClientHint').textContent = clientHint;
+  document.getElementById('pnlGross').className   = colorClass(gross);
+  document.getElementById('pnlMyShare').textContent = `${sign(myShare)}${fmt.price(myShare, cur)}`;
+  document.getElementById('pnlMyShare').className   = colorClass(myShare) + ' font-semibold';
+  document.getElementById('pnlClientShare').textContent = `${sign(clientShare)}${fmt.price(clientShare, cur)}`;
+  document.getElementById('pnlClientShare').className   = colorClass(clientShare) + ' font-semibold';
+  document.getElementById('pnlMyLabel').textContent     = 'My P&L share';
+  document.getElementById('pnlClientLabel').textContent = 'Client P&L share';
+  document.getElementById('pnlSplitHint').textContent   = splitHint;
+  document.getElementById('pnlClientHint').textContent  = clientHint;
 }
 
 async function submitMarkSold() {
@@ -5424,6 +5479,7 @@ async function submitMarkSold() {
   const myReceived     = readMoneyInput('soldMyReceived');
   const clientReceived = readMoneyInput('soldClientReceived');
   const soldTo         = document.getElementById('soldTo').value.trim();
+  const saleDate       = document.getElementById('soldSaleDate').value;
 
   const fd = new FormData();
   fd.append('status', 'sold');
@@ -5431,6 +5487,7 @@ async function submitMarkSold() {
   if (myReceived     !== '') fd.append('my_received',     myReceived);
   if (clientReceived !== '') fd.append('client_received', clientReceived);
   if (soldTo)                fd.append('sold_to',         soldTo);
+  if (saleDate)              fd.append('sale_date',       saleDate);
 
   try {
     const result = await api('PUT', `/api/watches/${id}`, fd);

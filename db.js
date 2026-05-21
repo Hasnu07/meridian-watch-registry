@@ -216,6 +216,14 @@ function init() {
   // Payout ledger statuses (denormalised; mirrors loss_status pattern)
   if (!wcols2.includes('client_payout_status'))  db.exec("ALTER TABLE watches ADD COLUMN client_payout_status TEXT DEFAULT 'not_due'");
   if (!wcols2.includes('my_payout_status'))      db.exec("ALTER TABLE watches ADD COLUMN my_payout_status     TEXT DEFAULT 'not_due'");
+  // One-time cleanup: loss_status historically defaulted to 'open' even for
+  // wishlist/profit watches that never had a loss. Reset rows that don't
+  // qualify as a loss case so filters and badges show the right state.
+  db.exec(`
+    UPDATE watches SET loss_status = 'not_applicable'
+    WHERE loss_status = 'open'
+      AND (status != 'sold' OR list_price IS NULL OR sale_price IS NULL OR list_price <= sale_price)
+  `);
   // Rename legacy 'pipeline' status to 'wishlist'
   db.exec("UPDATE watches SET status = 'wishlist' WHERE status = 'pipeline'");
 
@@ -769,7 +777,7 @@ function listWatchesForProfile(profileId, ownerId) {
 function listAllWatches({ q, source, profile_id, ownerId } = {}) {
   let sql = `
     SELECT w.*, p.name AS client_name, p.email AS client_email,
-           p.profit_split_me, p.loss_split_me,
+           p.profit_split_me, p.loss_split_me, p.trading_rule, p.discount_split,
            s.name AS shop_name
     FROM watches w
     JOIN profiles p ON p.id = w.profile_id
@@ -1174,10 +1182,15 @@ function listClientPayouts(watchId) {
 function getClientPayout(id) {
   return db.prepare('SELECT * FROM client_payouts WHERE id = ?').get(id);
 }
+const VALID_PAYOUT_METHODS = ['BANK_TRANSFER', 'CASH', 'OTHER', 'AUTO_ON_SALE'];
+function _normalizeMethod(m) {
+  return VALID_PAYOUT_METHODS.includes(m) ? m : 'BANK_TRANSFER';
+}
+
 function createClientPayout({ watch_id, date, amount, currency, method, notes }) {
   const result = db.prepare(
     'INSERT INTO client_payouts (watch_id, date, amount, currency, method, notes) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(watch_id, date, Number(amount), currency || 'CHF', method || 'BANK_TRANSFER', notes || null);
+  ).run(watch_id, date, Number(amount), currency || 'CHF', _normalizeMethod(method), notes || null);
   _syncPayoutStatus(watch_id, 'client');
   return result.lastInsertRowid;
 }
@@ -1201,7 +1214,7 @@ function getMyPayout(id) {
 function createMyPayout({ watch_id, date, amount, currency, method, notes }) {
   const result = db.prepare(
     'INSERT INTO my_payouts (watch_id, date, amount, currency, method, notes) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(watch_id, date, Number(amount), currency || 'CHF', method || 'BANK_TRANSFER', notes || null);
+  ).run(watch_id, date, Number(amount), currency || 'CHF', _normalizeMethod(method), notes || null);
   _syncPayoutStatus(watch_id, 'my');
   return result.lastInsertRowid;
 }

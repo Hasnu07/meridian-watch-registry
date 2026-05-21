@@ -90,9 +90,13 @@ router.put('/:id', (req, res) => {
       // Auto-create initial payout ledger entries on Mark Sold transition.
       // Mirrors the legacy single-snapshot UX while populating the ledger so it
       // remains the authoritative source for "paid to date".
-      const transitioningToSold = updates.status === 'sold' && oldStatus !== 'sold';
+      const transitioningToSold   = updates.status === 'sold' && oldStatus !== 'sold';
+      const transitioningFromSold = oldStatus === 'sold' && updates.status && updates.status !== 'sold';
+
       if (transitioningToSold) {
-        const saleDate = updates.purchase_date || updated.purchase_date || new Date().toISOString().split('T')[0];
+        // Sale date precedence: explicit sale_date > explicit purchase_date >
+        // existing purchase_date > today. The Mark Sold modal sends sale_date.
+        const saleDate = req.body.sale_date || updates.purchase_date || updated.purchase_date || new Date().toISOString().split('T')[0];
         const cur      = updated.currency || 'CHF';
         // Use the resulting watch values (not request body) so this fires for both
         // Mark Sold (snapshot fields just set) AND Edit Watch (values may have been
@@ -106,6 +110,22 @@ router.put('/:id', (req, res) => {
         if (myRecv && myRecv > 0 && db.listMyPayouts(updated.id).length === 0) {
           const pid = db.createMyPayout({ watch_id: updated.id, date: saleDate, amount: myRecv, currency: cur, method: 'AUTO_ON_SALE', notes: 'Recorded at sale' });
           audit(req, { action: 'create', targetType: 'my_payout', targetId: pid, details: { watch_id: updated.id, amount: myRecv, method: 'AUTO_ON_SALE', auto: true } });
+        }
+      } else if (transitioningFromSold) {
+        // Reverting from sold (e.g. Edit Watch flipped back to purchased/wishlist):
+        // reverse any AUTO_ON_SALE ledger entries so the ledger stays consistent
+        // with the sale being undone. Manually-entered payouts are left untouched.
+        for (const p of db.listClientPayouts(updated.id)) {
+          if (!p.reversed && p.method === 'AUTO_ON_SALE') {
+            db.reverseClientPayout(p.id);
+            audit(req, { action: 'reverse', targetType: 'client_payout', targetId: p.id, details: { watch_id: updated.id, amount: p.amount, auto_revert: true } });
+          }
+        }
+        for (const p of db.listMyPayouts(updated.id)) {
+          if (!p.reversed && p.method === 'AUTO_ON_SALE') {
+            db.reverseMyPayout(p.id);
+            audit(req, { action: 'reverse', targetType: 'my_payout', targetId: p.id, details: { watch_id: updated.id, amount: p.amount, auto_revert: true } });
+          }
         }
       }
 
