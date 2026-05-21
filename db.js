@@ -1128,8 +1128,15 @@ function _computeOwed(watchId) {
 
   let mShare = 0, cShare = 0;
   if (isDiscount) {
-    mShare = gross > 0 ? w.sale_price * discountRate : gross * (lossSplit / 100);
-    cShare = gross > 0 ? 0 : gross * ((100 - lossSplit) / 100);
+    if (gross > 0) {
+      // Profit: operator takes commission, client gets the residual (conservation: my + client = gross)
+      mShare = w.sale_price * discountRate;
+      cShare = gross - mShare;
+    } else {
+      // Loss: split per lossSplit (already conserves)
+      mShare = gross * (lossSplit / 100);
+      cShare = gross * ((100 - lossSplit) / 100);
+    }
   } else {
     const sp = gross >= 0 ? profitSplit : lossSplit;
     mShare = (sp / 100) * gross;

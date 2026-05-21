@@ -2100,13 +2100,20 @@ async function loadMainKpi() {
     const lossSplit    = prof.loss_split_me   ?? 100;
     const isDiscount   = (prof.trading_rule || 'split') === 'discount';
     const discountSplit= prof.discount_split  ?? 0.08;
-    let grossProfit = 0, grossLoss = 0, discountIncome = 0;
+    let grossProfit = 0, grossLoss = 0, discountIncome = 0, clientProfitResidual = 0;
     for (const w of watches) {
       if (w.status !== 'sold' || w.list_price == null || w.sale_price == null) continue;
       const diff = w.sale_price - w.list_price;
       if (isDiscount) {
-        discountIncome += w.list_price * discountSplit;
-        if (diff < 0) grossLoss += diff;
+        if (diff > 0) {
+          // Per-watch commission uses locked rate when present (fall back to profile rate)
+          const inc = w.sale_price * (w.discount_rate_applied ?? discountSplit);
+          discountIncome       += inc;
+          clientProfitResidual += (diff - inc);
+          grossProfit          += diff;
+        } else if (diff < 0) {
+          grossLoss += diff;
+        }
       } else {
         if (diff > 0) grossProfit += diff; else grossLoss += diff;
       }
@@ -2114,9 +2121,10 @@ async function loadMainKpi() {
     const netPnl = grossProfit + grossLoss;
     let myShare, clientShare;
     if (isDiscount) {
-      const myLossShare = grossLoss * lossSplit / 100;
-      myShare     = discountIncome + myLossShare;
-      clientShare = grossLoss * (100 - lossSplit) / 100;
+      const myLossShare     = grossLoss * lossSplit / 100;
+      const clientLossShare = grossLoss * (100 - lossSplit) / 100;
+      myShare     = discountIncome       + myLossShare;
+      clientShare = clientProfitResidual + clientLossShare;
     } else {
       const splitMe = netPnl >= 0 ? profitSplit : lossSplit;
       myShare     = (splitMe / 100) * netPnl;
@@ -3034,15 +3042,19 @@ function computePnl(profile) {
   const myPnlByCur     = {};
   const clientPnlByCur = {};
   if (isDiscount) {
-    // Discount mode: per-watch income (Panel A) / liability (Panel B)
+    // Discount mode: profit → my=commission, client=residual; loss → split per lossSplit
+    // Both cases conserve: myPnl + clientPnl = gross
     for (const w of soldWatches) {
       if (w.list_price == null || w.sale_price == null) continue;
-      const c = w.currency || 'CHF';
-      if (w.sale_price > w.list_price) {
+      const c     = w.currency || 'CHF';
+      const gross = w.sale_price - w.list_price;
+      if (gross > 0) {
         const inc = w.sale_price * (w.discount_rate_applied ?? discountSplit);
-        myPnlByCur[c] = (myPnlByCur[c] || 0) + inc;
-      } else if (w.sale_price < w.list_price) {
-        clientPnlByCur[c] = (clientPnlByCur[c] || 0) - (w.list_price - w.sale_price);
+        myPnlByCur[c]     = (myPnlByCur[c]     || 0) + inc;
+        clientPnlByCur[c] = (clientPnlByCur[c] || 0) + (gross - inc);
+      } else if (gross < 0) {
+        myPnlByCur[c]     = (myPnlByCur[c]     || 0) + gross * (lossSplit / 100);
+        clientPnlByCur[c] = (clientPnlByCur[c] || 0) + gross * ((100 - lossSplit) / 100);
       }
     }
   } else {
@@ -3101,8 +3113,13 @@ function computePnl(profile) {
       const gross = w.sale_price - w.list_price;
       if (isDiscount) {
         const rate = w.discount_rate_applied ?? discountSplit;
-        mShare = gross > 0 ? w.sale_price * rate : gross * (lossSplit / 100);
-        cShare = gross > 0 ? 0 : gross * ((100 - lossSplit) / 100);
+        if (gross > 0) {
+          mShare = w.sale_price * rate;
+          cShare = gross - mShare;     // residual ensures conservation
+        } else {
+          mShare = gross * (lossSplit / 100);
+          cShare = gross * ((100 - lossSplit) / 100);
+        }
       } else {
         const sp = gross >= 0 ? profitSplit : lossSplit;
         mShare = (sp / 100) * gross;
@@ -4033,10 +4050,17 @@ function renderWatchDetailPage(w) {
   let myPnl = null, clientPnl = null, myPnlNote = '', clientPnlNote = '';
   if (w.status === 'sold' && gross != null) {
     if (isDiscount) {
-      myPnl       = gross > 0 ? sale * discountRate : gross * (lossSplit / 100);
-      clientPnl   = gross > 0 ? 0  : gross * ((100 - lossSplit) / 100);
-      myPnlNote     = gross > 0 ? `${(discountRate*100).toFixed(1)}% of sale` : `${lossSplit}% of loss`;
-      clientPnlNote = gross > 0 ? '—' : `${100 - lossSplit}% of loss`;
+      if (gross > 0) {
+        myPnl         = sale * discountRate;
+        clientPnl     = gross - myPnl;   // residual ensures conservation
+        myPnlNote     = `${(discountRate*100).toFixed(1)}% of sale (commission)`;
+        clientPnlNote = `gross − commission`;
+      } else {
+        myPnl         = gross * (lossSplit / 100);
+        clientPnl     = gross * ((100 - lossSplit) / 100);
+        myPnlNote     = `${lossSplit}% of loss`;
+        clientPnlNote = `${100 - lossSplit}% of loss`;
+      }
     } else {
       const sp  = gross >= 0 ? profitSplit : lossSplit;
       myPnl       = (sp / 100) * gross;
@@ -4195,7 +4219,7 @@ function renderWatchDetailPage(w) {
             <div class="space-y-2.5">
               <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/70 font-semibold">My Side</p>
               <div class="flex justify-between text-sm"><span class="text-on-surface-variant">My Cost</span><span class="font-mono text-emerald-400">${mc(w.my_cost)}</span></div>
-              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">I Received</span><span class="font-mono text-emerald-400">${mc(w.my_received)}</span></div>
+              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Paid to me</span><span class="font-mono text-emerald-400">${fmt.price(myBal.paid, cur)}</span></div>
               ${w.status === 'sold' ? `<div class="flex justify-between text-sm border-t border-outline-variant/10 pt-2">
                 <span class="text-on-surface font-semibold">My P&amp;L</span>
                 <div class="text-right">
@@ -4208,7 +4232,7 @@ function renderWatchDetailPage(w) {
             <div class="space-y-2.5">
               <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/70 font-semibold">Client Side</p>
               <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Client Cost</span><span class="font-mono text-purple-300">${mc(w.client_cost)}</span></div>
-              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Client Received</span><span class="font-mono text-purple-300">${mc(w.client_received)}</span></div>
+              <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Paid to client</span><span class="font-mono text-purple-300">${fmt.price(clientBal.paid, cur)}</span></div>
               ${w.status === 'sold' ? `<div class="flex justify-between text-sm border-t border-outline-variant/10 pt-2">
                 <span class="text-on-surface font-semibold">Client P&amp;L</span>
                 <div class="text-right">
@@ -4670,8 +4694,11 @@ function watchDetailBanner(w) {
   if (w.status === 'sold') {
     const list = w.list_price, sale = w.sale_price;
     const gross = (list != null && sale != null) ? (sale - list) : null;
-    const myGain     = (w.my_received     != null && w.my_cost     != null) ? (w.my_received - w.my_cost) : null;
-    const clientGain = (w.client_received != null && w.client_cost != null) ? (w.client_received - w.client_cost) : null;
+    // Use split-rule-derived P&L from the shared helper (conserves: my + client = gross)
+    const mBalSold   = watchPayoutBalance(w, 'my');
+    const cBalSold   = watchPayoutBalance(w, 'client');
+    const myGain     = mBalSold.share;
+    const clientGain = cBalSold.share;
     const sgn = v => v > 0 ? '+' : '';
     const cls = v => v == null ? 'text-outline' : v >= 0 ? 'text-emerald-400' : 'text-error';
     return `
@@ -4687,12 +4714,12 @@ function watchDetailBanner(w) {
         <div class="grid grid-cols-2 gap-6 pt-3 border-t border-emerald-500/10">
           <div class="grid grid-cols-3 gap-3 text-[10px]">
             <div><p class="text-on-surface-variant">My Cost</p><p class="font-mono text-on-surface">${mc(w.my_cost)}</p></div>
-            <div><p class="text-on-surface-variant">I Received</p><p class="font-mono text-emerald-400">${mc(w.my_received)}</p></div>
+            <div><p class="text-on-surface-variant">Paid to me</p><p class="font-mono text-emerald-400">${fmt.price(mBalSold.paid, cur)}</p></div>
             <div><p class="text-on-surface-variant">My P&amp;L</p><p class="font-mono ${cls(myGain)}">${myGain != null ? sgn(myGain)+fmt.price(myGain, cur) : '—'}</p></div>
           </div>
           <div class="grid grid-cols-3 gap-3 text-[10px]">
             <div><p class="text-on-surface-variant">Client Cost</p><p class="font-mono text-purple-300">${mc(w.client_cost)}</p></div>
-            <div><p class="text-on-surface-variant">Client Received</p><p class="font-mono text-purple-300">${mc(w.client_received)}</p></div>
+            <div><p class="text-on-surface-variant">Paid to client</p><p class="font-mono text-purple-300">${fmt.price(cBalSold.paid, cur)}</p></div>
             <div><p class="text-on-surface-variant">Client P&amp;L</p><p class="font-mono ${cls(clientGain)}">${clientGain != null ? sgn(clientGain)+fmt.price(clientGain, cur) : '—'}</p></div>
           </div>
         </div>
@@ -5185,8 +5212,14 @@ function watchPayoutBalance(w, side /* 'client' | 'my' */) {
     const discountRate = w.discount_rate_applied ?? w.profile?.discount_split ?? 0.08;
     const gross        = w.sale_price - w.list_price;
     if (isDiscount) {
-      if (side === 'my') share = gross > 0 ? w.sale_price * discountRate : gross * (lossSplit / 100);
-      else                share = gross > 0 ? 0 : gross * ((100 - lossSplit) / 100);
+      if (gross > 0) {
+        // Profit: my = commission, client = residual (conservation)
+        const myCommission = w.sale_price * discountRate;
+        share = side === 'my' ? myCommission : (gross - myCommission);
+      } else {
+        // Loss: split per lossSplit
+        share = side === 'my' ? gross * (lossSplit / 100) : gross * ((100 - lossSplit) / 100);
+      }
     } else {
       const sp = gross >= 0 ? profitSplit : lossSplit;
       share = side === 'my' ? (sp / 100) * gross : ((100 - sp) / 100) * gross;

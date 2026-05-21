@@ -94,8 +94,11 @@ router.put('/:id', (req, res) => {
       if (transitioningToSold) {
         const saleDate = updates.purchase_date || updated.purchase_date || new Date().toISOString().split('T')[0];
         const cur      = updated.currency || 'CHF';
-        const clientRecv = req.body.client_received != null && req.body.client_received !== '' ? Number(req.body.client_received) : null;
-        const myRecv     = req.body.my_received     != null && req.body.my_received     !== '' ? Number(req.body.my_received)     : null;
+        // Use the resulting watch values (not request body) so this fires for both
+        // Mark Sold (snapshot fields just set) AND Edit Watch (values may have been
+        // entered earlier or are still null). Null/0 → skip; user can record manually.
+        const clientRecv = updated.client_received != null ? Number(updated.client_received) : null;
+        const myRecv     = updated.my_received     != null ? Number(updated.my_received)     : null;
         if (clientRecv && clientRecv > 0 && db.listClientPayouts(updated.id).length === 0) {
           const pid = db.createClientPayout({ watch_id: updated.id, date: saleDate, amount: clientRecv, currency: cur, method: 'AUTO_ON_SALE', notes: 'Recorded at sale' });
           audit(req, { action: 'create', targetType: 'client_payout', targetId: pid, details: { watch_id: updated.id, amount: clientRecv, method: 'AUTO_ON_SALE', auto: true } });
