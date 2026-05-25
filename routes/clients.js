@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path    = require('path');
+const crypto  = require('crypto');
 const multer  = require('multer');
 const db      = require('../db');
 const storage = require('../lib/storage');
@@ -99,6 +100,18 @@ router.delete('/:id', async (req, res) => {
   db.deleteClient(req.params.id, uid(req));
   audit(req, { action: 'delete', targetType: 'client', targetId: Number(req.params.id), details: { name: client.name } });
   res.json({ ok: true });
+});
+
+// POST /api/clients/:id/generate-link — rotate share token. Returns the public URL.
+// Ownership is enforced via getClient; any pre-existing token is overwritten,
+// so old links are invalidated atomically with the new one being issued.
+router.post('/:id/generate-link', (req, res) => {
+  const client = db.getClient(req.params.id, uid(req));
+  if (!client) return res.status(404).json({ error: 'Not found' });
+  const token = crypto.randomBytes(32).toString('hex');
+  db.setClientToken(req.params.id, token, uid(req));
+  audit(req, { action: 'rotate_share_token', targetType: 'client', targetId: Number(req.params.id), details: { name: client.name } });
+  res.json({ token, url: `/c/${token}` });
 });
 
 module.exports = router;

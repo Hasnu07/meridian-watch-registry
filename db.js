@@ -73,11 +73,12 @@ function init() {
     );
 
     CREATE TABLE IF NOT EXISTS clients (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      master_id  TEXT UNIQUE,
-      name       TEXT NOT NULL,
-      photo_path TEXT,
-      created_at DATETIME DEFAULT (datetime('now'))
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      master_id   TEXT UNIQUE,
+      name        TEXT NOT NULL,
+      photo_path  TEXT,
+      share_token TEXT UNIQUE,
+      created_at  DATETIME DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS company_docs (
@@ -280,6 +281,10 @@ function init() {
     const allC = db.prepare("SELECT id FROM clients ORDER BY id ASC").all();
     const setMid = db.prepare("UPDATE clients SET master_id = ? WHERE id = ?");
     allC.forEach((c, i) => setMid.run(String(i + 1).padStart(3, '0'), c.id));
+  }
+  if (!clientCols.includes('share_token')) {
+    db.exec("ALTER TABLE clients ADD COLUMN share_token TEXT");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_share_token ON clients (share_token)");
   }
 
   // Migrate portfolios columns
@@ -689,7 +694,18 @@ function deleteClient(id, ownerId) {
   db.prepare('DELETE FROM clients WHERE id = ? AND owner_id = ?').run(id, ownerId);
 }
 
-// ── Profiles ──────────────────────────────────────────────────────────────
+// Owner-scoped: rotate the share token for a client. Old links die instantly.
+function setClientToken(id, token, ownerId) {
+  db.prepare('UPDATE clients SET share_token = ? WHERE id = ? AND owner_id = ?').run(token, id, ownerId);
+}
+
+// PUBLIC: client share link — no auth, no ownership check (the token IS the secret).
+// Returns the client identified by token plus all memberships with watches.
+// Membership lookup must NOT filter by owner_id — that would block the public
+// endpoint. Token uniqueness ensures the lookup resolves to exactly one client.
+function getClientByToken(token) {
+  return db.prepare('SELECT id, master_id, name, photo_path, owner_id, created_at FROM clients WHERE share_token = ?').get(token);
+}
 
 function listProfiles(ownerId) {
   return db.prepare(`
@@ -1234,6 +1250,7 @@ module.exports = {
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
   listClients, getClient, getClientByMasterId, getClientWithMemberships, createClient, updateClient, deleteClient,
+  setClientToken, getClientByToken,
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,
   listCompanyDocs, getCompanyDoc, createCompanyDoc, deleteCompanyDoc,

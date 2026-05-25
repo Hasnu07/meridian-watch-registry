@@ -112,6 +112,67 @@ app.get('/api/share/:token', (req, res) => {
   res.json({ portfolio, clients });
 });
 
+// ── Public client share ───────────────────────────────────────────────────
+// Token-only auth: the share_token IS the secret. Lookup by token resolves to
+// exactly one client (UNIQUE constraint). Sensitive financial fields are
+// stripped before returning — see sanitizeWatchForShare / sanitizeProfileForShare.
+
+function sanitizeWatchForShare(w) {
+  return {
+    id:               w.id,
+    model:            w.model,
+    source:           w.source,
+    serial_number:    w.serial_number,
+    reference_number: w.reference_number,
+    movement_number:  w.movement_number,
+    case_number:      w.case_number,
+    purchase_date:    w.purchase_date,
+    sold_date:        w.sold_date,
+    status:           w.status,
+    currency:         w.currency,
+    list_price:       w.list_price,
+    sale_price:       w.status === 'sold' ? w.sale_price : null,
+    image_path:       w.image_path,
+    notes:            w.notes,
+    // Deliberately omitted: my_cost, client_cost, my_received, client_received,
+    // price, discount_rate_applied, loss_status, *_payout_status, sold_to,
+    // and all ledger arrays (loss_payments, expenses, *_payouts).
+  };
+}
+function sanitizeProfileForShare(p) {
+  return {
+    id:             p.id,
+    name:           p.name,
+    email:          p.email,
+    subscriber_id:  p.subscriber_id,
+    pp_urn:         p.pp_urn,
+    address:        p.address,
+    photo_path:     p.photo_path,
+    shop_name:      p.shop_name,
+    // Omitted: split rules, capital, trading_rule, my_capital, client_capital, etc.
+  };
+}
+
+app.get('/c/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'client-share.html'));
+});
+
+app.get('/api/share-client/:token', (req, res) => {
+  const client = db.getClientByToken(req.params.token);
+  if (!client) return res.status(404).json({ error: 'Invalid or expired link' });
+  // Pull memberships + watches via the existing helper, then sanitize each layer.
+  const full = db.getClientWithMemberships(client.id, client.owner_id);
+  if (!full) return res.status(404).json({ error: 'Invalid or expired link' });
+  const memberships = (full.memberships || []).map(m => ({
+    ...sanitizeProfileForShare(m),
+    watches: (m.watches || []).map(sanitizeWatchForShare),
+  }));
+  res.json({
+    client: { id: client.id, name: client.name, master_id: client.master_id, photo_path: client.photo_path },
+    memberships,
+  });
+});
+
 // Stats — scoped to current user
 app.get('/api/stats', requireAuth, (req, res) => {
   res.json(db.getStats(uid(req)));
