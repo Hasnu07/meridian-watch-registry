@@ -86,36 +86,17 @@ const loginLimiter = rateLimit({
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', require('./routes/auth'));
 
-app.use('/api/shops',                             requireAuth, require('./routes/shops'));
-app.use('/api/portfolios',                        requireAuth, require('./routes/portfolios'));
-app.use('/api/clients',                           requireAuth, require('./routes/clients'));
-app.use('/api/profiles',                          requireAuth, require('./routes/profiles'));
-app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes/company-docs'));
-app.use('/api/watches',                           requireAuth, require('./routes/watches'));
-app.use('/api',                                   requireAuth, require('./routes/loss-payments'));
-app.use('/api',                                   requireAuth, require('./routes/expenses'));
-app.use('/api',                                   requireAuth, require('./routes/payouts'));
-app.use('/api/admin',                             requireAuth, require('./routes/admin'));
-
-// ── Public portfolio share ────────────────────────────────────────────────
-app.get('/p/:token', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'portfolio-share.html'));
-});
-
-app.get('/api/share/:token', (req, res) => {
-  const portfolio = db.getPortfolioByToken(req.query.token || req.params.token);
-  if (!portfolio) return res.status(404).json({ error: 'Invalid or expired link' });
-  const clients = db.listProfilesForPortfolio(portfolio.id).map(p => ({
-    ...p,
-    watches: db.listWatchesForProfile(p.id),
-  }));
-  res.json({ portfolio, clients });
-});
-
-// ── Public client share ───────────────────────────────────────────────────
-// Token-only auth: the share_token IS the secret. Lookup by token resolves to
-// exactly one client (UNIQUE constraint). Sensitive financial fields are
-// stripped before returning — see sanitizeWatchForShare / sanitizeProfileForShare.
+// ── Public share routes ───────────────────────────────────────────────────
+// IMPORTANT: these must be registered BEFORE the `/api` auth-gated mounts
+// below (loss-payments / expenses / payouts use the bare `/api` prefix, which
+// causes their `requireAuth` middleware to intercept any path starting with
+// `/api/`, including our public `/api/share*` endpoints). Express matches
+// middleware in registration order — by handling the public routes first they
+// short-circuit before requireAuth gets a chance to 401 an unauthenticated
+// recipient opening a share link in a fresh browser.
+//
+// The HTML page routes (/p/:token, /c/:token) aren't affected by this since
+// no `/p` or `/c` middleware exists, but they're kept here for locality.
 
 function sanitizeWatchForShare(w) {
   return {
@@ -153,14 +134,27 @@ function sanitizeProfileForShare(p) {
   };
 }
 
+// Portfolio share — HTML + API
+app.get('/p/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'portfolio-share.html'));
+});
+app.get('/api/share/:token', (req, res) => {
+  const portfolio = db.getPortfolioByToken(req.query.token || req.params.token);
+  if (!portfolio) return res.status(404).json({ error: 'Invalid or expired link' });
+  const clients = db.listProfilesForPortfolio(portfolio.id).map(p => ({
+    ...p,
+    watches: db.listWatchesForProfile(p.id),
+  }));
+  res.json({ portfolio, clients });
+});
+
+// Client share — HTML + API
 app.get('/c/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'client-share.html'));
 });
-
 app.get('/api/share-client/:token', (req, res) => {
   const client = db.getClientByToken(req.params.token);
   if (!client) return res.status(404).json({ error: 'Invalid or expired link' });
-  // Pull memberships + watches via the existing helper, then sanitize each layer.
   const full = db.getClientWithMemberships(client.id, client.owner_id);
   if (!full) return res.status(404).json({ error: 'Invalid or expired link' });
   const memberships = (full.memberships || []).map(m => ({
@@ -172,6 +166,18 @@ app.get('/api/share-client/:token', (req, res) => {
     memberships,
   });
 });
+
+// ── Authenticated API mounts ──────────────────────────────────────────────
+app.use('/api/shops',                             requireAuth, require('./routes/shops'));
+app.use('/api/portfolios',                        requireAuth, require('./routes/portfolios'));
+app.use('/api/clients',                           requireAuth, require('./routes/clients'));
+app.use('/api/profiles',                          requireAuth, require('./routes/profiles'));
+app.use('/api/profiles/:id/company-docs',         requireAuth, require('./routes/company-docs'));
+app.use('/api/watches',                           requireAuth, require('./routes/watches'));
+app.use('/api',                                   requireAuth, require('./routes/loss-payments'));
+app.use('/api',                                   requireAuth, require('./routes/expenses'));
+app.use('/api',                                   requireAuth, require('./routes/payouts'));
+app.use('/api/admin',                             requireAuth, require('./routes/admin'));
 
 // Stats — scoped to current user
 app.get('/api/stats', requireAuth, (req, res) => {
