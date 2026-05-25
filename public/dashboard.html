@@ -1548,6 +1548,33 @@
 </div>
 
 <!-- ═══ COMPANY DOC MODAL ════════════════════════════════════════════════ -->
+<!-- ═══ SHARE LINK RESULT MODAL ═════════════════════════════════════════ -->
+<div id="shareLinkModal" class="fixed inset-0 z-[120] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-lg bg-[#161B22] border border-white/10 rounded-2xl shadow-2xl">
+    <div class="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+      <h2 class="font-playfair text-2xl text-primary">Share Link</h2>
+      <button onclick="closeShareLinkModal()" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <p id="shareLinkSubtitle" class="text-xs text-on-surface-variant">Anyone with this link can view the shared data. Re-generating invalidates the previous link.</p>
+      <div class="flex gap-2">
+        <input id="shareLinkUrl" type="text" readonly
+          class="flex-1 bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface font-mono focus:outline-none focus:border-primary/60 select-all"
+          onclick="this.select()">
+        <button id="shareLinkCopyBtn" onclick="copyShareLinkFromModal()" class="bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 font-semibold px-4 py-2.5 rounded-lg text-sm transition-all flex items-center gap-1.5 flex-shrink-0">
+          <span class="material-symbols-outlined text-[16px]">content_copy</span> Copy
+        </button>
+      </div>
+      <p id="shareLinkHint" class="text-[10px] text-on-surface-variant/70 italic">If clipboard access is blocked, tap the URL above to select it, then copy manually.</p>
+    </div>
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end">
+      <button onclick="closeShareLinkModal()" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="companyDocModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
   <div class="w-full max-w-md bg-[#161B22] border border-white/10 rounded-2xl shadow-2xl">
     <div class="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
@@ -6366,7 +6393,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 }
 
 // ── Close on backdrop click ────────────────────────────────────────────────
-['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal','recordPaymentModal','addExpenseModal','recordPayoutModal'].forEach(id => {
+['profileModal','watchModal','confirmModal','companyDocModal','markSoldModal','portfolioModal','recordPaymentModal','addExpenseModal','recordPayoutModal','shareLinkModal'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target === e.currentTarget) {
       if (id === 'profileModal') closeProfileModal();
@@ -6377,6 +6404,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
       else if (id === 'recordPaymentModal') closeRecordPaymentModal();
       else if (id === 'addExpenseModal') closeAddExpenseModal();
       else if (id === 'recordPayoutModal') closeRecordPayoutModal();
+      else if (id === 'shareLinkModal') closeShareLinkModal();
       else closeConfirm();
     }
   });
@@ -6386,7 +6414,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal(); closeShopModal(); closeMarkSoldModal();
-  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal(); closeRecordPayoutModal();
+  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal(); closeRecordPayoutModal(); closeShareLinkModal();
   document.getElementById('lightbox').classList.add('hidden');
 });
 
@@ -6778,30 +6806,114 @@ document.getElementById('savePortfolioBtn').addEventListener('click', async () =
   }
 });
 
-async function generateShareLink(id) {
-  const btn = document.getElementById(`shareLinkBtn-${id}`);
-  if (btn) { btn.textContent = 'Generating…'; btn.disabled = true; }
+// Robust clipboard copy. Modern API first (requires HTTPS / secure context),
+// then execCommand fallback for older / file-protocol / iframe contexts. Returns
+// true on success, false if both methods fail.
+async function tryCopyToClipboard(text) {
   try {
-    const { url } = await api('POST', `/api/portfolios/${id}/generate-link`);
-    const fullUrl = window.location.origin + url;
-    await navigator.clipboard.writeText(fullUrl);
-    if (btn) {
-      btn.innerHTML = '<span class="material-symbols-outlined text-[15px]">check</span> Copied!';
-      btn.classList.add('text-primary');
-      setTimeout(() => {
-        btn.innerHTML = '<span class="material-symbols-outlined text-[15px]">link</span> Share Link';
-        btn.classList.remove('text-primary');
-        btn.disabled = false;
-      }, 2500);
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
     }
-  } catch(e) {
-    if (btn) { btn.innerHTML = '<span class="material-symbols-outlined text-[15px]">link</span> Share Link'; btn.disabled = false; }
-    alert('Could not copy link: ' + e.message);
+  } catch (_) { /* fall through to execCommand */ }
+  // Fallback: temporary textarea + execCommand('copy')
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top  = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (_) {
+    return false;
   }
 }
 
-// Rotate-and-copy the client share token. Mirrors generateShareLink (portfolio)
-// — POST always rotates the token, so the new link replaces any previous one.
+let _shareLinkUrl = null;
+
+// Show the share-link result modal. Always reveals the URL so even if the
+// clipboard attempt fails, the user can select/copy manually — preventing
+// the "link generated but lost" bug that caused token rotations to strand
+// the previous link in an unusable state.
+async function showShareLinkResult(url, subtitle) {
+  _shareLinkUrl = url;
+  document.getElementById('shareLinkUrl').value     = url;
+  document.getElementById('shareLinkSubtitle').textContent = subtitle || 'Anyone with this link can view the shared data. Re-generating invalidates the previous link.';
+  document.getElementById('shareLinkModal').classList.remove('hidden');
+  // Auto-attempt clipboard once on open; update button + hint based on result.
+  const btn  = document.getElementById('shareLinkCopyBtn');
+  const hint = document.getElementById('shareLinkHint');
+  btn.innerHTML  = '<span class="material-symbols-outlined text-[16px]">content_copy</span> Copy';
+  btn.disabled   = false;
+  hint.textContent = 'If clipboard access is blocked, tap the URL above to select it, then copy manually.';
+  const ok = await tryCopyToClipboard(url);
+  if (ok) {
+    btn.innerHTML  = '<span class="material-symbols-outlined text-[16px]">check</span> Copied';
+    btn.classList.add('text-emerald-400');
+    hint.textContent = 'Link copied to clipboard.';
+  } else {
+    hint.textContent = 'Clipboard blocked by browser — please select the URL above and copy it manually.';
+  }
+  // Pre-select the input so mobile users / blocked-clipboard users can ⌘C immediately
+  setTimeout(() => {
+    const input = document.getElementById('shareLinkUrl');
+    input.focus(); input.select();
+  }, 50);
+}
+
+async function copyShareLinkFromModal() {
+  if (!_shareLinkUrl) return;
+  const btn  = document.getElementById('shareLinkCopyBtn');
+  const hint = document.getElementById('shareLinkHint');
+  const ok = await tryCopyToClipboard(_shareLinkUrl);
+  if (ok) {
+    btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">check</span> Copied';
+    btn.classList.add('text-emerald-400');
+    hint.textContent = 'Link copied to clipboard.';
+    setTimeout(() => {
+      btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">content_copy</span> Copy';
+      btn.classList.remove('text-emerald-400');
+    }, 2000);
+  } else {
+    hint.textContent = 'Clipboard blocked by browser — please select the URL above and copy it manually.';
+    // Still re-focus the input so the user can manually select
+    const input = document.getElementById('shareLinkUrl');
+    input.focus(); input.select();
+  }
+}
+
+function closeShareLinkModal() {
+  document.getElementById('shareLinkModal').classList.add('hidden');
+  _shareLinkUrl = null;
+  // Reset copy button colour in case the modal is reopened later
+  const btn = document.getElementById('shareLinkCopyBtn');
+  if (btn) btn.classList.remove('text-emerald-400');
+}
+
+// Portfolio share — generates a new token, then opens the modal with the URL.
+// The modal handles copy/fallback so the link is never lost on clipboard fail.
+async function generateShareLink(id) {
+  const btn = document.getElementById(`shareLinkBtn-${id}`);
+  if (btn) { btn.innerHTML = '<span class="material-symbols-outlined text-[15px]">link</span> Generating…'; btn.disabled = true; }
+  try {
+    const { url } = await api('POST', `/api/portfolios/${id}/generate-link`);
+    const fullUrl = window.location.origin + url;
+    await showShareLinkResult(fullUrl, 'Anyone with this link can view this portfolio. Re-generating invalidates the previous link.');
+  } catch (e) {
+    alert('Could not generate link: ' + (e.message || 'unknown error'));
+  } finally {
+    if (btn) { btn.innerHTML = '<span class="material-symbols-outlined text-[15px]">link</span> Share Link'; btn.disabled = false; }
+  }
+}
+
+// Client share — same pattern. POST always rotates the token, so the URL
+// returned is the only valid one; the modal makes sure the user gets it.
 async function generateClientShareLink(id) {
   const btn = document.getElementById(`clientShareBtn-${id}`);
   const setBtn = (html, disabled) => { if (btn) { btn.innerHTML = html; btn.disabled = disabled; } };
@@ -6809,16 +6921,11 @@ async function generateClientShareLink(id) {
   try {
     const { url } = await api('POST', `/api/clients/${id}/generate-link`);
     const fullUrl = window.location.origin + url;
-    await navigator.clipboard.writeText(fullUrl);
-    setBtn('<span class="material-symbols-outlined text-[14px]">check</span> Link Copied!', true);
-    if (btn) btn.classList.add('text-primary', 'border-primary/40');
-    setTimeout(() => {
-      setBtn('<span class="material-symbols-outlined text-[14px]">link</span> Share Link', false);
-      if (btn) btn.classList.remove('text-primary', 'border-primary/40');
-    }, 2500);
+    await showShareLinkResult(fullUrl, 'Anyone with this link can view this client\'s watch list. Re-generating invalidates the previous link.');
   } catch (e) {
+    alert('Could not generate link: ' + (e.message || 'unknown error'));
+  } finally {
     setBtn('<span class="material-symbols-outlined text-[14px]">link</span> Share Link', false);
-    alert('Could not copy link: ' + (e.message || 'unknown error'));
   }
 }
 
