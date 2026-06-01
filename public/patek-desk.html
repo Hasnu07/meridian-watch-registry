@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Patek Desk — pricing &amp; negotiation terminal</title>
   <style>
-    /* The page is its own scroll container so position:sticky on the inner
-       header is reliable even when this document is loaded inside an iframe
-       that lives in a parent with its own scroll context. */
-    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    /* Pin the layout: html/body/#root each fill 100% with overflow hidden.
+       The React app inside uses its own flex-column where the header is
+       flex-shrink:0 (always visible) and the content pane scrolls. This is
+       more reliable than position:sticky when embedded in an iframe whose
+       parent has its own scroll context. */
+    html, body, #root { height: 100%; margin: 0; padding: 0; overflow: hidden; }
     body { background: #0c0c0e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #f4f1ea; }
-    #root { height: 100%; overflow-y: auto; overflow-x: hidden; }
     #__boot { position: fixed; inset: 0; display: grid; place-items: center; background: #0c0c0e; }
     #__boot .mark { width: 96px; height: 96px; border-radius: 22px; border: 3px solid #c9a96a; display: grid; place-items: center; color: #c9a96a; font-weight: 700; font-size: 38px; letter-spacing: 0.08em; font-family: "Inter Tight", sans-serif; }
   </style>
@@ -244,10 +245,16 @@
         teal: '#5dcaa5', amber: '#ef9f27', red: '#e24b4a', greenbg: '#0f2e22', redbg: '#2e1414',
       };
 
-      if (!loaded) return <div style={{ background: C.bg, color: C.cream, minHeight: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'ui-sans-serif, system-ui' }}>Loading…</div>;
+      if (!loaded) return <div style={{ background: C.bg, color: C.cream, height: '100%', display: 'grid', placeItems: 'center', fontFamily: 'ui-sans-serif, system-ui' }}>Loading…</div>;
 
+      // Outer wrapper: full-height flex column.
+      // - Header: flex-shrink: 0  -> always visible
+      // - Scroll pane: flex: 1, overflow-y: auto  -> page content scrolls here
+      // This avoids relying on position:sticky which breaks unpredictably
+      // when this document is embedded in an iframe whose ancestor has its
+      // own scroll context.
       return (
-        <div style={{ background: C.bg, minHeight: '100vh', color: C.cream, fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
+        <div style={{ background: C.bg, height: '100%', color: C.cream, fontFamily: 'ui-sans-serif, system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
           <style>{`
             * { box-sizing: border-box; }
             .pk-in { background:#0c0c0e; border:1px solid ${C.line}; color:${C.cream}; border-radius:8px; padding:7px 10px; font-size:13px; outline:none; width:100%; }
@@ -261,7 +268,8 @@
             ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-thumb{background:${C.line};border-radius:6px}
           `}</style>
 
-          <div style={{ borderBottom: `1px solid ${C.line}`, padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'rgba(12,12,14,0.92)', backdropFilter: 'blur(8px)', zIndex: 20 }}>
+          {/* Header — flex-shrink:0 keeps it pinned at top regardless of scroll */}
+          <div style={{ flexShrink: 0, borderBottom: `1px solid ${C.line}`, padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(12,12,14,0.95)', zIndex: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.gold}`, display: 'grid', placeItems: 'center', color: C.gold, fontWeight: 600, fontSize: 15, letterSpacing: '0.04em' }}>PK</div>
               <div>
@@ -269,13 +277,15 @@
                 <div style={{ fontSize: 11, color: C.dim }}>pricing & negotiation terminal</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button className={`pk-tab ${tab==='desk'?'on':''}`} onClick={() => setTab('desk')}><Calculator size={14}/> Deal</button>
               <button className={`pk-tab ${tab==='lib'?'on':''}`} onClick={() => setTab('lib')}><Database size={14}/> Price list</button>
               <button className={`pk-tab ${tab==='set'?'on':''}`} onClick={() => setTab('set')}><Settings size={14}/> Data & FX</button>
             </div>
           </div>
 
+          {/* Scroll pane — only the content scrolls; header stays put */}
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           <div style={{ maxWidth: 1120, margin: '0 auto', padding: '22px' }}>
 
             {tab === 'desk' && (
@@ -487,6 +497,7 @@
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       );
