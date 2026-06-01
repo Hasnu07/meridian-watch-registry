@@ -1860,12 +1860,17 @@ function showPage(name) {
   if (name === 'admin')     loadAdmin();
 }
 
-// Lazy-load the Patek Desk iframe — the bundle is ~2 MB so we only set the
-// src on first visit. Subsequent navigations re-use the loaded iframe and
-// preserve its in-tab state (deal lines, FX edits, etc.) without reload.
+// Lazy-load the Patek Desk iframe on first visit. Subsequent navigations
+// re-use the loaded iframe and preserve its in-tab state (deal lines, FX
+// edits, etc.) without reload. Also resets the parent <main> scroll so the
+// iframe — and its sticky tab header — sits flush with the top of the
+// viewport even when arriving from a long scrolled page like Watches.
 function loadPatekDesk() {
   const f = document.getElementById('patekDeskFrame');
   if (f && !f.src) f.src = '/patek-desk.html';
+  const main = document.getElementById('mainContent');
+  if (main) main.scrollTop = 0;
+  window.scrollTo(0, 0);
 }
 
 document.querySelectorAll('[data-page]').forEach(el => {
