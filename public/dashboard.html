@@ -77,6 +77,10 @@
         <span class="material-symbols-outlined">watch</span>
         <span>Watches</span>
       </button>
+      <button data-page="desk" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
+        <span class="material-symbols-outlined">calculate</span>
+        <span>Patek Desk</span>
+      </button>
       <button data-page="messages" class="nav-item nav-inactive w-full flex items-center gap-3 px-4 py-3 rounded-r-lg text-sm transition-all hover:text-primary hover:bg-primary/5">
         <span class="material-symbols-outlined">mark_email_read</span>
         <span>Messages</span>
@@ -751,6 +755,18 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ── Patek Desk (pricing & negotiation terminal, iframe-hosted) ─ -->
+      <!-- The terminal is a self-contained React bundle served from
+           /patek-desk.html. It manages its own state in localStorage
+           (key PATEK_DESK_V2) — no coupling to the dashboard data layer.
+           Hosting via iframe keeps its bundled scripts/styles isolated
+           from the dashboard's tailwind config + global handlers. -->
+      <div id="page-desk" class="hidden flex-1 flex flex-col min-h-0">
+        <iframe id="patekDeskFrame" title="Patek Desk"
+                style="width:100%; height:100%; border:0; flex:1; background:#0c0c0e;"
+                loading="lazy" referrerpolicy="no-referrer"></iframe>
       </div>
 
       <!-- ── Messages ───────────────────────────────────────────────── -->
@@ -1797,7 +1813,7 @@ const fmt = {
 let currentPage = 'dashboard';
 let currentProfileId = null;
 let currentShopId = null;
-const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watch-detail','watches','messages','settings','admin'];
+const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watch-detail','watches','desk','messages','settings','admin'];
 
 function showPage(name) {
   PAGES.forEach(p => {
@@ -1818,7 +1834,7 @@ function showPage(name) {
     }
   });
 
-  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', 'watch-detail':'Watch', watches:'Watches', messages:'Messages', settings:'Settings', admin:'Admin' };
+  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', 'watch-detail':'Watch', watches:'Watches', desk:'Patek Desk', messages:'Messages', settings:'Settings', admin:'Admin' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
 
   const showAddProfile   = name === 'profiles';
@@ -1838,9 +1854,18 @@ function showPage(name) {
   if (name === 'portfolios') loadAllPortfolios();
   if (name === 'main-kpi')   loadMainKpi();
   if (name === 'watches')    loadWatches();
+  if (name === 'desk')       loadPatekDesk();
   if (name === 'settings')  resetPasswordForm();
   if (name === 'messages')  loadMsgClients();
   if (name === 'admin')     loadAdmin();
+}
+
+// Lazy-load the Patek Desk iframe — the bundle is ~2 MB so we only set the
+// src on first visit. Subsequent navigations re-use the loaded iframe and
+// preserve its in-tab state (deal lines, FX edits, etc.) without reload.
+function loadPatekDesk() {
+  const f = document.getElementById('patekDeskFrame');
+  if (f && !f.src) f.src = '/patek-desk.html';
 }
 
 document.querySelectorAll('[data-page]').forEach(el => {
