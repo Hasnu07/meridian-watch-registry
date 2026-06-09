@@ -55,14 +55,46 @@
        call sites (await window.storage.get/set) work unchanged.
        ============================================================================= */
 
-    // ── window.storage shim (localStorage-backed, async to match original API) ──
+    // ── window.storage shim — server-backed, per-user, syncs across devices ──
+    // Persists to /api/patek-desk (the per-user settings table) so the price
+    // list + FX follow the logged-in account: open the desk from any PC and
+    // the same data loads. Falls back to localStorage when the API is
+    // unreachable (e.g. the page opened standalone outside the dashboard, or
+    // a transient network error) so the tool still works offline. The local
+    // copy doubles as an offline cache that's refreshed on every successful
+    // save. The original app's call sites (await window.storage.get/set with
+    // STORE_KEY) are unchanged — only the backing store moved.
     if (!window.storage) {
       window.storage = {
         get: async (k) => {
+          // Server first (authenticated via same-origin session cookie)
+          try {
+            const r = await fetch('/api/patek-desk', { credentials: 'same-origin' });
+            if (r.ok) {
+              const d = await r.json();
+              if (d && d.value != null) {
+                try { localStorage.setItem(k, d.value); } catch {}   // refresh cache
+                return { value: d.value };
+              }
+              return null;   // account has no saved data yet → app loads SEED
+            }
+          } catch {}
+          // Fallback: local cache
           try { const v = localStorage.getItem(k); return v != null ? { value: v } : null; }
           catch { return null; }
         },
-        set: async (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+        set: async (k, v) => {
+          // Write-through: server + local cache
+          try {
+            await fetch('/api/patek-desk', {
+              method: 'PUT',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: v }),
+            });
+          } catch {}
+          try { localStorage.setItem(k, v); } catch {}
+        },
       };
     }
 
@@ -123,12 +155,186 @@
     const DEFAULT_FX = { EUR: 1, USD: 0.92, GBP: 1.18, CHF: 1.05 };
 
     const SEED = {
+      // Full Patek Philippe price list (173 references) parsed from the QC
+      // PRICES sheet. List prices are per-country in native currency:
+      //   IT/DE/ES = EUR, UK = GBP, CH = CHF.  market is left 0 (no secondary
+      //   market data in the source sheet) for the user to fill per deal.
+      // This SEED is the default for any account with no saved data, so the
+      // catalogue appears on first load from any PC.
       watches: [
-        { id: 'w1', ref: '5968A-001',     model: 'Aquanaut Chrono SS Blue',        market: 115000, marketCur: 'EUR', list: { IT: 58206, UK: 0, CH: 0, DE: 0, ES: 0 } },
-        { id: 'w2', ref: '5990/1R-001',   model: 'Nautilus Travel Time Chrono RG', market: 230000, marketCur: 'EUR', list: { IT: 131375, UK: 0, CH: 0, DE: 0, ES: 0 } },
-        { id: 'w3', ref: '5980/1400G-010',model: 'Nautilus Chrono WG Gem-Set',     market: 520000, marketCur: 'EUR', list: { IT: 722265, UK: 0, CH: 0, DE: 0, ES: 0 } },
-        { id: 'w4', ref: '5168G-010',     model: 'Aquanaut Jumbo WG',              market: 90000,  marketCur: 'EUR', list: { IT: 55004, UK: 0, CH: 0, DE: 0, ES: 0 } },
-        { id: 'w5', ref: '5172G-001',     model: 'Chronograph WG',                 market: 130000, marketCur: 'EUR', list: { IT: 92307, UK: 0, CH: 0, DE: 0, ES: 0 } },
+        { id: 'w_5167A001', ref: "5167A-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 25899, UK: 22000, CH: 21800, DE: 25262, ES: 25686 } },
+        { id: 'w_5167R001', ref: "5167R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 50846, UK: 43200, CH: 42800, DE: 49596, ES: 50429 } },
+        { id: 'w_5164G001', ref: "5164G-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 68072, UK: 57830, CH: 57300, DE: 66398, ES: 67514 } },
+        { id: 'w_5164R001', ref: "5164R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 68072, UK: 57830, CH: 57300, DE: 66398, ES: 67514 } },
+        { id: 'w_5168G001', ref: "5168G-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 55004, UK: 46730, CH: 46300, DE: 53652, ES: 54553 } },
+        { id: 'w_5168G010', ref: "5168G-010", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 55004, UK: 46730, CH: 46300, DE: 53652, ES: 54553 } },
+        { id: 'w_5968A001', ref: "5968A-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 58687, UK: 49860, CH: 49400, DE: 57244, ES: 58206 } },
+        { id: 'w_5968G001', ref: "5968G-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 84466, UK: 71760, CH: 71100, DE: 82389, ES: 83774 } },
+        { id: 'w_5968G010', ref: "5968G-010", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 84466, UK: 71760, CH: 71100, DE: 82389, ES: 83774 } },
+        { id: 'w_5968R001', ref: "5968R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 84466, UK: 71760, CH: 71100, DE: 82389, ES: 83774 } },
+        { id: 'w_5072R001', ref: "5072R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 117730, UK: 100010, CH: 99100, DE: 114835, ES: 116765 } },
+        { id: 'w_5261R001', ref: "5261R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 68785, UK: 58440, CH: 57900, DE: 67093, ES: 68221 } },
+        { id: 'w_5267200A001', ref: "5267/200A-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 23404, UK: 19890, CH: 19700, DE: 22828, ES: 23212 } },
+        { id: 'w_5267200A010', ref: "5267/200A-010", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 23404, UK: 19890, CH: 19700, DE: 22828, ES: 23212 } },
+        { id: 'w_5267200A011', ref: "5267/200A-011", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 23404, UK: 19890, CH: 19700, DE: 22828, ES: 23212 } },
+        { id: 'w_5268200R010', ref: "5268/200R-010", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 60350, UK: 51270, CH: 50800, DE: 58866, ES: 59855 } },
+        { id: 'w_5268461G001', ref: "5268/461G-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 254467, UK: 216170, CH: 214200, DE: 248209, ES: 252381 } },
+        { id: 'w_5269R001', ref: "5269R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 38135, UK: 32400, CH: 32100, DE: 37197, ES: 37822 } },
+        { id: 'w_7968300R001', ref: "7968/300R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 237360, UK: 201640, CH: 199800, DE: 231523, ES: 235414 } },
+        { id: 'w_49101200A001', ref: "4910/1200A-001", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 17107, UK: 14540, CH: 14400, DE: 16687, ES: 16967 } },
+        { id: 'w_49101200A010', ref: "4910/1200A-010", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 17107, UK: 14540, CH: 14400, DE: 16687, ES: 16967 } },
+        { id: 'w_49101200A011', ref: "4910/1200A-011", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 17107, UK: 14540, CH: 14400, DE: 16687, ES: 16967 } },
+        { id: 'w_73001200A001', ref: "7300/1200A-001", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 31244, UK: 26550, CH: 26300, DE: 30476, ES: 30988 } },
+        { id: 'w_73001200A010', ref: "7300/1200A-010", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 31244, UK: 26550, CH: 26300, DE: 30476, ES: 30988 } },
+        { id: 'w_73001200A011', ref: "7300/1200A-011", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 31244, UK: 26550, CH: 26300, DE: 30476, ES: 30988 } },
+        { id: 'w_73001200R001', ref: "7300/1200R-001", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 56667, UK: 48140, CH: 47700, DE: 55274, ES: 56203 } },
+        { id: 'w_73001200R010', ref: "7300/1200R-010", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 56667, UK: 48140, CH: 47700, DE: 55274, ES: 56203 } },
+        { id: 'w_73401R001', ref: "7340/1R-001", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 126046, UK: 107080, CH: 106100, DE: 122946, ES: 125012 } },
+        { id: 'w_73401R010', ref: "7340/1R-010", model: "Twenty~4", market: 0, marketCur: 'EUR', list: { IT: 126046, UK: 107080, CH: 106100, DE: 122946, ES: 125012 } },
+        { id: 'w_57121R001', ref: "5712/1R-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 92782, UK: 78820, CH: 78100, DE: 90501, ES: 92022 } },
+        { id: 'w_57261A014', ref: "5726/1A-014", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 59637, UK: 50670, CH: 50200, DE: 58171, ES: 59148 } },
+        { id: 'w_5726A001', ref: "5726A-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 54173, UK: 46020, CH: 45600, DE: 52840, ES: 53729 } },
+        { id: 'w_58111G001', ref: "5811/1G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 77932, UK: 66210, CH: 65600, DE: 76016, ES: 77293 } },
+        { id: 'w_58111460G001', ref: "5811/1460G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 667172, UK: 566750, CH: 561600, DE: 650766, ES: 661704 } },
+        { id: 'w_57401G001', ref: "5740/1G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 169169, UK: 143710, CH: 142400, DE: 165010, ES: 167783 } },
+        { id: 'w_59801400G010', ref: "5980/1400G-010", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 728235, UK: 618620, CH: 613000, DE: 710327, ES: 722265 } },
+        { id: 'w_59801400R011', ref: "5980/1400R-011", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 728235, UK: 618620, CH: 613000, DE: 710327, ES: 722265 } },
+        { id: 'w_598060G001', ref: "5980/60G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 85298, UK: 72460, CH: 71800, DE: 83200, ES: 84599 } },
+        { id: 'w_59901A011', ref: "5990/1A-011", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 73062, UK: 62070, CH: 61500, DE: 71265, ES: 72463 } },
+        { id: 'w_59901R001', ref: "5990/1R-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 132461, UK: 112530, CH: 111500, DE: 129203, ES: 131375 } },
+        { id: 'w_59901400G001', ref: "5990/1400G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 1654862, UK: 1405770, CH: 1393000, DE: 1614169, ES: 1641298 } },
+        { id: 'w_59901421G001', ref: "5990/1421G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 1853493, UK: 1574510, CH: 1560200, DE: 1807915, ES: 1838300 } },
+        { id: 'w_59901422G001', ref: "5990/1422G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 1912892, UK: 1624970, CH: 1610200, DE: 1865854, ES: 1897213 } },
+        { id: 'w_59901423G001', ref: "5990/1423G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 2567352, UK: 2180910, CH: 2161100, DE: 2504221, ES: 2546308 } },
+        { id: 'w_70101G013', ref: "7010/1G-013", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 62845, UK: 53390, CH: 52900, DE: 61299, ES: 62330 } },
+        { id: 'w_70101R013', ref: "7010/1R-013", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 62845, UK: 53390, CH: 52900, DE: 61299, ES: 62330 } },
+        { id: 'w_7010G013', ref: "7010G-013", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 44312, UK: 37650, CH: 37300, DE: 43223, ES: 43949 } },
+        { id: 'w_7010R013', ref: "7010R-013", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 44312, UK: 37650, CH: 37300, DE: 43223, ES: 43949 } },
+        { id: 'w_71181A001', ref: "7118/1A-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 34096, UK: 28970, CH: 28700, DE: 33257, ES: 33816 } },
+        { id: 'w_71181A011', ref: "7118/1A-011", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 34096, UK: 28970, CH: 28700, DE: 33257, ES: 33816 } },
+        { id: 'w_71181200A001', ref: "7118/1200A-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 43481, UK: 36940, CH: 36600, DE: 42412, ES: 43124 } },
+        { id: 'w_71181200A011', ref: "7118/1200A-011", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 43481, UK: 36940, CH: 36600, DE: 42412, ES: 43124 } },
+        { id: 'w_71181R001', ref: "7118/1R-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 64864, UK: 55110, CH: 54600, DE: 63269, ES: 64333 } },
+        { id: 'w_71181R010', ref: "7118/1R-010", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 64864, UK: 55110, CH: 54600, DE: 63269, ES: 64333 } },
+        { id: 'w_71181200R001', ref: "7118/1200R-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 72824, UK: 61870, CH: 61300, DE: 71033, ES: 72227 } },
+        { id: 'w_71181200R010', ref: "7118/1200R-010", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 72824, UK: 61870, CH: 61300, DE: 71033, ES: 72227 } },
+        { id: 'w_71181300R001', ref: "7118/1300R-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 104662, UK: 88910, CH: 88100, DE: 102088, ES: 103804 } },
+        { id: 'w_71181450G001', ref: "7118/1450G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 462720, UK: 393080, CH: 389500, DE: 451342, ES: 458927 } },
+        { id: 'w_71181450R001', ref: "7118/1450R-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 462720, UK: 393080, CH: 389500, DE: 451342, ES: 458927 } },
+        { id: 'w_71181451G001', ref: "7118/1451G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 529604, UK: 449890, CH: 445800, DE: 516581, ES: 525263 } },
+        { id: 'w_71181452G001', ref: "7118/1452G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 533168, UK: 452920, CH: 448800, DE: 520057, ES: 528797 } },
+        { id: 'w_71181453G001', ref: "7118/1453G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 610030, UK: 518210, CH: 513500, DE: 595029, ES: 605030 } },
+        { id: 'w_57231R001', ref: "5723/1R-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 191979, UK: 163090, CH: 161600, DE: 187258, ES: 190405 } },
+        { id: 'w_57231R010', ref: "5723/1R-010", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 191979, UK: 163090, CH: 161600, DE: 187258, ES: 190405 } },
+        { id: 'w_5723112R001', ref: "5723/112R-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 216926, UK: 184280, CH: 182600, DE: 211592, ES: 215148 } },
+        { id: 'w_5711110P001', ref: "5711/110P-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 243418, UK: 206780, CH: 204900, DE: 237433, ES: 241423 } },
+        { id: 'w_5711111P001', ref: "5711/111P-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 255773, UK: 217280, CH: 215300, DE: 249484, ES: 253677 } },
+        { id: 'w_5711112P001', ref: "5711/112P-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 273593, UK: 232420, CH: 230300, DE: 266865, ES: 271351 } },
+        { id: 'w_5711113P001', ref: "5711/113P-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 411399, UK: 349480, CH: 346300, DE: 401283, ES: 408027 } },
+        { id: 'w_58101G001', ref: "5810/1G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 89099, UK: 75690, CH: 75000, DE: 86908, ES: 88369 } },
+        { id: 'w_56101P001', ref: "5610/1P-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 106919, UK: 90830, CH: 90000, DE: 104290, ES: 106043 } },
+        { id: 'w_5810G001', ref: "5810G-001", model: "Nautilus", market: 0, marketCur: 'EUR', list: { IT: 71280, UK: 60550, CH: 60000, DE: 69527, ES: 70695 } },
+        { id: 'w_58211A001', ref: "5821/1A-001", model: "Cubitus", market: 0, marketCur: 'EUR', list: { IT: 43243, UK: 36740, CH: 36400, DE: 42180, ES: 42889 } },
+        { id: 'w_58211AR001', ref: "5821/1AR-001", model: "Cubitus", market: 0, marketCur: 'EUR', list: { IT: 65221, UK: 55410, CH: 54900, DE: 63617, ES: 64686 } },
+        { id: 'w_5822P001', ref: "5822P-001", model: "Cubitus", market: 0, marketCur: 'EUR', list: { IT: 92663, UK: 78720, CH: 78000, DE: 90385, ES: 91904 } },
+        { id: 'w_5840P001', ref: "5840P-001", model: "Cubitus", market: 0, marketCur: 'EUR', list: { IT: 178198, UK: 151380, CH: 150000, DE: 173816, ES: 176737 } },
+        { id: 'w_71281G001', ref: "7128/1G-001", model: "Cubitus", market: 0, marketCur: 'EUR', list: { IT: 80308, UK: 68220, CH: 67600, DE: 78333, ES: 79650 } },
+        { id: 'w_71281R001', ref: "7128/1R-001", model: "Cubitus", market: 0, marketCur: 'EUR', list: { IT: 80308, UK: 68220, CH: 67600, DE: 78333, ES: 79650 } },
+        { id: 'w_57381R001', ref: "5738/1R-001", model: "Golden Ellipse", market: 0, marketCur: 'EUR', list: { IT: 64627, UK: 54900, CH: 54400, DE: 63038, ES: 64097 } },
+        { id: 'w_5738G001', ref: "5738G-001", model: "Golden Ellipse", market: 0, marketCur: 'EUR', list: { IT: 40867, UK: 34720, CH: 34400, DE: 39862, ES: 40532 } },
+        { id: 'w_5738R001', ref: "5738R-001", model: "Golden Ellipse", market: 0, marketCur: 'EUR', list: { IT: 40867, UK: 34720, CH: 34400, DE: 39862, ES: 40532 } },
+        { id: 'w_573851G001', ref: "5738/51G-001", model: "Golden Ellipse", market: 0, marketCur: 'EUR', list: { IT: 85654, UK: 72770, CH: 72100, DE: 83548, ES: 84952 } },
+        { id: 'w_5738P001', ref: "5738P-001", model: "Golden Ellipse", market: 0, marketCur: 'EUR', list: { IT: 62488, UK: 53090, CH: 52600, DE: 60952, ES: 61976 } },
+        { id: 'w_3738100G014', ref: "3738/100G-014", model: "Golden Ellipse", market: 0, marketCur: 'EUR', list: { IT: 38491, UK: 32700, CH: 32400, DE: 37545, ES: 38176 } },
+        { id: 'w_7042100G010', ref: "7042/100G-010", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 250427, UK: 212740, CH: 210800, DE: 244269, ES: 248375 } },
+        { id: 'w_7042100R010', ref: "7042/100R-010", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 250427, UK: 212740, CH: 210800, DE: 244269, ES: 248375 } },
+        { id: 'w_4962200R010', ref: "4962/200R-010", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 44906, UK: 38150, CH: 37800, DE: 43802, ES: 44538 } },
+        { id: 'w_5226G001', ref: "5226G-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 44906, UK: 38150, CH: 37800, DE: 43802, ES: 44538 } },
+        { id: 'w_5227G015', ref: "5227G-015", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 44906, UK: 38150, CH: 37800, DE: 43802, ES: 44538 } },
+        { id: 'w_5227J001', ref: "5227J-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 44906, UK: 38150, CH: 37800, DE: 43802, ES: 44538 } },
+        { id: 'w_6007G001', ref: "6007G-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 42174, UK: 35830, CH: 35500, DE: 41137, ES: 41828 } },
+        { id: 'w_6007G010', ref: "6007G-010", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 42174, UK: 35830, CH: 35500, DE: 41137, ES: 41828 } },
+        { id: 'w_6007G011', ref: "6007G-011", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 42174, UK: 35830, CH: 35500, DE: 41137, ES: 41828 } },
+        { id: 'w_6119G001', ref: "6119G-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 35640, UK: 30280, CH: 30000, DE: 34764, ES: 35348 } },
+        { id: 'w_6119R001', ref: "6119R-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 35640, UK: 30280, CH: 30000, DE: 34764, ES: 35348 } },
+        { id: 'w_6196P001', ref: "6196P-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 49421, UK: 41990, CH: 41600, DE: 48205, ES: 49016 } },
+        { id: 'w_720050G001', ref: "7200/50G-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 35759, UK: 30380, CH: 30100, DE: 34880, ES: 35466 } },
+        { id: 'w_720050G012', ref: "7200/50G-012", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 35759, UK: 30380, CH: 30100, DE: 34880, ES: 35466 } },
+        { id: 'w_5328G001', ref: "5328G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 74131, UK: 62980, CH: 62400, DE: 72308, ES: 73523 } },
+        { id: 'w_5212A001', ref: "5212A-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 40986, UK: 34820, CH: 34500, DE: 39978, ES: 40650 } },
+        { id: 'w_5205G013', ref: "5205G-013", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 63914, UK: 54300, CH: 53800, DE: 62342, ES: 63390 } },
+        { id: 'w_5205R011', ref: "5205R-011", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 63914, UK: 54300, CH: 53800, DE: 62342, ES: 63390 } },
+        { id: 'w_5396G017', ref: "5396G-017", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 68191, UK: 57930, CH: 57400, DE: 66514, ES: 67632 } },
+        { id: 'w_5396R016', ref: "5396R-016", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 64152, UK: 54500, CH: 54000, DE: 62574, ES: 63626 } },
+        { id: 'w_4946G001', ref: "4946G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 58093, UK: 49350, CH: 48900, DE: 56664, ES: 57617 } },
+        { id: 'w_4946R001', ref: "4946R-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 58093, UK: 49350, CH: 48900, DE: 56664, ES: 57617 } },
+        { id: 'w_49471A001', ref: "4947/1A-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 55004, UK: 46730, CH: 46300, DE: 53652, ES: 54553 } },
+        { id: 'w_4948R001', ref: "4948R-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 92307, UK: 78420, CH: 77700, DE: 90037, ES: 91550 } },
+        { id: 'w_523550R001', ref: "5235/50R-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 65934, UK: 56010, CH: 55500, DE: 64312, ES: 65393 } },
+        { id: 'w_5326G001', ref: "5326G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 87436, UK: 74280, CH: 73600, DE: 85286, ES: 86719 } },
+        { id: 'w_5172G001', ref: "5172G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 92307, UK: 78420, CH: 77700, DE: 90037, ES: 91550 } },
+        { id: 'w_5172G010', ref: "5172G-010", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 92307, UK: 78420, CH: 77700, DE: 90037, ES: 91550 } },
+        { id: 'w_59051A001', ref: "5905/1A-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 68072, UK: 57830, CH: 57300, DE: 66398, ES: 67514 } },
+        { id: 'w_5905R010', ref: "5905R-010", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 83635, UK: 71050, CH: 70400, DE: 81578, ES: 82949 } },
+        { id: 'w_5961R010', ref: "5961R-010", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 178792, UK: 151880, CH: 150500, DE: 174396, ES: 177327 } },
+        { id: 'w_5961P001', ref: "5961P-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 184138, UK: 156430, CH: 155000, DE: 179610, ES: 182629 } },
+        { id: 'w_5224R001', ref: "5224R-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 63914, UK: 54300, CH: 53800, DE: 62342, ES: 63390 } },
+        { id: 'w_5524G010', ref: "5524G-010", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 63914, UK: 54300, CH: 53800, DE: 62342, ES: 63390 } },
+        { id: 'w_5524R001', ref: "5524R-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 63914, UK: 54300, CH: 53800, DE: 62342, ES: 63390 } },
+        { id: 'w_5231G001', ref: "5231G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 102048, UK: 86690, CH: 85900, DE: 99539, ES: 101212 } },
+        { id: 'w_5330G001', ref: "5330G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 82328, UK: 69940, CH: 69300, DE: 80303, ES: 81653 } },
+        { id: 'w_5930P001', ref: "5930P-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 112384, UK: 95470, CH: 94600, DE: 109620, ES: 111463 } },
+        { id: 'w_7129J001', ref: "7129J-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 54648, UK: 46430, CH: 46000, DE: 53304, ES: 54200 } },
+        { id: 'w_5935A001', ref: "5935A-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 68072, UK: 57830, CH: 57300, DE: 66398, ES: 67514 } },
+        { id: 'w_7130G016', ref: "7130G-016", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 65934, UK: 56010, CH: 55500, DE: 64312, ES: 65393 } },
+        { id: 'w_5924G001', ref: "5924G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 84229, UK: 71550, CH: 70900, DE: 82157, ES: 83538 } },
+        { id: 'w_5924G010', ref: "5924G-010", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 84229, UK: 71550, CH: 70900, DE: 82157, ES: 83538 } },
+        { id: 'w_7121200G001', ref: "7121/200G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 48827, UK: 41480, CH: 41100, DE: 47626, ES: 48426 } },
+        { id: 'w_51801R001', ref: "5180/1R-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 128897, UK: 109500, CH: 108500, DE: 125727, ES: 127840 } },
+        { id: 'w_5249R001', ref: "5249R-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 380155, UK: 322940, CH: 320000, DE: 370807, ES: 377039 } },
+        { id: 'w_5320G011', ref: "5320G-011", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 108582, UK: 92240, CH: 91400, DE: 105912, ES: 107692 } },
+        { id: 'w_5327G001', ref: "5327G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 114641, UK: 97390, CH: 96500, DE: 111822, ES: 113701 } },
+        { id: 'w_5327R001', ref: "5327R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 114641, UK: 97390, CH: 96500, DE: 111822, ES: 113701 } },
+        { id: 'w_5236P011', ref: "5236P-011", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 148261, UK: 125950, CH: 124800, DE: 144615, ES: 147046 } },
+        { id: 'w_5160500R001', ref: "5160/500R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 217164, UK: 184480, CH: 182800, DE: 211824, ES: 215384 } },
+        { id: 'w_6159G001', ref: "6159G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 123551, UK: 104960, CH: 104000, DE: 120513, ES: 122538 } },
+        { id: 'w_5270J001', ref: "5270J-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 208729, UK: 177320, CH: 175700, DE: 203597, ES: 207018 } },
+        { id: 'w_5270P014', ref: "5270P-014", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 236409, UK: 200830, CH: 199000, DE: 230596, ES: 234471 } },
+        { id: 'w_5270P016', ref: "5270P-016", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 236409, UK: 200830, CH: 199000, DE: 230596, ES: 234471 } },
+        { id: 'w_5270P017', ref: "5270P-017", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 236409, UK: 200830, CH: 199000, DE: 230596, ES: 234471 } },
+        { id: 'w_5271P010', ref: "5271P-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 322419, UK: 273890, CH: 271400, DE: 314491, ES: 319777 } },
+        { id: 'w_527111P010', ref: "5271/11P-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 368157, UK: 312750, CH: 309900, DE: 359104, ES: 365139 } },
+        { id: 'w_527112P010', ref: "5271/12P-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 391916, UK: 332930, CH: 329900, DE: 382279, ES: 388704 } },
+        { id: 'w_5470P001', ref: "5470P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 490519, UK: 416690, CH: 412900, DE: 478457, ES: 486498 } },
+        { id: 'w_5204G010', ref: "5204G-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 361979, UK: 307500, CH: 304700, DE: 353078, ES: 359012 } },
+        { id: 'w_5370R001', ref: "5370R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 302699, UK: 257140, CH: 254800, DE: 295255, ES: 300218 } },
+        { id: 'w_5373P001', ref: "5373P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 623930, UK: 530020, CH: 525200, DE: 608587, ES: 618815 } },
+        { id: 'w_6104R001', ref: "6104R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 506200, UK: 430010, CH: 426100, DE: 493753, ES: 502051 } },
+        { id: 'w_6104P010', ref: "6104P-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 561560, UK: 477040, CH: 472700, DE: 547752, ES: 556958 } },
+        { id: 'w_610412P010', ref: "6104/12P-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 622742, UK: 529010, CH: 524200, DE: 584253, ES: 617637 } },
+        { id: 'w_610413P010', ref: "6104/13P-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 830401, UK: 705410, CH: 699000, DE: 809982, ES: 823595 } },
+        { id: 'w_6105G001', ref: "6105G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 415795, UK: 353210, CH: 350000, DE: 405570, ES: 412387 } },
+        { id: 'w_5322G001', ref: "5322G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 267297, UK: 227070, CH: 225000, DE: 260724, ES: 265106 } },
+        { id: 'w_5322G010', ref: "5322G-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 267297, UK: 227070, CH: 225000, DE: 260724, ES: 265106 } },
+        { id: 'w_52601455R001', ref: "5260/1455R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 3293567, UK: 2797820, CH: 2772400, DE: 3212578, ES: 3266570 } },
+        { id: 'w_5260355R001', ref: "5260/355R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1093183, UK: 928640, CH: 920200, DE: 1066302, ES: 1084223 } },
+        { id: 'w_7040250G001', ref: "7040/250G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 579261, UK: 492070, CH: 487600, DE: 565017, ES: 574513 } },
+        { id: 'w_5178G012', ref: "5178G-012", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 553126, UK: 469870, CH: 465600, DE: 539524, ES: 548592 } },
+        { id: 'w_7047G001', ref: "7047G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 528653, UK: 449080, CH: 445000, DE: 515654, ES: 524320 } },
+        { id: 'w_5303R001', ref: "5303R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 836222, UK: 710360, CH: 703900, DE: 815659, ES: 829368 } },
+        { id: 'w_5304301R001', ref: "5304/301R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 993987, UK: 844370, CH: 836700, DE: 969544, ES: 985839 } },
+        { id: 'w_5308G001', ref: "5308G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1297279, UK: 1102010, CH: 1092000, DE: 1265379, ES: 1286645 } },
+        { id: 'w_531650P001', ref: "5316/50P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1035328, UK: 879490, CH: 871500, DE: 1009870, ES: 1026842 } },
+        { id: 'w_5374G001', ref: "5374G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 829688, UK: 704810, CH: 698400, DE: 809286, ES: 822888 } },
+        { id: 'w_5374300P001', ref: "5374/300P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1254036, UK: 1065280, CH: 1055600, DE: 1223199, ES: 1243757 } },
+        { id: 'w_5374400P001', ref: "5374/400P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 4276742, UK: 3633000, CH: 3600000, DE: 4171577, ES: 4241687 } },
+        { id: 'w_5531G001', ref: "5531G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 763161, UK: 648290, CH: 642400, DE: 744395, ES: 756906 } },
+        { id: 'w_6002R001', ref: "6002R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1924179, UK: 1634560, CH: 1619700, DE: 1876863, ES: 1908406 } },
+        { id: 'w_6301P001', ref: "6301P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1524659, UK: 1295170, CH: 1283400, DE: 1487167, ES: 1512162 } },
+        { id: 'w_6300GR001', ref: "6300GR-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 3310674, UK: 2812360, CH: 2786800, DE: 3229265, ES: 3283537 } },
+        { id: 'w_6300400G001', ref: "6300/400G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 4679232, UK: 3974910, CH: 3938800, DE: 4564169, ES: 4640878 } },
+        { id: 'w_6300401G001', ref: "6300/401G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 4809673, UK: 4085720, CH: 4048600, DE: 4691402, ES: 4770249 } },
+        { id: 'w_6300403G001', ref: "6300/403G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 5206221, UK: 4422580, CH: 4382400, DE: 5078199, ES: 5163548 } },
       ],
       fx: DEFAULT_FX,
     };

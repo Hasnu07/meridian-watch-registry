@@ -206,6 +206,25 @@ app.post('/api/settings/password', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Patek Desk persistence (per-user, synced across devices) ──────────────
+// The Patek Desk terminal previously stored its price list + FX in the
+// browser's localStorage, which is per-device. Moving it to the per-user
+// settings table makes the catalogue follow the account: log in from any PC
+// and the same price list / FX rates load. Stored as a single JSON string
+// under the key 'patek_desk_data'. The iframe runs same-origin inside the
+// authenticated dashboard, so the session cookie authenticates these calls.
+app.get('/api/patek-desk', requireAuth, (req, res) => {
+  const value = db.getSetting(uid(req), 'patek_desk_data');
+  res.json({ value: value ?? null });
+});
+app.put('/api/patek-desk', requireAuth, (req, res) => {
+  const { value } = req.body;
+  if (typeof value !== 'string') return res.status(400).json({ error: 'value (JSON string) required' });
+  if (value.length > 2000000)   return res.status(413).json({ error: 'payload too large' });
+  db.setSetting(uid(req), 'patek_desk_data', value);
+  res.json({ ok: true });
+});
+
 // ── App Settings (per-user GreenAPI etc.) ────────────────────────────────
 const ALLOWED_SETTINGS = ['greenapi_api_url','greenapi_instance_id','greenapi_api_token','greenapi_group_id','greenapi_notify_hour'];
 
