@@ -472,6 +472,16 @@
             .pk-btn:hover { border-color:${C.gold}; }
             input[type=range]{ accent-color:${C.gold}; }
             ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-thumb{background:${C.line};border-radius:6px}
+            .pk-metric { position:relative; border-radius:16px; padding:16px 18px 18px; overflow:hidden;
+                         background:linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012));
+                         border:1px solid ${C.line}; transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+            .pk-metric::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent, ${C.gold}); opacity:0.9; }
+            .pk-metric::after  { content:''; position:absolute; right:-40px; top:-40px; width:120px; height:120px; border-radius:50%;
+                                 background:radial-gradient(circle, var(--accent, ${C.gold}) 0%, transparent 70%); opacity:0.07; pointer-events:none; }
+            .pk-metric:hover { transform:translateY(-2px); border-color:rgba(201,169,106,0.35); box-shadow:0 10px 30px rgba(0,0,0,0.35); }
+            .pk-metric .pk-metric-val { font-variant-numeric:tabular-nums; letter-spacing:-0.01em; line-height:1.05; }
+            .pk-row { border-radius:14px; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+            .pk-row:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(0,0,0,0.30); }
           `}</style>
 
           {/* Header — flex-shrink:0 keeps it pinned at top regardless of scroll */}
@@ -554,12 +564,14 @@
                       Add the pieces the dealer is offering you to build the deal.
                     </div>
                   )}
-                  {calc.rows.map((r, i) => (
-                    <div key={i} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', borderLeft: `3px solid ${r.tone==='gift'?C.teal:r.tone==='loaded'?C.red:C.amber}` }}>
+                  {calc.rows.map((r, i) => {
+                    const toneColor = r.tone==='gift'?C.teal:r.tone==='loaded'?C.red:C.amber;
+                    return (
+                    <div key={i} className="pk-row" style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012))', border: `1px solid ${C.line}`, borderRadius: 14, padding: '14px 16px', borderLeft: `3px solid ${toneColor}` }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
                         <div style={{ flex: 1, minWidth: 140 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600 }}>{r.w.ref || '—'}</div>
-                          <div style={{ fontSize: 12, color: C.mut }}>{r.w.model}</div>
+                          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.01em' }}>{r.w.ref || '—'}</div>
+                          <div style={{ fontSize: 12, color: C.mut, marginTop: 1 }}>{r.w.model}</div>
                         </div>
                         <div style={{ minWidth: 118 }}>
                           <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>buy in</div>
@@ -595,13 +607,14 @@
                           <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>market</div>
                           <div style={{ fontSize: 14, fontWeight: 600, color: C.cream }}>{eur(r.marketEur)}</div>
                         </div>
-                        <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 7, background: '#0c0c0e', border: `1px solid ${C.line}`, color: r.tone==='gift'?C.teal:r.tone==='loaded'?C.red:C.amber }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 999, background: `${toneColor}1a`, border: `1px solid ${toneColor}55`, color: toneColor }}>
                           {r.tone==='gift'?'gift':r.tone==='loaded'?'loaded':'premium'}
                         </span>
                         <button onClick={() => removeLine(i)} className="pk-btn" style={{ padding: '6px 8px' }}><X size={14}/></button>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             )}
@@ -714,14 +727,16 @@
     }
 
     function Metric({ C, n, label, value, sub, color, big }) {
+      // accent drives the left strip + corner glow via the --accent CSS var
+      const accent = color || C.gold;
       return (
-        <div style={{ background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 12, padding: '13px 15px' }}>
-          <div style={{ fontSize: 12, color: C.mut, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {n && <span style={{ width: 16, height: 16, borderRadius: 5, background: C.gold, color: '#1a1208', fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{n}</span>}
+        <div className="pk-metric" style={{ '--accent': accent }}>
+          <div style={{ fontSize: 10.5, color: C.mut, display: 'flex', alignItems: 'center', gap: 7, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>
+            {n && <span style={{ width: 17, height: 17, borderRadius: 6, background: accent, color: '#0c0c0e', fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{n}</span>}
             {label}
           </div>
-          <div style={{ fontSize: big ? 26 : 22, fontWeight: 600, color, marginTop: 6 }}>{value}</div>
-          <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>{sub}</div>
+          <div className="pk-metric-val" style={{ fontSize: big ? 30 : 25, fontWeight: 700, color, marginTop: 12 }}>{value}</div>
+          <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>{sub}</div>
         </div>
       );
     }
