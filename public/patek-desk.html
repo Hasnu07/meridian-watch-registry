@@ -566,51 +566,64 @@
                   )}
                   {calc.rows.map((r, i) => {
                     const toneColor = r.tone==='gift'?C.teal:r.tone==='loaded'?C.red:C.amber;
+                    const toneLabel = r.tone==='gift'?'gift':r.tone==='loaded'?'loaded':'premium';
+                    const fieldLabel = { fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.dim, marginBottom: 5, fontWeight: 600 };
+                    // Right-side stat cell
+                    const Stat = ({ label, value, valColor, hint }) => (
+                      <div style={{ minWidth: 90, padding: '0 14px', textAlign: 'right' }}>
+                        <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.dim, marginBottom: 4, fontWeight: 600 }}>{label}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: valColor || C.cream, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+                        {hint != null && <div style={{ fontSize: 10, color: C.dim, marginTop: 1 }}>{hint}</div>}
+                      </div>
+                    );
                     return (
-                    <div key={i} className="pk-row" style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012))', border: `1px solid ${C.line}`, borderRadius: 14, padding: '14px 16px', borderLeft: `3px solid ${toneColor}` }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
-                        <div style={{ flex: 1, minWidth: 140 }}>
-                          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.01em' }}>{r.w.ref || '—'}</div>
-                          <div style={{ fontSize: 12, color: C.mut, marginTop: 1 }}>{r.w.model}</div>
+                    <div key={i} className="pk-row" style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012))', border: `1px solid ${C.line}`, borderLeft: `3px solid ${toneColor}`, borderRadius: 14, padding: '14px 16px' }}>
+                      {/* Identity header */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '0.01em' }}>{r.w.ref || '—'}</span>
+                          <span style={{ fontSize: 12.5, color: C.mut }}>{r.w.model}</span>
                         </div>
-                        <div style={{ minWidth: 118 }}>
-                          <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>buy in</div>
-                          <select className="pk-sel" value={r.bc || ''} onChange={e => setBuy(i, e.target.value)} style={{ width: '100%' }}>
+                        <span style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', padding: '4px 11px', borderRadius: 999, background: `${toneColor}1f`, border: `1px solid ${toneColor}55`, color: toneColor }}>
+                          {toneLabel}
+                        </span>
+                        <button onClick={() => removeLine(i)} className="pk-btn" style={{ padding: '6px 8px', borderRadius: 9 }} title="Remove"><X size={14}/></button>
+                      </div>
+
+                      {/* Controls + stats */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-end' }}>
+                        {/* buy in */}
+                        <div style={{ minWidth: 150 }}>
+                          <div style={fieldLabel}>buy in</div>
+                          <select className="pk-sel" value={r.bc || ''} onChange={e => setBuy(i, e.target.value)} style={{ width: '100%', padding: '8px 10px', fontSize: 13 }}>
                             {COUNTRIES.map(c => (
                               <option key={c.code} value={c.code} disabled={!(r.w.list?.[c.code] > 0)}>
                                 {c.flag} {c.code} {r.w.list?.[c.code] > 0 ? `· ${fmtCur(r.w.list[c.code], c.cur)}` : '· —'}
                               </option>
                             ))}
                           </select>
-                          <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{r.listEur ? `= ${eur(r.listEur)}` : ''}</div>
+                          <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>{r.listEur ? `list = ${eur(r.listEur)}` : ' '}</div>
                         </div>
-                        <div style={{ minWidth: 150 }}>
-                          <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>paid price</div>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <input className="pk-in" value={(r.paidNative).toLocaleString('en-US')} onChange={e => setPaid(i, parseNum(e.target.value))} style={{ flex: 1 }} />
-                            <select className="pk-sel" value={r.paidCur} onChange={e => setPaidCur(i, e.target.value)}>
+                        {/* paid price */}
+                        <div style={{ minWidth: 170 }}>
+                          <div style={fieldLabel}>paid price</div>
+                          <div style={{ display: 'flex', gap: 5 }}>
+                            <input className="pk-in" value={(r.paidNative).toLocaleString('en-US')} onChange={e => setPaid(i, parseNum(e.target.value))} style={{ flex: 1, padding: '8px 10px' }} />
+                            <select className="pk-sel" value={r.paidCur} onChange={e => setPaidCur(i, e.target.value)} style={{ padding: '8px 8px' }}>
                               {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </div>
-                          <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{r.paidCur !== 'EUR' ? `= ${eur(r.paidEur)}` : ''}</div>
+                          <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>{r.paidCur !== 'EUR' ? `= ${eur(r.paidEur)}` : ' '}</div>
                         </div>
-                        <div style={{ minWidth: 84, textAlign: 'right' }}>
-                          <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>Δ list</div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: r.dList <= 0 ? C.teal : C.amber }}>{eurS(r.dList)}</div>
-                          <div style={{ fontSize: 10, color: C.dim }}>{(r.dPct>0?'+':'')+r.dPct.toFixed(0)}%</div>
+
+                        {/* stats group — pushed right, divided */}
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.25)', border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 4px' }}>
+                          <Stat label="Δ list" value={eurS(r.dList)} valColor={r.dList <= 0 ? C.teal : C.amber} hint={`${r.dPct>0?'+':''}${r.dPct.toFixed(0)}%`} />
+                          <div style={{ width: 1, alignSelf: 'stretch', background: C.line, margin: '2px 0' }} />
+                          <Stat label="eff. cost" value={eur(r.eff)} hint={' '} />
+                          <div style={{ width: 1, alignSelf: 'stretch', background: C.line, margin: '2px 0' }} />
+                          <Stat label="market" value={eur(r.marketEur)} valColor={r.marketEur > 0 ? C.cream : C.dim} hint={' '} />
                         </div>
-                        <div style={{ minWidth: 84, textAlign: 'right' }}>
-                          <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>eff. cost</div>
-                          <div style={{ fontSize: 14, fontWeight: 600 }}>{eur(r.eff)}</div>
-                        </div>
-                        <div style={{ minWidth: 84, textAlign: 'right' }}>
-                          <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>market</div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: C.cream }}>{eur(r.marketEur)}</div>
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 999, background: `${toneColor}1a`, border: `1px solid ${toneColor}55`, color: toneColor }}>
-                          {r.tone==='gift'?'gift':r.tone==='loaded'?'loaded':'premium'}
-                        </span>
-                        <button onClick={() => removeLine(i)} className="pk-btn" style={{ padding: '6px 8px' }}><X size={14}/></button>
                       </div>
                     </div>
                   );
