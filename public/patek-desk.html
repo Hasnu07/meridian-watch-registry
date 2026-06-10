@@ -368,6 +368,17 @@
       const [mode, setMode] = useState('vat');
       const [vat, setVat] = useState(21);
 
+      // Saved deals (DB-backed)
+      const [deals, setDeals] = useState([]);            // list of saved deals
+      const [currentDealId, setCurrentDealId] = useState(null);
+      const [currentDealName, setCurrentDealName] = useState(null);
+      const [dealsOpen, setDealsOpen] = useState(false); // My Deals dropdown
+      const [saveModal, setSaveModal] = useState(null);  // { name } when naming a new deal
+      const [dirty, setDirty] = useState(false);         // unsaved changes since load/save
+
+      // Market-price quick editor (Feature 1): { wid, ref, model, value } or null
+      const [marketEdit, setMarketEdit] = useState(null);
+
       useEffect(() => {
         (async () => {
           try {
@@ -431,6 +442,122 @@
       const updList = (id, code, val) => setWatches(ws => ws.map(w => w.id === id ? { ...w, list: { ...w.list, [code]: val } } : w));
       const delWatch = (id) => setWatches(ws => ws.filter(w => w.id !== id));
       const setRate = (cur, val) => setFx(f => ({ ...f, [cur]: val }));
+
+      // ── Saved deals: load list on mount, track dirty state ──────────────
+      const refreshDeals = async () => {
+        try {
+          const r = await fetch('/api/patek-deals', { credentials: 'same-origin' });
+          if (r.ok) setDeals(await r.json());
+        } catch {}
+      };
+      useEffect(() => { refreshDeals(); }, []);
+      // Any change to the deal inputs marks it dirty (so Save shows unsaved state)
+      useEffect(() => { if (loaded) setDirty(true); }, [lines, mode, vat]);
+
+      // Build the persistable deal payload from current state. Stores INPUTS
+      // only; loading recalculates. We carry ref alongside wid so a line can be
+      // re-linked by reference if the catalogue id ever changes.
+      const dealPayload = (name) => ({
+        name,
+        mode,
+        vat,
+        fx,
+        lines: lines.map(l => ({
+          wid: l.wid,
+          ref: byId[l.wid]?.ref || null,
+          paid: l.paid,
+          paidCur: l.paidCur,
+          buyCountry: l.buyCountry,
+        })),
+      });
+
+      // Save: update the open deal, or open the name modal for a brand-new one.
+      const saveDeal = async () => {
+        if (!lines.length) { alert('Add at least one piece before saving.'); return; }
+        if (currentDealId) {
+          try {
+            const r = await fetch(`/api/patek-deals/${currentDealId}`, {
+              method: 'PUT', credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(dealPayload(currentDealName)),
+            });
+            if (r.ok) { const d = await r.json(); setCurrentDealName(d.name); setDirty(false); refreshDeals(); }
+          } catch {}
+        } else {
+          const def = byId[lines[0].wid]?.ref ? `Deal · ${byId[lines[0].wid].ref}` : 'Untitled deal';
+          setSaveModal({ name: def });
+        }
+      };
+      // Commit a brand-new deal from the name modal
+      const commitSaveAsNew = async (name) => {
+        try {
+          const r = await fetch('/api/patek-deals', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dealPayload(name)),
+          });
+          if (r.ok) {
+            const d = await r.json();
+            setCurrentDealId(d.id); setCurrentDealName(d.name); setDirty(false);
+            setSaveModal(null); refreshDeals();
+          }
+        } catch {}
+      };
+      const saveAsNew = () => {
+        if (!lines.length) { alert('Add at least one piece before saving.'); return; }
+        const def = currentDealName ? `${currentDealName} (copy)` : (byId[lines[0]?.wid]?.ref ? `Deal · ${byId[lines[0].wid].ref}` : 'Untitled deal');
+        setSaveModal({ name: def });
+      };
+      // Load a saved deal into the builder, re-linking lines by wid (fallback ref)
+      const loadDeal = (d) => {
+        if (dirty && lines.length && !confirm('Discard the current unsaved deal and load this one?')) return;
+        const byRef = {};
+        for (const w of watches) byRef[w.ref] = w.id;
+        const restored = (d.lines || []).map(l => {
+          let wid = l.wid;
+          if (!byId[wid] && l.ref && byRef[l.ref]) wid = byRef[l.ref];  // re-link by ref
+          return { wid, paid: l.paid ?? null, paidCur: l.paidCur || 'EUR', buyCountry: l.buyCountry || null };
+        }).filter(l => byId[l.wid] || watches.some(w => w.id === l.wid));
+        setMode(d.mode === 'list' ? 'list' : 'vat');
+        setVat(Number(d.vat) || 0);
+        if (d.fx && Object.keys(d.fx).length) setFx({ ...DEFAULT_FX, ...d.fx });
+        setLines(restored);
+        setCurrentDealId(d.id); setCurrentDealName(d.name);
+        setDealsOpen(false);
+        setTimeout(() => setDirty(false), 0);  // clear the dirty flag the input effect sets
+      };
+      const renameDeal = async (d) => {
+        const name = prompt('Rename deal:', d.name);
+        if (name == null || !name.trim()) return;
+        try {
+          const r = await fetch(`/api/patek-deals/${d.id}`, {
+            method: 'PUT', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name.trim() }),
+          });
+          if (r.ok) { if (currentDealId === d.id) setCurrentDealName(name.trim()); refreshDeals(); }
+        } catch {}
+      };
+      const deleteDeal = async (d) => {
+        if (!confirm(`Delete "${d.name}"? This cannot be undone.`)) return;
+        try {
+          const r = await fetch(`/api/patek-deals/${d.id}`, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) { if (currentDealId === d.id) { setCurrentDealId(null); setCurrentDealName(null); } refreshDeals(); }
+        } catch {}
+      };
+      const newDeal = () => {
+        if (dirty && lines.length && !confirm('Discard the current unsaved deal?')) return;
+        setLines([]); setCurrentDealId(null); setCurrentDealName(null);
+        setTimeout(() => setDirty(false), 0);
+      };
+      // Save the market price edit → updates the catalogue watch (persists via
+      // the existing watches save-effect) and recalculates the deal instantly.
+      const saveMarketEdit = () => {
+        if (!marketEdit) return;
+        const val = parseNum(marketEdit.value);
+        updWatch(marketEdit.wid, { market: val, marketCur: 'EUR' });
+        setMarketEdit(null);
+      };
 
       const exportJSON = () => {
         const blob = new Blob([JSON.stringify({ watches, fx }, null, 2)], { type: 'application/json' });
@@ -506,6 +633,45 @@
 
             {tab === 'desk' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+                {/* Deals toolbar — name, Save, Save-as-new, New, My Deals */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 160 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: currentDealName ? C.cream : C.dim }}>
+                      {currentDealName || 'Unsaved deal'}
+                    </span>
+                    {dirty && lines.length > 0 && <span style={{ fontSize: 10, color: C.amber, border: `1px solid ${C.amber}55`, borderRadius: 999, padding: '2px 8px' }}>unsaved</span>}
+                  </div>
+                  <button className="pk-btn" onClick={newDeal} style={{ fontSize: 12 }}><Plus size={13}/> New</button>
+                  <button className="pk-btn" onClick={saveDeal} style={{ fontSize: 12, borderColor: C.gold, color: C.gold }}>
+                    <Download size={13}/> {currentDealId ? 'Save' : 'Save deal'}
+                  </button>
+                  {currentDealId && <button className="pk-btn" onClick={saveAsNew} style={{ fontSize: 12 }}>Save as new</button>}
+                  <div style={{ position: 'relative' }}>
+                    <button className="pk-btn" onClick={() => setDealsOpen(o => !o)} style={{ fontSize: 12 }}>
+                      <Database size={13}/> My deals ({deals.length}) <ChevronDown size={12}/>
+                    </button>
+                    {dealsOpen && (
+                      <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 40, width: 360, maxWidth: '90vw', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 12, padding: 8, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', maxHeight: 360, overflowY: 'auto' }}>
+                        {deals.length === 0 && <div style={{ padding: 14, fontSize: 13, color: C.dim, textAlign: 'center' }}>No saved deals yet.</div>}
+                        {deals.map(d => (
+                          <div key={d.id} style={{ padding: '9px 10px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, background: d.id === currentDealId ? 'rgba(201,169,106,0.08)' : 'transparent' }}
+                               onMouseEnter={e => e.currentTarget.style.background = '#1a1a1f'} onMouseLeave={e => e.currentTarget.style.background = d.id === currentDealId ? 'rgba(201,169,106,0.08)' : 'transparent'}>
+                            <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => loadDeal(d)}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: C.cream, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
+                              <div style={{ fontSize: 10.5, color: C.dim, marginTop: 1 }}>
+                                {(d.lines||[]).length} piece{(d.lines||[]).length!==1?'s':''} · {d.mode==='vat'?'With VAT':'List only'} · {(d.updated_at||'').slice(0,10)}
+                              </div>
+                            </div>
+                            <button className="pk-btn" title="Load" onClick={() => loadDeal(d)} style={{ padding: '4px 8px', fontSize: 11 }}><Upload size={12}/></button>
+                            <button className="pk-btn" title="Rename" onClick={() => renameDeal(d)} style={{ padding: '4px 7px', fontSize: 11 }}>✎</button>
+                            <button className="pk-btn" title="Delete" onClick={() => deleteDeal(d)} style={{ padding: '4px 7px', fontSize: 11, borderColor: '#5a2020', color: C.red }}><Trash2 size={12}/></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: C.mut }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.dim }}><Coins size={13}/> current rates →</span>
@@ -622,9 +788,23 @@
                           <div style={{ width: 1, alignSelf: 'stretch', background: C.line, margin: '2px 0' }} />
                           <Stat label="eff. cost" value={eur(r.eff)} hint={' '} />
                           <div style={{ width: 1, alignSelf: 'stretch', background: C.line, margin: '2px 0' }} />
-                          <Stat label="market" value={eur(r.marketEur)} valColor={r.marketEur > 0 ? C.cream : C.dim} hint={' '} />
+                          {/* Market cell - editable; warns when unset */}
+                          <div style={{ minWidth: 104, padding: '0 14px', textAlign: 'right' }}>
+                            <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.dim, marginBottom: 4, fontWeight: 600 }}>market</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: r.marketEur > 0 ? C.cream : C.dim, fontVariantNumeric: 'tabular-nums' }}>{eur(r.marketEur)}</div>
+                            {r.marketEur > 0
+                              ? <button onClick={() => setMarketEdit({ wid: r.w.id, ref: r.w.ref, model: r.w.model, value: String(Math.round(r.w.market || 0)) })}
+                                        style={{ marginTop: 3, background: 'transparent', border: 'none', color: C.gold, fontSize: 10, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>edit market</button>
+                              : <button onClick={() => setMarketEdit({ wid: r.w.id, ref: r.w.ref, model: r.w.model, value: '' })}
+                                        style={{ marginTop: 3, color: C.amber, fontSize: 10, cursor: 'pointer', padding: '2px 7px', background: C.amber + '1a', border: '1px solid ' + C.amber + '55', borderRadius: 999, whiteSpace: 'nowrap' }}>set price</button>}
+                          </div>
                         </div>
                       </div>
+                      {r.marketEur <= 0 && (
+                        <div style={{ marginTop: 10, fontSize: 11, color: C.amber }}>
+                          No market price set - package margin is not meaningful for this piece until you set it.
+                        </div>
+                      )}
                     </div>
                   );
                   })}
@@ -725,6 +905,53 @@
                     <label className="pk-btn" style={{ cursor: 'pointer' }}><Upload size={14}/> Import JSON
                       <input type="file" accept="application/json" onChange={importJSON} style={{ display: 'none' }} />
                     </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Market price editor modal (Feature 1) ── */}
+            {marketEdit && (
+              <div onClick={(e) => { if (e.target === e.currentTarget) setMarketEdit(null); }}
+                   style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                <div style={{ width: 380, maxWidth: '92vw', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.cream }}>Set market price</div>
+                  <div style={{ fontSize: 12, color: C.mut, marginTop: 2 }}>{marketEdit.ref} · {marketEdit.model}</div>
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.dim, marginBottom: 6, fontWeight: 600 }}>Market price (EUR)</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: C.gold, fontSize: 16 }}>€</span>
+                      <input className="pk-in" autoFocus value={marketEdit.value}
+                             onChange={e => setMarketEdit(m => ({ ...m, value: e.target.value.replace(/[^0-9]/g, '') }))}
+                             onKeyDown={e => { if (e.key === 'Enter') saveMarketEdit(); if (e.key === 'Escape') setMarketEdit(null); }}
+                             placeholder="0" style={{ flex: 1, fontVariantNumeric: 'tabular-nums' }} />
+                    </div>
+                    <div style={{ fontSize: 10.5, color: C.dim, marginTop: 6 }}>Stored on this watch in the price list — updates this and any future deal using it.</div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+                    <button className="pk-btn" onClick={() => setMarketEdit(null)}>Cancel</button>
+                    <button className="pk-btn" onClick={saveMarketEdit} style={{ borderColor: C.gold, color: C.gold }}>Save</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Save-deal name modal (Feature 2) ── */}
+            {saveModal && (
+              <div onClick={(e) => { if (e.target === e.currentTarget) setSaveModal(null); }}
+                   style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                <div style={{ width: 400, maxWidth: '92vw', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.cream }}>Save deal</div>
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.dim, marginBottom: 6, fontWeight: 600 }}>Deal name</div>
+                    <input className="pk-in" autoFocus value={saveModal.name}
+                           onChange={e => setSaveModal(m => ({ ...m, name: e.target.value }))}
+                           onKeyDown={e => { if (e.key === 'Enter' && saveModal.name.trim()) commitSaveAsNew(saveModal.name.trim()); if (e.key === 'Escape') setSaveModal(null); }}
+                           placeholder="Deal name" />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+                    <button className="pk-btn" onClick={() => setSaveModal(null)}>Cancel</button>
+                    <button className="pk-btn" disabled={!saveModal.name.trim()} onClick={() => commitSaveAsNew(saveModal.name.trim())} style={{ borderColor: C.gold, color: C.gold }}>Save</button>
                   </div>
                 </div>
               </div>

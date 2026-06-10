@@ -146,6 +146,19 @@ function init() {
     );
     CREATE INDEX IF NOT EXISTS idx_my_payouts_watch_id ON my_payouts (watch_id);
 
+    CREATE TABLE IF NOT EXISTS patek_deals (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id   INTEGER NOT NULL,
+      name       TEXT NOT NULL,
+      mode       TEXT NOT NULL DEFAULT 'vat',   -- 'list' | 'vat'
+      vat        REAL NOT NULL DEFAULT 21,
+      fx         TEXT NOT NULL DEFAULT '{}',     -- JSON snapshot of FX rates at save time
+      lines      TEXT NOT NULL DEFAULT '[]',     -- JSON array of line inputs (wid, ref, paid, paidCur, buyCountry)
+      created_at DATETIME DEFAULT (datetime('now')),
+      updated_at DATETIME DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_patek_deals_owner ON patek_deals (owner_id);
+
     CREATE TABLE IF NOT EXISTS audit_log (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       ts          DATETIME DEFAULT (datetime('now')),
@@ -1242,6 +1255,48 @@ function reverseMyPayout(payoutId) {
   return true;
 }
 
+// ── Patek Desk saved deals ──────────────────────────────────────────────────
+// Each deal stores INPUTS only (mode, vat, fx snapshot, line items) so loading
+// recalculates totals from scratch — never stale computed values. Scoped by
+// owner_id (the effective user id, matching the patek_desk_data settings key).
+
+function listPatekDeals(ownerId) {
+  return db.prepare(
+    'SELECT * FROM patek_deals WHERE owner_id = ? ORDER BY updated_at DESC, id DESC'
+  ).all(ownerId);
+}
+function getPatekDeal(id, ownerId) {
+  return db.prepare('SELECT * FROM patek_deals WHERE id = ? AND owner_id = ?').get(id, ownerId);
+}
+function createPatekDeal({ ownerId, name, mode, vat, fx, lines }) {
+  const result = db.prepare(
+    'INSERT INTO patek_deals (owner_id, name, mode, vat, fx, lines) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(ownerId, String(name || 'Untitled deal'), mode === 'list' ? 'list' : 'vat',
+        Number(vat) || 0, JSON.stringify(fx || {}), JSON.stringify(lines || []));
+  return result.lastInsertRowid;
+}
+function updatePatekDeal(id, ownerId, { name, mode, vat, fx, lines }) {
+  const existing = getPatekDeal(id, ownerId);
+  if (!existing) return false;
+  db.prepare(`
+    UPDATE patek_deals
+    SET name = ?, mode = ?, vat = ?, fx = ?, lines = ?, updated_at = datetime('now')
+    WHERE id = ? AND owner_id = ?
+  `).run(
+    name !== undefined ? String(name) : existing.name,
+    mode !== undefined ? (mode === 'list' ? 'list' : 'vat') : existing.mode,
+    vat  !== undefined ? Number(vat) || 0 : existing.vat,
+    fx   !== undefined ? JSON.stringify(fx) : existing.fx,
+    lines!== undefined ? JSON.stringify(lines) : existing.lines,
+    id, ownerId
+  );
+  return true;
+}
+function deletePatekDeal(id, ownerId) {
+  const r = db.prepare('DELETE FROM patek_deals WHERE id = ? AND owner_id = ?').run(id, ownerId);
+  return r.changes > 0;
+}
+
 module.exports = {
   init,
   getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
@@ -1261,4 +1316,5 @@ module.exports = {
   listExpenses, getExpense, createExpense, reverseExpense,
   listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
   listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,
+  listPatekDeals, getPatekDeal, createPatekDeal, updatePatekDeal, deletePatekDeal,
 };

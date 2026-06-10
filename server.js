@@ -225,6 +225,42 @@ app.put('/api/patek-desk', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Patek Desk saved deals (per-user, DB-backed) ─────────────────────────
+// Stores deal INPUTS only (mode, vat, fx snapshot, line items) so loading
+// recalculates from scratch. Same-origin authenticated calls from the iframe.
+function serializeDeal(d) {
+  let fx = {}, lines = [];
+  try { fx = JSON.parse(d.fx || '{}'); } catch {}
+  try { lines = JSON.parse(d.lines || '[]'); } catch {}
+  return { id: d.id, name: d.name, mode: d.mode, vat: d.vat, fx, lines,
+           created_at: d.created_at, updated_at: d.updated_at };
+}
+app.get('/api/patek-deals', requireAuth, (req, res) => {
+  res.json(db.listPatekDeals(uid(req)).map(serializeDeal));
+});
+app.get('/api/patek-deals/:id', requireAuth, (req, res) => {
+  const d = db.getPatekDeal(Number(req.params.id), uid(req));
+  if (!d) return res.status(404).json({ error: 'Not found' });
+  res.json(serializeDeal(d));
+});
+app.post('/api/patek-deals', requireAuth, (req, res) => {
+  const { name, mode, vat, fx, lines } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
+  const id = db.createPatekDeal({ ownerId: uid(req), name: String(name).trim(), mode, vat, fx, lines });
+  res.status(201).json(serializeDeal(db.getPatekDeal(id, uid(req))));
+});
+app.put('/api/patek-deals/:id', requireAuth, (req, res) => {
+  const id = Number(req.params.id);
+  const ok = db.updatePatekDeal(id, uid(req), req.body || {});
+  if (!ok) return res.status(404).json({ error: 'Not found' });
+  res.json(serializeDeal(db.getPatekDeal(id, uid(req))));
+});
+app.delete('/api/patek-deals/:id', requireAuth, (req, res) => {
+  const ok = db.deletePatekDeal(Number(req.params.id), uid(req));
+  if (!ok) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
 // ── App Settings (per-user GreenAPI etc.) ────────────────────────────────
 const ALLOWED_SETTINGS = ['greenapi_api_url','greenapi_instance_id','greenapi_api_token','greenapi_group_id','greenapi_notify_hour'];
 
