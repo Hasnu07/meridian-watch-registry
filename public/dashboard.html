@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meridian Watch Registry</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -2407,6 +2408,109 @@ document.getElementById('addProfileBtn').addEventListener('click', () => openAdd
 
 // ── Client detail (cross-shop master identity view) ────────────────────────
 let currentClientId = null;
+let _currentClientData = null;   // full client (memberships + watches) for the Excel report
+
+// Build and download a per-client Excel workbook. Generated client-side from
+// the same data the detail page renders, so figures match the tiles exactly
+// (computePnl + watchPayoutBalance are reused — no server-side math copy).
+function downloadClientReport() {
+  const client = _currentClientData;
+  if (!client) { alert('Open a client first.'); return; }
+  if (typeof XLSX === 'undefined') { alert('Report engine still loading — try again in a moment.'); return; }
+
+  const memberships = client.memberships || [];
+  const today = new Date().toISOString().split('T')[0];
+  const rnd = v => (v == null || v === '' || isNaN(v)) ? '' : Math.round(v);
+  const mergeInto = (acc, map) => { for (const [k, v] of Object.entries(map || {})) acc[k] = (acc[k] || 0) + v; return acc; };
+
+  // Aggregate per-currency maps across memberships (mirrors master summary)
+  const agg = { myTotalCostByCur:{}, clientTotalCostByCur:{}, totalProfitByCur:{}, totalLossByCur:{},
+                netPnlByCur:{}, myPnlByCur:{}, clientPnlByCur:{}, totalExpensesByCur:{},
+                clientRemainingByCur:{}, myRemainingByCur:{} };
+
+  // ── Watches sheet ──
+  const wRows = [[ 'Shop','Membership','Reference','Model','Status','Currency','List Price','Sale Price',
+                   'Gross P&L','My Cost','Client Cost','My P&L','Client P&L','Paid to Me','Paid to Client',
+                   'My Outstanding','Client Outstanding','Expenses','Loss Status','Date','Sold To','Serial' ]];
+  // ── Transactions sheet ──
+  const tRows = [[ 'Shop','Reference','Type','Date','Category / Method','Amount','Currency','Notes','Reversed' ]];
+  // ── Per-membership summary rows ──
+  const memRows = [[ 'Shop','Membership','Rule','Watches','Sold','Net P&L','My P&L','Client P&L','Expenses' ]];
+
+  for (const m of memberships) {
+    const p = computePnl(m);
+    for (const k of Object.keys(agg)) mergeInto(agg[k], p[k]);
+    memRows.push([ m.shop_name || '—', m.name || '—', (m.trading_rule || 'split') === 'discount' ? 'Discount' : 'P/L Split',
+                   (m.watches || []).length, p.soldCount || 0, rnd(p.netPnl), rnd(p.myPnl), rnd(p.clientPnl), rnd(p.totalExpenses) ]);
+
+    for (const w of (m.watches || [])) {
+      const cur  = w.currency || 'CHF';
+      const sold = w.status === 'sold';
+      const gross = (sold && w.list_price != null && w.sale_price != null) ? (w.sale_price - w.list_price) : '';
+      const ww = { ...w, profile: m };
+      const mb = watchPayoutBalance(ww, 'my');
+      const cb = watchPayoutBalance(ww, 'client');
+      const expSum = (w.expenses || []).filter(x => !x.reversed).reduce((s, x) => s + x.amount, 0);
+      wRows.push([
+        m.shop_name || '—', m.name || '—', w.reference_number || '—', w.model || '—',
+        w.status || '—', cur, rnd(w.list_price), sold ? rnd(w.sale_price) : '',
+        gross === '' ? '' : rnd(gross), rnd(w.my_cost), rnd(w.client_cost),
+        sold ? rnd(mb.share) : '', sold ? rnd(cb.share) : '',
+        rnd(mb.paid), rnd(cb.paid), rnd(Math.max(0, mb.remaining)), rnd(Math.max(0, cb.remaining)),
+        rnd(expSum), w.loss_status || '', w.purchase_date || '', w.sold_to || '', w.serial_number || '',
+      ]);
+
+      // transactions: expenses, client payouts, my payouts, loss payments
+      for (const ex of (w.expenses || []))
+        tRows.push([ m.shop_name || '—', w.reference_number || '—', 'Expense', ex.date || '', expenseCategoryLabel(ex.category), rnd(ex.amount), ex.currency || cur, ex.description || '', ex.reversed ? 'YES' : '' ]);
+      for (const px of (w.client_payouts || []))
+        tRows.push([ m.shop_name || '—', w.reference_number || '—', 'Client Payout', px.date || '', px.method || '', rnd(px.amount), px.currency || cur, px.notes || '', px.reversed ? 'YES' : '' ]);
+      for (const px of (w.my_payouts || []))
+        tRows.push([ m.shop_name || '—', w.reference_number || '—', 'My Withdrawal', px.date || '', px.method || '', rnd(px.amount), px.currency || cur, px.notes || '', px.reversed ? 'YES' : '' ]);
+      for (const lp of (w.loss_payments || []))
+        tRows.push([ m.shop_name || '—', w.reference_number || '—', 'Loss Payment', lp.date || '', lp.method || '', rnd(lp.amount), cur, lp.notes || '', lp.reversed ? 'YES' : '' ]);
+    }
+  }
+
+  // ── Summary sheet ──
+  const totalWatches = memberships.reduce((s, m) => s + (m.watches || []).length, 0);
+  const currencies = Array.from(new Set(Object.values(agg).flatMap(mp => Object.keys(mp)))).sort();
+  const sumRows = [
+    ['Meridian — Client Report'],
+    ['Client', client.name || ''],
+    ['Master ID', client.master_id || ''],
+    ['Generated', today],
+    ['Shop presences', memberships.length],
+    ['Total watches', totalWatches],
+    [],
+    ['PER-CURRENCY TOTALS'],
+    ['Currency','My Cost','Client Cost','Total Profit','Total Loss','Net P&L','My P&L','Client P&L','Expenses','Client Outstanding','My Outstanding'],
+  ];
+  if (currencies.length === 0) sumRows.push(['— no financial data —']);
+  for (const c of currencies) {
+    sumRows.push([ c, rnd(agg.myTotalCostByCur[c]), rnd(agg.clientTotalCostByCur[c]), rnd(agg.totalProfitByCur[c]),
+                   rnd(agg.totalLossByCur[c]), rnd(agg.netPnlByCur[c]), rnd(agg.myPnlByCur[c]), rnd(agg.clientPnlByCur[c]),
+                   rnd(agg.totalExpensesByCur[c]), rnd(agg.clientRemainingByCur[c]), rnd(agg.myRemainingByCur[c]) ]);
+  }
+  sumRows.push([], ['PER-MEMBERSHIP'], ...memRows);
+
+  // ── Assemble workbook ──
+  const wb = XLSX.utils.book_new();
+  const wsSum = XLSX.utils.aoa_to_sheet(sumRows);
+  wsSum['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 16 }];
+  XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+
+  const wsW = XLSX.utils.aoa_to_sheet(wRows);
+  wsW['!cols'] = [{ wch: 16 },{ wch: 18 },{ wch: 16 },{ wch: 22 },{ wch: 10 },{ wch: 8 },{ wch: 12 },{ wch: 12 },{ wch: 12 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 12 },{ wch: 14 },{ wch: 16 },{ wch: 10 },{ wch: 14 },{ wch: 12 },{ wch: 16 },{ wch: 16 }];
+  XLSX.utils.book_append_sheet(wb, wsW, 'Watches');
+
+  const wsT = XLSX.utils.aoa_to_sheet(tRows);
+  wsT['!cols'] = [{ wch: 16 },{ wch: 16 },{ wch: 14 },{ wch: 12 },{ wch: 18 },{ wch: 12 },{ wch: 8 },{ wch: 30 },{ wch: 9 }];
+  XLSX.utils.book_append_sheet(wb, wsT, 'Transactions');
+
+  const safeName = (client.name || 'client').replace(/[^\w\- ]+/g, '').trim().slice(0, 40) || 'client';
+  XLSX.writeFile(wb, `Meridian - ${safeName} - ${today}.xlsx`);
+}
 
 async function openClientDetail(id) {
   currentClientId = id;
@@ -2414,6 +2518,7 @@ async function openClientDetail(id) {
   document.getElementById('clientDetailHeader').innerHTML = `<div class="animate-pulse h-20 bg-surface-container rounded-xl"></div>`;
 
   const client = await api('GET', `/api/clients/${id}`);
+  _currentClientData = client;   // stashed so the Excel report handler can read it
   const totalWatches = client.memberships.reduce((s, m) => s + m.watches.length, 0);
 
   document.getElementById('clientDetailHeader').innerHTML = `
@@ -2439,6 +2544,9 @@ async function openClientDetail(id) {
         </div>
       </div>
       <div class="flex items-center gap-2">
+        <button onclick="downloadClientReport()" class="text-[10px] font-semibold uppercase tracking-widest text-emerald-400 px-4 py-2 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/10 transition-all flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[14px]">table_view</span> Excel Report
+        </button>
         <button id="clientShareBtn-${id}" onclick="generateClientShareLink(${id})" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant px-4 py-2 border border-outline-variant/30 rounded-lg hover:text-primary hover:border-primary/30 transition-all flex items-center gap-1.5">
           <span class="material-symbols-outlined text-[14px]">link</span> Share Link
         </button>
