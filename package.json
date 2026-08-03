@@ -4,7 +4,7 @@
   "description": "Meridian Watch Registry — client profile & watch management system",
   "main": "server.js",
   "engines": {
-    "node": ">=22.5.0"
+    "node": "24.x"
   },
   "scripts": {
     "start": "node server.js",
