@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const express     = require('express');
 const session     = require('express-session');
-const SQLiteStore = require('connect-sqlite3')(session);
+const createSqliteSessionStore = require('./lib/sqlite-session-store');
 const rateLimit   = require('express-rate-limit');
 const fs          = require('fs');
 const crypto      = require('crypto');
@@ -52,7 +52,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Persistent session store — sessions survive server restarts
 app.use(session({
-  store:             new SQLiteStore({ db: 'sessions.sqlite', dir: __dirname }),
+  store:             createSqliteSessionStore(),
   secret:            loadOrCreateSessionSecret(),
   resave:            false,
   saveUninitialized: false,
