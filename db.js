@@ -309,6 +309,7 @@ function init() {
   if (!wcols.includes('image_path'))      db.exec("ALTER TABLE watches ADD COLUMN image_path TEXT");
   if (!wcols.includes('movement_number')) db.exec("ALTER TABLE watches ADD COLUMN movement_number TEXT");
   if (!wcols.includes('case_number'))     db.exec("ALTER TABLE watches ADD COLUMN case_number TEXT");
+  if (!wcols.includes('stock_number'))    db.exec("ALTER TABLE watches ADD COLUMN stock_number TEXT");
 
   // Seed shops if none exist
   const shopCount = db.prepare('SELECT COUNT(*) as c FROM shops').get().c;
@@ -846,20 +847,21 @@ function getWatch(id, ownerId) {
 
 function createWatch(profileId, { model, serial_number, source, purchase_date, price,
                                    reference_number, notes, image_path, movement_number, case_number,
+                                   stock_number,
                                    list_price, sale_price, status, currency,
                                    my_cost, client_cost, my_received, client_received }) {
   const result = db.prepare(`
     INSERT INTO watches
       (profile_id, model, serial_number, source, purchase_date, price,
-       reference_number, notes, image_path, movement_number, case_number,
+       reference_number, notes, image_path, movement_number, case_number, stock_number,
        list_price, sale_price, status, currency,
        my_cost, client_cost, my_received, client_received)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     profileId, model, serial_number ?? null, source,
     purchase_date ?? null, price != null ? Number(price) : null,
     reference_number ?? null, notes ?? null, image_path ?? null,
-    movement_number ?? null, case_number ?? null,
+    movement_number ?? null, case_number ?? null, stock_number ?? null,
     list_price  != null ? Number(list_price)  : null,
     sale_price  != null ? Number(sale_price)  : null,
     status ?? 'wishlist',
@@ -874,7 +876,7 @@ function createWatch(profileId, { model, serial_number, source, purchase_date, p
 
 function updateWatch(id, updates, ownerId) {
   const FIELDS = ['model','serial_number','source','purchase_date','price',
-                  'reference_number','notes','image_path','movement_number','case_number',
+                  'reference_number','notes','image_path','movement_number','case_number','stock_number',
                   'list_price','sale_price','status','currency','sold_to',
                   'my_cost','client_cost','my_received','client_received',
                   'loss_status','discount_rate_applied'];

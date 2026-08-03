@@ -1156,6 +1156,10 @@
           <input type="text" id="wModel" required placeholder="e.g. Patek Philippe Nautilus 5711" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
         <div>
+          <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Stock Number <span class="text-outline/50 normal-case">(optional)</span></label>
+          <input type="text" id="wStock" placeholder="e.g. WOS-0012" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        </div>
+        <div>
           <label class="block text-xs uppercase tracking-widest text-outline mb-1.5">Serial Number</label>
           <input type="text" id="wSerial" class="w-full bg-[#0B0E14] border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
         </div>
@@ -2429,7 +2433,7 @@ function downloadClientReport() {
                 clientRemainingByCur:{}, myRemainingByCur:{} };
 
   // ── Watches sheet ──
-  const wRows = [[ 'Shop','Membership','Reference','Model','Status','Currency','List Price','Sale Price',
+  const wRows = [[ 'Shop','Membership','Stock #','Reference','Model','Status','Currency','List Price','Sale Price',
                    'Gross P&L','My Cost','Client Cost','My P&L','Client P&L','Paid to Me','Paid to Client',
                    'My Outstanding','Client Outstanding','Expenses','Loss Status','Date','Sold To','Serial' ]];
   // ── Transactions sheet ──
@@ -2452,7 +2456,7 @@ function downloadClientReport() {
       const cb = watchPayoutBalance(ww, 'client');
       const expSum = (w.expenses || []).filter(x => !x.reversed).reduce((s, x) => s + x.amount, 0);
       wRows.push([
-        m.shop_name || '—', m.name || '—', w.reference_number || '—', w.model || '—',
+        m.shop_name || '—', m.name || '—', w.stock_number || '', w.reference_number || '—', w.model || '—',
         w.status || '—', cur, rnd(w.list_price), sold ? rnd(w.sale_price) : '',
         gross === '' ? '' : rnd(gross), rnd(w.my_cost), rnd(w.client_cost),
         sold ? rnd(mb.share) : '', sold ? rnd(cb.share) : '',
@@ -2501,7 +2505,7 @@ function downloadClientReport() {
   XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
 
   const wsW = XLSX.utils.aoa_to_sheet(wRows);
-  wsW['!cols'] = [{ wch: 16 },{ wch: 18 },{ wch: 16 },{ wch: 22 },{ wch: 10 },{ wch: 8 },{ wch: 12 },{ wch: 12 },{ wch: 12 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 12 },{ wch: 14 },{ wch: 16 },{ wch: 10 },{ wch: 14 },{ wch: 12 },{ wch: 16 },{ wch: 16 }];
+  wsW['!cols'] = [{ wch: 16 },{ wch: 18 },{ wch: 14 },{ wch: 16 },{ wch: 22 },{ wch: 10 },{ wch: 8 },{ wch: 12 },{ wch: 12 },{ wch: 12 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 12 },{ wch: 14 },{ wch: 16 },{ wch: 10 },{ wch: 14 },{ wch: 12 },{ wch: 16 },{ wch: 16 }];
   XLSX.utils.book_append_sheet(wb, wsW, 'Watches');
 
   const wsT = XLSX.utils.aoa_to_sheet(tRows);
@@ -2834,6 +2838,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
           <thead>
             <tr class="border-b border-outline-variant/10" style="background:rgba(255,255,255,0.02)">
               <th class="px-8 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+              <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Stock #</th>
               <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status</th>
               <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
               <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
@@ -2860,6 +2865,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   </div>
                 </div>
               </td>
+              <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
               <td class="px-6 py-4">${statusBadge(w.status)}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
@@ -4580,6 +4586,7 @@ function renderWatchDetailPage(w) {
 
         <!-- Watch identity -->
         ${infoCard('Watch Identity', [
+          field('Stock No.',     w.stock_number,     true),
           field('Reference No.', w.reference_number, true),
           field('Serial No.',    w.serial_number,    true),
           field('Movement No.',  w.movement_number,  true),
@@ -6154,6 +6161,7 @@ document.getElementById('wSystemSearch').addEventListener('input', function() {
 
 function prefillWatchFromSystem(w) {
   document.getElementById('wModel').value    = w.model        || '';
+  document.getElementById('wStock').value    = w.stock_number || '';
   document.getElementById('wSerial').value   = w.serial_number|| '';
   document.getElementById('wRef').value      = w.reference_number || '';
   const pfCur = document.getElementById('wCurrency');
@@ -6166,7 +6174,7 @@ function prefillWatchFromSystem(w) {
 }
 
 async function openAddWatch(profileId) {
-  ['watchId','wModel','wSerial','wDate','wRef','wNotes','wListPrice','wSalePrice','wMyCost','wClientCost','wSystemSearch'].forEach(id => {
+  ['watchId','wModel','wStock','wSerial','wDate','wRef','wNotes','wListPrice','wSalePrice','wMyCost','wClientCost','wSystemSearch'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const curSel = document.getElementById('wCurrency');
@@ -6214,6 +6222,7 @@ async function openEditWatch(id) {
   document.getElementById('watchId').value        = wt.id;
   document.getElementById('watchProfileId').value = wt.profile_id;
   document.getElementById('wModel').value     = wt.model;
+  document.getElementById('wStock').value     = wt.stock_number     || '';
   document.getElementById('wSerial').value    = wt.serial_number    || '';
   document.getElementById('wDate').value      = wt.purchase_date    || '';
   setMoneyValue('wListPrice',  wt.list_price);
@@ -6289,6 +6298,7 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   fd.append('model',            model);
   fd.append('source',           'Company');
   fd.append('status',           document.getElementById('wStatus').value);
+  fd.append('stock_number',     document.getElementById('wStock').value.trim());
   fd.append('serial_number',    document.getElementById('wSerial').value.trim());
   fd.append('purchase_date',    document.getElementById('wDate').value);
   fd.append('list_price',       readMoneyInput('wListPrice'));
@@ -6806,6 +6816,7 @@ async function toggleWatchExpand(profileId) {
           <thead>
             <tr style="background:rgba(255,255,255,0.025); border-bottom:1px solid rgba(255,255,255,0.07)">
               <th class="px-10 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
+              <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Stock #</th>
               <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
               <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
               <th class="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Date</th>
@@ -6828,6 +6839,7 @@ async function toggleWatchExpand(profileId) {
                   </div>
                 </div>
               </td>
+              <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs">${fmt.date(w.purchase_date)}</td>
