@@ -279,8 +279,10 @@ function init() {
     db.exec('COMMIT');
     db.exec('PRAGMA foreign_keys = ON');
   }
-  // Per-owner email uniqueness (NULL emails are ignored — SQLite indices treat NULL as distinct)
-  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_owner_email ON profiles (owner_id, email) WHERE email IS NOT NULL");
+  // NOTE: the per-owner email unique index is created later — AFTER owner_id
+  // is added to profiles (see addOwnerCol below). On a fresh database the
+  // profiles table is created without owner_id, so building the index here
+  // would throw "no such column: owner_id".
 
   // Drop the legacy single-password admin table if it still exists
   db.exec("DROP TABLE IF EXISTS admin");
@@ -370,6 +372,11 @@ function init() {
   addOwnerCol('clients',    JHONNY_ID);
   addOwnerCol('portfolios', JHONNY_ID);
   addOwnerCol('profiles',   JHONNY_ID);
+
+  // Per-owner email uniqueness — safe here because owner_id now exists on
+  // profiles (fresh DBs: just added above; existing DBs: already present).
+  // NULL emails are ignored (SQLite treats NULLs as distinct in indices).
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_owner_email ON profiles (owner_id, email) WHERE email IS NOT NULL");
 
   // ── Settings: rebuild as per-user key/value store ────────────────────────
   // Old: PRIMARY KEY (key). New: PRIMARY KEY (user_id, key)
