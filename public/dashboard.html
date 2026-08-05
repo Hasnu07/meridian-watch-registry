@@ -2628,6 +2628,40 @@ function downloadClientPdf() {
     if (curLine(shopListByCur)) subtotalBits.push(`list ${curLine(shopListByCur)}`);
     if (curLine(shopSoldByCur)) subtotalBits.push(`sold ${curLine(shopSoldByCur)}`);
 
+    // ── Per-shop stats grid (mirrors the Meridian membership Portfolio
+    //    Summary). Each tile renders only when it has a value — no empties. ──
+    const p = computePnl(m);
+    const sumMap = (map) => Object.values(map || {}).reduce((a, b) => a + b, 0);
+    // colored per-currency value; mode: 'pl' (sign-colored) | 'profit' | 'loss' | ''
+    const val = (map, mode) => {
+      const s = curLine(map); if (!s) return '';
+      let col = '#eae1d4';
+      if (mode === 'profit') col = '#5dcaa5';
+      else if (mode === 'loss') col = '#ffb4ab';
+      else if (mode === 'pl') { const t = sumMap(map); col = t > 0 ? '#5dcaa5' : t < 0 ? '#ffb4ab' : '#eae1d4'; }
+      return `<span style="color:${col}">${s}</span>`;
+    };
+    const rule = (m.trading_rule || 'split') === 'discount' ? 'Discount split' : 'P/L split';
+    const statDefs = [
+      ['My Total Cost',      val(p.myTotalCostByCur)],
+      ['Client Total Cost',  val(p.clientTotalCostByCur)],
+      ['Total in Watches',   val(p.totalCostByCur)],
+      ['Total Profit',       val(p.totalProfitByCur, 'profit')],
+      ['Total Loss',         val(p.totalLossByCur, 'loss')],
+      ['My P&L',             val(p.myPnlByCur, 'pl')],
+      ['Client P&L',         val(p.clientPnlByCur, 'pl')],
+      ['Sale Proceeds',      val(p.totalSaleValueByCur)],
+      ['Total Expenses',     val(p.totalExpensesByCur, 'loss')],
+      ['Adj. Net P&L',       val(p.adjustedNetPnlByCur, 'pl')],
+      ['Client Outstanding', val(p.clientRemainingByCur)],
+      ['My Outstanding',     val(p.myRemainingByCur)],
+    ].filter(([, v]) => v);   // drop empty tiles
+    const statsHtml = statDefs.length ? `
+        <div class="shop-stats-title">Summary · ${rule}</div>
+        <div class="stats">
+          ${statDefs.map(([l, v]) => `<div class="stat"><div class="stat-l">${l}</div><div class="stat-v">${v}</div></div>`).join('')}
+        </div>` : '';
+
     return `
       <div class="section shop" id="shop-${idx}">
         <div class="shop-head">
@@ -2638,6 +2672,7 @@ function downloadClientPdf() {
           <thead><tr>${head.map(h => `<th${h === 'List' || h === 'Sold For' ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead>
           <tbody>${rows}</tbody>
         </table>
+        ${statsHtml}
       </div>`;
   }).join('');
 
@@ -2690,6 +2725,11 @@ function downloadClientPdf() {
   .shop-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; border-bottom: 1px solid rgba(242,202,80,0.25); padding-bottom: 8px; margin-bottom: 4px; }
   .shop-name { font-family: 'Playfair Display', serif; font-size: 20px; color: #eae1d4; }
   .shop-sub { font-size: 11px; color: #99907c; }
+  .shop-stats-title { font-size: 9px; text-transform: uppercase; letter-spacing: .18em; color: #f2ca50; font-weight: 700; margin: 16px 0 8px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; break-inside: avoid; }
+  .stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 9px; padding: 9px 11px; break-inside: avoid; }
+  .stat-l { font-size: 8.5px; text-transform: uppercase; letter-spacing: .07em; color: #99907c; font-weight: 600; }
+  .stat-v { font-family: 'Playfair Display', serif; font-size: 15px; color: #eae1d4; margin-top: 3px; }
   table.wtbl { width: 100%; border-collapse: collapse; margin-top: 6px; }
   table.wtbl th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: #99907c; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); }
   table.wtbl td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12.5px; vertical-align: top; }
@@ -2712,7 +2752,8 @@ function downloadClientPdf() {
     .cards { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
     table.wtbl { width: 100%; table-layout: auto; }
     .shop { break-inside: avoid; }
-    .card, .pos-item { break-inside: avoid; }
+    .card, .pos-item, .stat, .stats { break-inside: avoid; }
+    .stats { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
   }
 </style></head>
 <body>
