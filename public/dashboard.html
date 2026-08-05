@@ -2659,7 +2659,7 @@ function downloadClientPdf() {
 <title>Meridian — ${e(client.name || 'Client')} Report</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  @page { size: A4; margin: 11mm; }
+  @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; background: #16130b; color: #eae1d4; font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; }
   a { color: inherit; }
@@ -2668,7 +2668,7 @@ function downloadClientPdf() {
   .toolbar .t { font-size: 12px; color: #99907c; }
   .btn { background: #f2ca50; color: #3c2f00; border: none; border-radius: 9px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
   .wrap { max-width: 840px; margin: 0 auto; padding: 30px 34px 60px; }
-  .brand { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px; margin-bottom: 22px; }
+  .brand { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px; margin-bottom: 22px; }
   .brand .logo { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: #f2ca50; letter-spacing: .02em; }
   .brand .tag { font-size: 9px; text-transform: uppercase; letter-spacing: .3em; color: #99907c; margin-top: 2px; }
   .brand .meta { text-align: right; font-size: 11px; color: #99907c; line-height: 1.6; }
@@ -2687,7 +2687,7 @@ function downloadClientPdf() {
   .nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 20px; }
   .nav a { font-size: 11px; text-decoration: none; color: #d0c5af; border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; padding: 5px 12px; }
   .shop { break-inside: avoid; }
-  .shop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(242,202,80,0.25); padding-bottom: 8px; margin-bottom: 4px; }
+  .shop-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; border-bottom: 1px solid rgba(242,202,80,0.25); padding-bottom: 8px; margin-bottom: 4px; }
   .shop-name { font-family: 'Playfair Display', serif; font-size: 20px; color: #eae1d4; }
   .shop-sub { font-size: 11px; color: #99907c; }
   table.wtbl { width: 100%; border-collapse: collapse; margin-top: 6px; }
@@ -2703,14 +2703,16 @@ function downloadClientPdf() {
   .foot { margin-top: 40px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 10px; color: #5f5b53; text-align: center; letter-spacing: .04em; }
   @media print {
     .no-print, .no-print-block { display: none !important; }
-    html, body { background: #16130b; width: 100%; }
-    /* Fill the printable area instead of a fixed 840px width (which is wider
-       than A4's printable region and made the browser scale/zoom + clip the
-       right edge). */
-    .wrap { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0; }
-    .cards { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    html, body { background: #16130b !important; margin: 0 !important; padding: 0 !important; }
+    /* Size the content to the EXACT A4 printable width (210mm − 2×14mm page
+       margin = 182mm) in physical units, so it can never be wider than the
+       page — that overflow is what made the browser scale/zoom and clip the
+       right edge. Millimetres avoid px↔dpi ambiguity. */
+    .wrap { width: 182mm !important; max-width: 182mm !important; padding: 0 !important; margin: 0 auto !important; }
+    .cards { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
     table.wtbl { width: 100%; table-layout: auto; }
     .shop { break-inside: avoid; }
+    .card, .pos-item { break-inside: avoid; }
   }
 </style></head>
 <body>
