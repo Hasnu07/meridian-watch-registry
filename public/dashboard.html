@@ -2659,7 +2659,7 @@ function downloadClientPdf() {
 <title>Meridian — ${e(client.name || 'Client')} Report</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  @page { size: A4; margin: 14mm; }
+  @page { size: A4; margin: 11mm; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; background: #16130b; color: #eae1d4; font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; }
   a { color: inherit; }
@@ -2701,7 +2701,17 @@ function downloadClientPdf() {
   .dim { color: #5f5b53; }
   .empty { text-align: center; color: #99907c; padding: 60px 0; font-size: 14px; }
   .foot { margin-top: 40px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 10px; color: #5f5b53; text-align: center; letter-spacing: .04em; }
-  @media print { .no-print, .no-print-block { display: none !important; } .wrap { padding: 0; } body { background: #16130b; } }
+  @media print {
+    .no-print, .no-print-block { display: none !important; }
+    html, body { background: #16130b; width: 100%; }
+    /* Fill the printable area instead of a fixed 840px width (which is wider
+       than A4's printable region and made the browser scale/zoom + clip the
+       right edge). */
+    .wrap { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0; }
+    .cards { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    table.wtbl { width: 100%; table-layout: auto; }
+    .shop { break-inside: avoid; }
+  }
 </style></head>
 <body>
   <div class="toolbar no-print">
