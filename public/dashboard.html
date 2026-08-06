@@ -2595,34 +2595,85 @@ function downloadClientPdf() {
     </div>` : '';
 
   // ── Per-shop sections ──
+  // signed money: leading + on positives so P&L reads clearly
+  const smoney = (v, cur) => (v > 0 ? '+' : '') + money(v, cur);
+  // a labelled value cell — returns '' when the value is missing (no empties)
+  const kv = (label, valHtml) => valHtml ? `<div class="kv"><div class="kv-l">${label}</div><div class="kv-v">${valHtml}</div></div>` : '';
+  const col = (v) => v > 0 ? '#5dcaa5' : v < 0 ? '#ffb4ab' : '#eae1d4';
+
+  // Detailed per-watch card — mirrors the Meridian expanded row.
+  const watchCard = (w, m) => {
+    const cur = w.currency || 'CHF';
+    const sold = w.status === 'sold';
+    const isDiscount = (m.trading_rule || 'split') === 'discount';
+    const rate = w.discount_rate_applied ?? m.discount_split ?? 0.08;
+    const gross = (sold && w.list_price != null && w.sale_price != null) ? (w.sale_price - w.list_price) : null;
+    const income = (isDiscount && sold && gross != null && gross > 0) ? (w.sale_price * rate) : null;
+    const ww = { ...w, profile: m };
+    const mb = watchPayoutBalance(ww, 'my');
+    const cb = watchPayoutBalance(ww, 'client');
+
+    // Header right-side headline: discount income, else gross P&L
+    let headline = '';
+    if (income != null) headline = `<div class="wc-income" style="color:#f2ca50">${smoney(income, cur)}<span class="wc-income-sub">${(rate * 100).toFixed(1)}% disc.</span></div>`;
+    else if (gross != null) headline = `<div class="wc-income" style="color:${col(gross)}">${smoney(gross, cur)}</div>`;
+
+    // Transaction detail row (only non-empty fields)
+    const detail = [
+      kv('List',      w.list_price != null ? money(w.list_price, cur) : ''),
+      kv('Sold For',  sold && w.sale_price != null ? `<span class="gold">${money(w.sale_price, cur)}</span>` : ''),
+      kv('Gross P&L', gross != null ? `<span style="color:${col(gross)}">${smoney(gross, cur)}</span>` : ''),
+      kv('Sold To',   sold ? e(w.sold_to) : ''),
+      kv('Date',      dt(w.purchase_date)),
+      kv('Reference', e(w.reference_number)),
+    ].filter(Boolean).join('');
+
+    // Money split (My / Client) — only cells with data
+    const finance = [
+      kv('My Cost',        w.my_cost != null ? money(w.my_cost, cur) : ''),
+      kv('Paid to Me',     mb.paid ? `<span style="color:#5dcaa5">${money(mb.paid, cur)}</span>` : ''),
+      kv('My P&L',         sold ? `<span style="color:${col(mb.share)}">${smoney(mb.share, cur)}</span>` : ''),
+      kv('Client Cost',    w.client_cost != null ? money(w.client_cost, cur) : ''),
+      kv('Paid to Client', cb.paid ? `<span style="color:#c9a3ff">${money(cb.paid, cur)}</span>` : ''),
+      kv('Client P&L',     sold ? `<span style="color:${col(cb.share)}">${smoney(cb.share, cur)}</span>` : ''),
+    ].filter(Boolean).join('');
+
+    // Settlement line — show a side only if it owes or was paid something
+    const settleBits = [];
+    if (cb.owed > 0 || cb.paid > 0) settleBits.push(`Client: paid ${money(cb.paid, cur)} · remaining ${money(Math.max(0, cb.remaining), cur)}`);
+    if (mb.owed > 0 || mb.paid > 0) settleBits.push(`Me: paid ${money(mb.paid, cur)} · remaining ${money(Math.max(0, mb.remaining), cur)}`);
+    const settleHtml = settleBits.length ? `<div class="wc-settle">${settleBits.join('&nbsp;&nbsp;·&nbsp;&nbsp;')}</div>` : '';
+
+    // Expenses (active) — only if any
+    const exps = (w.expenses || []).filter(x => !x.reversed);
+    const expTot = exps.reduce((s, x) => s + x.amount, 0);
+    const expHtml = exps.length ? `
+        <div class="wc-exp">
+          <div class="wc-exp-title">Expenses · ${money(expTot, cur)}</div>
+          ${exps.map(x => `<div class="wc-exp-row"><span>${dt(x.date) || ''} · ${e(expenseCategoryLabel(x.category))}${x.description ? ' · ' + e(x.description) : ''}</span><span class="mono">${money(x.amount, x.currency || cur)}</span></div>`).join('')}
+        </div>` : '';
+
+    const statusColor = { wishlist: '#efb64a', purchased: '#7bb0ff', sold: '#5dcaa5' }[w.status] || '#99907c';
+    return `
+      <div class="wcard" style="border-left:3px solid ${statusColor}">
+        <div class="wc-head">
+          <div class="wc-title">
+            <div class="wc-model">${e(w.model)}</div>
+            <div class="wc-meta">${w.stock_number ? 'Stock ' + e(w.stock_number) : ''}${w.stock_number && w.serial_number ? '&nbsp;&nbsp;·&nbsp;&nbsp;' : ''}${w.serial_number ? e(w.serial_number) : ''}</div>
+          </div>
+          <div class="wc-headright">${statusPill(w.status)}${headline}</div>
+        </div>
+        ${detail ? `<div class="kv-grid">${detail}</div>` : ''}
+        ${finance ? `<div class="kv-grid finance">${finance}</div>` : ''}
+        ${settleHtml}
+        ${expHtml}
+      </div>`;
+  };
+
   const shopHtml = shops.map((m, idx) => {
     const ws = m.watches || [];
-    const hasRef  = ws.some(w => w.reference_number);
-    const hasList = ws.some(w => w.list_price != null);
-    const hasSold = ws.some(w => w.status === 'sold' && w.sale_price != null);
-    const hasDate = ws.some(w => w.purchase_date);
     const shopListByCur = sumByCur(ws, w => w.list_price || 0);
     const shopSoldByCur = sumByCur(ws.filter(w => w.status === 'sold'), w => w.sale_price || 0);
-
-    const head = ['Stock #', 'Timepiece']
-      .concat(hasRef ? ['Ref #'] : [])
-      .concat(['Status'])
-      .concat(hasList ? ['List'] : [])
-      .concat(hasSold ? ['Sold For'] : [])
-      .concat(hasDate ? ['Date'] : []);
-
-    const rows = ws.map(w => {
-      const cur = w.currency || 'CHF';
-      const tds = [];
-      tds.push(`<td class="mono">${w.stock_number ? e(w.stock_number) : '<span class="dim">—</span>'}</td>`);
-      tds.push(`<td><div class="model">${e(w.model)}</div>${w.serial_number ? `<div class="sub mono">${e(w.serial_number)}</div>` : ''}</td>`);
-      if (hasRef)  tds.push(`<td class="mono">${w.reference_number ? e(w.reference_number) : '<span class="dim">—</span>'}</td>`);
-      tds.push(`<td>${statusPill(w.status)}</td>`);
-      if (hasList) tds.push(`<td class="num">${w.list_price != null ? money(w.list_price, cur) : '<span class="dim">—</span>'}</td>`);
-      if (hasSold) tds.push(`<td class="num gold">${w.status === 'sold' && w.sale_price != null ? money(w.sale_price, cur) : '<span class="dim">—</span>'}</td>`);
-      if (hasDate) tds.push(`<td>${dt(w.purchase_date) || '<span class="dim">—</span>'}</td>`);
-      return `<tr>${tds.join('')}</tr>`;
-    }).join('');
 
     const subtotalBits = [`${ws.length} piece${ws.length !== 1 ? 's' : ''}`];
     if (curLine(shopListByCur)) subtotalBits.push(`list ${curLine(shopListByCur)}`);
@@ -2632,14 +2683,13 @@ function downloadClientPdf() {
     //    Summary). Each tile renders only when it has a value — no empties. ──
     const p = computePnl(m);
     const sumMap = (map) => Object.values(map || {}).reduce((a, b) => a + b, 0);
-    // colored per-currency value; mode: 'pl' (sign-colored) | 'profit' | 'loss' | ''
     const val = (map, mode) => {
       const s = curLine(map); if (!s) return '';
-      let col = '#eae1d4';
-      if (mode === 'profit') col = '#5dcaa5';
-      else if (mode === 'loss') col = '#ffb4ab';
-      else if (mode === 'pl') { const t = sumMap(map); col = t > 0 ? '#5dcaa5' : t < 0 ? '#ffb4ab' : '#eae1d4'; }
-      return `<span style="color:${col}">${s}</span>`;
+      let c = '#eae1d4';
+      if (mode === 'profit') c = '#5dcaa5';
+      else if (mode === 'loss') c = '#ffb4ab';
+      else if (mode === 'pl') { const t = sumMap(map); c = t > 0 ? '#5dcaa5' : t < 0 ? '#ffb4ab' : '#eae1d4'; }
+      return `<span style="color:${c}">${s}</span>`;
     };
     const rule = (m.trading_rule || 'split') === 'discount' ? 'Discount split' : 'P/L split';
     const statDefs = [
@@ -2655,7 +2705,7 @@ function downloadClientPdf() {
       ['Adj. Net P&L',       val(p.adjustedNetPnlByCur, 'pl')],
       ['Client Outstanding', val(p.clientRemainingByCur)],
       ['My Outstanding',     val(p.myRemainingByCur)],
-    ].filter(([, v]) => v);   // drop empty tiles
+    ].filter(([, v]) => v);
     const statsHtml = statDefs.length ? `
         <div class="shop-stats-title">Summary · ${rule}</div>
         <div class="stats">
@@ -2668,10 +2718,7 @@ function downloadClientPdf() {
           <div class="shop-name">${e(m.shop_name || 'Shop')}</div>
           <div class="shop-sub">${subtotalBits.join('&nbsp;&nbsp;·&nbsp;&nbsp;')}</div>
         </div>
-        <table class="wtbl">
-          <thead><tr>${head.map(h => `<th${h === 'List' || h === 'Sold For' ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="wcards">${ws.map(w => watchCard(w, m)).join('')}</div>
         ${statsHtml}
       </div>`;
   }).join('');
@@ -2725,6 +2772,22 @@ function downloadClientPdf() {
   .shop-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; border-bottom: 1px solid rgba(242,202,80,0.25); padding-bottom: 8px; margin-bottom: 4px; }
   .shop-name { font-family: 'Playfair Display', serif; font-size: 20px; color: #eae1d4; }
   .shop-sub { font-size: 11px; color: #99907c; }
+  .wcards { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .wcard { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 13px 15px; break-inside: avoid; }
+  .wc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .wc-model { font-weight: 700; font-size: 14px; color: #eae1d4; }
+  .wc-meta { font-family: ui-monospace, monospace; font-size: 10.5px; color: #99907c; margin-top: 2px; }
+  .wc-headright { display: flex; align-items: center; gap: 12px; }
+  .wc-income { font-family: 'Playfair Display', serif; font-size: 17px; text-align: right; }
+  .wc-income-sub { display: block; font-family: 'Inter', sans-serif; font-size: 9px; color: #99907c; margin-top: 1px; }
+  .kv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px 14px; margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .kv-grid.finance { margin-top: 10px; }
+  .kv-l { font-size: 8.5px; text-transform: uppercase; letter-spacing: .07em; color: #99907c; font-weight: 600; }
+  .kv-v { font-size: 13px; color: #eae1d4; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .wc-settle { margin-top: 11px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 10.5px; color: #99907c; }
+  .wc-exp { margin-top: 11px; padding-top: 9px; border-top: 1px solid rgba(93,202,165,0.14); }
+  .wc-exp-title { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: #7fd0b4; font-weight: 700; margin-bottom: 5px; }
+  .wc-exp-row { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; color: #d0c5af; padding: 2px 0; }
   .shop-stats-title { font-size: 9px; text-transform: uppercase; letter-spacing: .18em; color: #f2ca50; font-weight: 700; margin: 16px 0 8px; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; break-inside: avoid; }
   .stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 9px; padding: 9px 11px; break-inside: avoid; }
