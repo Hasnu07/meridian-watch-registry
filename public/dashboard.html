@@ -6550,9 +6550,17 @@ async function openAddWatch(profileId) {
 }
 
 async function openEditWatch(id) {
-  let wt = watchCache[id] || allWatches.find(x => x.id === id);
-  if (!wt) { const all = await api('GET', '/api/watches'); wt = all.find(x => x.id === id); }
-  if (!wt) return;
+  // Always pull the authoritative current record from the server so the form
+  // reflects the latest DB state. Relying on watchCache/allWatches could load a
+  // stale snapshot (e.g. after a Mark-Sold, payout, or edit made elsewhere),
+  // and saving would then overwrite newer data with the stale form values —
+  // which looked like "the previous data disappeared".
+  let wt = null;
+  try { wt = await api('GET', `/api/watches/${id}`); } catch {}
+  if (!wt) wt = watchCache[id] || allWatches.find(x => x.id === id);   // offline/error fallback
+  if (!wt) { alert('Could not load this watch — please refresh and try again.'); return; }
+  // Refresh the cache with fresh data (keep any split fields already cached)
+  watchCache[wt.id] = { ...(watchCache[wt.id] || {}), ...wt };
   document.getElementById('watchId').value        = wt.id;
   document.getElementById('watchProfileId').value = wt.profile_id;
   document.getElementById('wModel').value     = wt.model;
