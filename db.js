@@ -313,6 +313,49 @@ function init() {
   if (!wcols.includes('case_number'))     db.exec("ALTER TABLE watches ADD COLUMN case_number TEXT");
   if (!wcols.includes('stock_number'))    db.exec("ALTER TABLE watches ADD COLUMN stock_number TEXT");
 
+  // ── Discount Split v2 (Purosangue spec) ─────────────────────────────────
+  // Profitable discount watches are handed over to me at market price P minus
+  // the discount; P is agreed per watch at handover. Loss watches repay my
+  // contribution first and the shortfall is a client debt (Panel B).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS watch_market_prices (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      watch_id   INTEGER NOT NULL REFERENCES watches(id) ON DELETE CASCADE,
+      price      REAL    NOT NULL,
+      date       DATE,
+      agreed_by  TEXT,
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
+  `);
+  const marketPriceMissing = !wcols.includes('market_price');
+  if (marketPriceMissing)                          db.exec("ALTER TABLE watches ADD COLUMN market_price REAL");
+  if (!wcols.includes('market_price_date'))        db.exec("ALTER TABLE watches ADD COLUMN market_price_date DATE");
+  if (!wcols.includes('market_price_agreed_by'))   db.exec("ALTER TABLE watches ADD COLUMN market_price_agreed_by TEXT");
+  if (!wcols.includes('discount_mode'))            db.exec("ALTER TABLE watches ADD COLUMN discount_mode TEXT DEFAULT 'standard'");
+  if (!wcols.includes('client_price_manual'))      db.exec("ALTER TABLE watches ADD COLUMN client_price_manual REAL");
+  if (!wcols.includes('offset_amount'))            db.exec("ALTER TABLE watches ADD COLUMN offset_amount REAL DEFAULT 0");
+  const lpcols = db.prepare("PRAGMA table_info(loss_payments)").all().map(r => r.name);
+  if (!lpcols.includes('offset_from_watch_id'))    db.exec("ALTER TABLE loss_payments ADD COLUMN offset_from_watch_id INTEGER");
+
+  // One-time backfill: sold profitable watches on discount profiles were
+  // recorded under v1 (income = sale price × rate). Treat their sale price as
+  // the agreed market price so their income stays identical under v2.
+  if (marketPriceMissing) {
+    const legacy = db.prepare(`
+      SELECT w.id, w.sale_price, w.purchase_date FROM watches w
+      JOIN profiles p ON p.id = w.profile_id
+      WHERE p.trading_rule = 'discount' AND w.status = 'sold'
+        AND w.sale_price IS NOT NULL AND w.list_price IS NOT NULL
+        AND w.sale_price > w.list_price AND w.market_price IS NULL
+    `).all();
+    const setMp = db.prepare("UPDATE watches SET market_price = ?, market_price_date = ?, market_price_agreed_by = ?, discount_mode = 'standard' WHERE id = ?");
+    const insMp = db.prepare('INSERT INTO watch_market_prices (watch_id, price, date, agreed_by) VALUES (?, ?, ?, ?)');
+    for (const w of legacy) {
+      setMp.run(w.sale_price, w.purchase_date || null, 'Migrated from sale price', w.id);
+      insMp.run(w.id, w.sale_price, w.purchase_date || null, 'Migrated from sale price');
+    }
+  }
+
   // Seed shops if none exist
   const shopCount = db.prepare('SELECT COUNT(*) as c FROM shops').get().c;
   if (shopCount === 0) {
@@ -413,6 +456,9 @@ function init() {
   }
   seedShopsForUser(JHONNY_ID);
   seedShopsForUser(ROBIN_ID);
+
+  // Keep denormalised loss/payout statuses in line with the current rules
+  for (const { id } of db.prepare("SELECT id FROM watches WHERE status = 'sold'").all()) resyncWatchStatuses(id);
 }
 
 // ── Users (multi-tenant accounts) ─────────────────────────────────────────
@@ -886,13 +932,16 @@ function updateWatch(id, updates, ownerId) {
                   'reference_number','notes','image_path','movement_number','case_number','stock_number',
                   'list_price','sale_price','status','currency','sold_to',
                   'my_cost','client_cost','my_received','client_received',
-                  'loss_status','discount_rate_applied'];
+                  'loss_status','discount_rate_applied',
+                  'market_price','market_price_date','market_price_agreed_by',
+                  'discount_mode','client_price_manual','offset_amount'];
   const setParts = [];
   const values = [];
   for (const f of FIELDS) {
     if (updates[f] !== undefined) {
       setParts.push(`w.${f} = ?`);
-      const numericFields = ['price','list_price','sale_price','discount_rate_applied','my_received','client_received'];
+      const numericFields = ['price','list_price','sale_price','discount_rate_applied','my_received','client_received',
+                             'market_price','client_price_manual','offset_amount'];
       values.push(numericFields.includes(f) ? (updates[f] != null && updates[f] !== '' ? Number(updates[f]) : null) : updates[f]);
     }
   }
@@ -1082,27 +1131,149 @@ function getLossPayment(id) {
   return db.prepare('SELECT * FROM loss_payments WHERE id = ?').get(id);
 }
 
-function createLossPayment({ watch_id, date, amount, method, notes }) {
+const VALID_LOSS_METHODS = ['BANK_TRANSFER', 'CASH', 'OFFSET', 'OTHER'];
+
+function createLossPayment({ watch_id, date, amount, method, notes, offset_from_watch_id }) {
+  const m = VALID_LOSS_METHODS.includes(method) ? method : 'BANK_TRANSFER';
   const result = db.prepare(
-    'INSERT INTO loss_payments (watch_id, date, amount, method, notes) VALUES (?, ?, ?, ?, ?)'
-  ).run(watch_id, date, Number(amount), method || 'BANK_TRANSFER', notes || null);
+    'INSERT INTO loss_payments (watch_id, date, amount, method, notes, offset_from_watch_id) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(watch_id, date, Number(amount), m, notes || null, offset_from_watch_id ?? null);
   _syncLossStatus(watch_id);
   return result.lastInsertRowid;
 }
 
 function reversePayment(paymentId) {
-  const row = db.prepare('SELECT watch_id FROM loss_payments WHERE id = ?').get(paymentId);
+  const row = db.prepare('SELECT watch_id, offset_from_watch_id FROM loss_payments WHERE id = ?').get(paymentId);
   if (!row) return false;
   db.prepare('UPDATE loss_payments SET reversed = 1 WHERE id = ?').run(paymentId);
   _syncLossStatus(row.watch_id);
+  // Reversing an offset recovery gives that amount back to the handover's wire
+  if (row.offset_from_watch_id) {
+    const { total } = db.prepare(
+      'SELECT COALESCE(SUM(amount), 0) AS total FROM loss_payments WHERE offset_from_watch_id = ? AND reversed = 0'
+    ).get(row.offset_from_watch_id);
+    db.prepare('UPDATE watches SET offset_amount = ? WHERE id = ?').run(total, row.offset_from_watch_id);
+    resyncWatchStatuses(row.offset_from_watch_id);
+  }
   return true;
+}
+
+// ── Discount Split v2 math (mirrors discountCalc() in dashboard.html) ────────
+// Profit (handover): P = market price; client price = P × (1 − rate) or typed
+//   manually; my income = P − client price; wire = client price − M − offset.
+// Loss (sold below list, no market price): proceeds repay M first; the client
+//   owes me max(M − S, 0); any surplus max(S − M, 0) is paid out to the client.
+function _discountCalc(w, profile) {
+  const L    = w.list_price ?? 0;
+  const S    = w.sale_price;
+  const M    = w.my_cost != null ? w.my_cost : Math.max(L - (w.client_cost || 0), 0);
+  const C    = w.client_cost != null ? w.client_cost : Math.max(L - M, 0);
+  const rate = w.discount_rate_applied ?? profile?.discount_split ?? 0.08;
+  const P    = w.market_price != null ? w.market_price : null;
+  if (P != null) {
+    const manual      = w.discount_mode === 'manual' && w.client_price_manual != null;
+    const clientPrice = manual ? w.client_price_manual : P * (1 - rate);
+    const discAmt     = P - clientPrice;
+    const offset      = w.offset_amount || 0;
+    const entitlement = clientPrice - M;
+    return { isProfit: true, isLoss: false, L, M, C, P, rate, manual, clientPrice, discAmt,
+             discPct: P ? discAmt / P : 0, entitlement, offset,
+             wire: Math.max(entitlement - offset, 0), clientOwesMe: 0 };
+  }
+  const s = S ?? 0;
+  return { isProfit: false, isLoss: S != null && S < L, L, M, C, P: null, rate,
+           loss: Math.max(L - s, 0), cashBackMe: Math.min(s, M), payoutClient: Math.max(s - M, 0),
+           clientOwesMe: Math.max(M - s, 0), discAmt: 0, offset: 0 };
+}
+
+function _profileForWatch(w) {
+  return db.prepare('SELECT trading_rule, profit_split_me, loss_split_me, discount_split FROM profiles WHERE id = ?').get(w.profile_id);
+}
+
+// Amount the client still owes on a loss watch (Panel B outstanding)
+function _lossBasis(w, profile) {
+  if (w.list_price == null || w.sale_price == null) return null;
+  if ((profile?.trading_rule || 'split') === 'discount') return _discountCalc(w, profile).clientOwesMe;
+  return Math.max(w.list_price - w.sale_price, 0);
+}
+
+function _lossOutstanding(watchId) {
+  const w = db.prepare('SELECT * FROM watches WHERE id = ?').get(watchId);
+  if (!w || w.status !== 'sold') return 0;
+  const basis = _lossBasis(w, _profileForWatch(w)) || 0;
+  const { paid } = db.prepare(
+    'SELECT COALESCE(SUM(amount), 0) AS paid FROM loss_payments WHERE watch_id = ? AND reversed = 0'
+  ).get(watchId);
+  return Math.max(basis - paid, 0);
+}
+
+// Reverse every offset recovery previously generated by a profitable watch
+function clearOffsetsFrom(sourceWatchId) {
+  const rows = db.prepare(
+    "SELECT id, watch_id FROM loss_payments WHERE offset_from_watch_id = ? AND reversed = 0"
+  ).all(sourceWatchId);
+  for (const r of rows) {
+    db.prepare('UPDATE loss_payments SET reversed = 1 WHERE id = ?').run(r.id);
+    _syncLossStatus(r.watch_id);
+  }
+  return rows.length;
+}
+
+// Offset engine: apply `amount` of a profitable watch's entitlement against
+// the same profile's outstanding Panel B losses (oldest first). Writes one
+// "Offset against <ref>" recovery per loss watch touched and stores the amount
+// actually applied (capped at the outstanding balance) on the source watch.
+function applyDiscountOffset(sourceWatchId, amount, date) {
+  const src = db.prepare('SELECT * FROM watches WHERE id = ?').get(sourceWatchId);
+  if (!src) return 0;
+  clearOffsetsFrom(sourceWatchId);
+  const d = _discountCalc(src, _profileForWatch(src));
+  // An offset can never exceed what the client is entitled to on this watch
+  let remaining = d.isProfit ? Math.min(Math.max(Number(amount) || 0, 0), Math.max(d.entitlement, 0)) : 0;
+  let applied = 0;
+  if (remaining > 0) {
+    const ref = src.reference_number || src.model || `#${src.id}`;
+    const candidates = db.prepare(
+      "SELECT id FROM watches WHERE profile_id = ? AND id != ? AND status = 'sold' AND market_price IS NULL ORDER BY COALESCE(purchase_date, ''), id"
+    ).all(src.profile_id, sourceWatchId);
+    for (const { id } of candidates) {
+      if (remaining <= 0.005) break;
+      const out = _lossOutstanding(id);
+      if (out <= 0.005) continue;
+      const take = Math.min(out, remaining);
+      createLossPayment({ watch_id: id, date: date || new Date().toISOString().split('T')[0],
+                          amount: Math.round(take * 100) / 100, method: 'OFFSET',
+                          notes: `Offset against ${ref}`, offset_from_watch_id: sourceWatchId });
+      remaining -= take;
+      applied   += take;
+    }
+  }
+  applied = Math.round(applied * 100) / 100;
+  db.prepare('UPDATE watches SET offset_amount = ? WHERE id = ?').run(applied, sourceWatchId);
+  return applied;
+}
+
+// Market price history — append-only record of every agreed price
+function listMarketPrices(watchId) {
+  return db.prepare('SELECT * FROM watch_market_prices WHERE watch_id = ? ORDER BY created_at ASC, id ASC').all(watchId);
+}
+function recordMarketPrice(watchId, { price, date, agreed_by }) {
+  db.prepare('INSERT INTO watch_market_prices (watch_id, price, date, agreed_by) VALUES (?, ?, ?, ?)')
+    .run(watchId, Number(price), date || null, agreed_by || null);
+}
+
+// Recompute every denormalised status on a watch after its figures change
+function resyncWatchStatuses(watchId) {
+  _syncLossStatus(watchId);
+  _syncPayoutStatus(watchId, 'client');
+  _syncPayoutStatus(watchId, 'my');
 }
 
 // Internal helper — recalculate loss_status based on sum of active payments
 function _syncLossStatus(watchId) {
-  const watch = db.prepare('SELECT list_price, sale_price FROM watches WHERE id = ?').get(watchId);
+  const watch = db.prepare('SELECT * FROM watches WHERE id = ?').get(watchId);
   if (!watch || watch.list_price == null || watch.sale_price == null) return;
-  const lossAmount = watch.list_price - watch.sale_price;
+  const lossAmount = _lossBasis(watch, _profileForWatch(watch));
   if (lossAmount <= 0) {
     db.prepare("UPDATE watches SET loss_status = 'not_applicable' WHERE id = ?").run(watchId);
     return;
@@ -1165,29 +1336,22 @@ function _computeOwed(watchId) {
   }
 
   // Sold: add split-rule share to contribution
-  const profile = db.prepare('SELECT trading_rule, profit_split_me, loss_split_me, discount_split FROM profiles WHERE id = ?').get(w.profile_id);
+  const profile = _profileForWatch(w);
   const isDiscount    = (profile?.trading_rule || 'split') === 'discount';
   const profitSplit   = profile?.profit_split_me ?? 100;
   const lossSplit     = profile?.loss_split_me   ?? 100;
-  const discountRate  = w.discount_rate_applied ?? profile?.discount_split ?? 0.08;
   const gross         = w.sale_price - w.list_price;
 
-  let mShare = 0, cShare = 0;
   if (isDiscount) {
-    if (gross > 0) {
-      // Profit: operator takes commission, client gets the residual (conservation: my + client = gross)
-      mShare = w.sale_price * discountRate;
-      cShare = gross - mShare;
-    } else {
-      // Loss: split per lossSplit (already conserves)
-      mShare = gross * (lossSplit / 100);
-      cShare = gross * ((100 - lossSplit) / 100);
-    }
-  } else {
-    const sp = gross >= 0 ? profitSplit : lossSplit;
-    mShare = (sp / 100) * gross;
-    cShare = ((100 - sp) / 100) * gross;
+    // Discount Split v2: my side = my contribution back (+ my discount value on
+    // a handover); client side = cash wired (handover) or surplus proceeds (loss).
+    const d = _discountCalc(w, profile);
+    if (d.isProfit) return { clientOwed: d.wire, myOwed: d.M + d.discAmt };
+    return { clientOwed: d.payoutClient, myOwed: d.cashBackMe };
   }
+  const sp = gross >= 0 ? profitSplit : lossSplit;
+  const mShare = (sp / 100) * gross;
+  const cShare = ((100 - sp) / 100) * gross;
   return { clientOwed: cCon + cShare, myOwed: mCon + mShare };
 }
 
@@ -1322,6 +1486,7 @@ module.exports = {
   getSetting, setSetting, getAllSettings,
   listWishlistWatchesWithDays, getOwnerIdForProfile, getOwnerIdForWatch,
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
+  applyDiscountOffset, clearOffsetsFrom, listMarketPrices, recordMarketPrice, resyncWatchStatuses,
   listExpenses, getExpense, createExpense, reverseExpense,
   listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
   listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,

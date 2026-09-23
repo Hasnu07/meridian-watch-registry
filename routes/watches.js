@@ -41,6 +41,7 @@ router.get('/:id', (req, res) => {
     ...watch,
     expenses:       db.listExpenses(watch.id),
     loss_payments:  db.listLossPayments(watch.id),
+    market_prices:  db.listMarketPrices(watch.id),
     client_payouts: db.listClientPayouts(watch.id),
     my_payouts:     db.listMyPayouts(watch.id),
     profile:        profile || null,
@@ -62,10 +63,15 @@ router.put('/:id', (req, res) => {
     }
 
     const updates = { ...req.body };
-    ['price','list_price','sale_price','my_cost','client_cost','my_received','client_received'].forEach(f => {
+    ['price','list_price','sale_price','my_cost','client_cost','my_received','client_received',
+     'market_price','client_price_manual','offset_amount'].forEach(f => {
       if (updates[f] !== undefined) updates[f] = updates[f] !== '' ? Number(updates[f]) : null;
     });
     if (updates.status && !['wishlist','purchased','sold'].includes(updates.status)) delete updates.status;
+    if (updates.discount_mode !== undefined && !['standard','manual'].includes(updates.discount_mode)) updates.discount_mode = 'standard';
+    // The offset is applied (and capped) by the offset engine below, not written raw
+    const requestedOffset = updates.offset_amount;
+    delete updates.offset_amount;
 
     try {
       if (req.file) {
@@ -85,7 +91,29 @@ router.put('/:id', (req, res) => {
       }
 
       db.updateWatch(req.params.id, updates, uid(req));
-      const updated = db.getWatch(req.params.id, uid(req));
+      let updated = db.getWatch(req.params.id, uid(req));
+
+      // Market price history: every newly agreed price is appended, never overwritten
+      if (updated.market_price != null && updated.market_price !== watch.market_price) {
+        db.recordMarketPrice(updated.id, {
+          price:     updated.market_price,
+          date:      updated.market_price_date || req.body.sale_date || new Date().toISOString().split('T')[0],
+          agreed_by: updated.market_price_agreed_by,
+        });
+      }
+
+      // Offset engine (Discount Split v2): a handover's offset writes
+      // "Offset against <ref>" recoveries into Panel B. Undoing the sale or
+      // the handover removes them again.
+      const stillHandover = updated.status === 'sold' && updated.market_price != null;
+      if (!stillHandover && (watch.offset_amount || 0) > 0) {
+        db.clearOffsetsFrom(updated.id);
+        db.updateWatch(updated.id, { offset_amount: 0 }, uid(req));
+      } else if (stillHandover && requestedOffset !== undefined) {
+        db.applyDiscountOffset(updated.id, requestedOffset || 0,
+          updated.market_price_date || req.body.sale_date || new Date().toISOString().split('T')[0]);
+      }
+      updated = db.getWatch(req.params.id, uid(req));
 
       // Auto-create initial payout ledger entries on Mark Sold transition.
       // Mirrors the legacy single-snapshot UX while populating the ledger so it
@@ -138,7 +166,8 @@ router.put('/:id', (req, res) => {
       }
       audit(req, { action: 'update', targetType: 'watch', targetId: Number(req.params.id), details: auditDetails });
 
-      res.json(updated);
+      db.resyncWatchStatuses(updated.id);
+      res.json(db.getWatch(req.params.id, uid(req)));
     } catch (e) {
       return res.status(500).json({ error: e.message || 'Database error' });
     }
@@ -151,6 +180,7 @@ router.delete('/:id', async (req, res) => {
   if (!watch) return res.status(404).json({ error: 'Not found' });
   const profile = db.getProfile(watch.profile_id, uid(req));
   await storage.deleteFile(watch.image_path);
+  db.clearOffsetsFrom(watch.id); // don't leave Panel B recoveries pointing at a deleted watch
   db.deleteWatch(req.params.id, uid(req));
   audit(req, { action: 'delete', targetType: 'watch', targetId: Number(req.params.id), details: { model: watch.model, status: watch.status } });
   notifier.onWatchDeleted(watch, profile);
