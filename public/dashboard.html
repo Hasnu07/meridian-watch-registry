@@ -114,7 +114,7 @@
   </aside>
 
   <!-- ── Main ─────────────────────────────────────────────────────────── -->
-  <div class="ml-64 flex-1 flex flex-col min-h-screen">
+  <div class="ml-64 flex-1 min-w-0 flex flex-col min-h-screen">
 
     <!-- Impersonation banner (visible only when master is viewing as someone else) -->
     <div id="impersonationBanner" class="hidden fixed top-0 right-0 left-64 z-[100] bg-amber-500/15 border-b border-amber-500/40 px-6 py-2.5 flex items-center justify-between text-xs">
@@ -153,7 +153,7 @@
     </header>
 
     <!-- Page content -->
-    <main id="mainContent" class="pt-16 flex-1 flex flex-col transition-all">
+    <main id="mainContent" class="pt-16 flex-1 min-w-0 flex flex-col transition-all">
 
       <!-- ── Dashboard ───────────────────────────────────────────────── -->
       <div id="page-dashboard" class="hidden p-10 max-w-[1280px] w-full mx-auto">
@@ -422,17 +422,17 @@
       </div>
 
       <!-- ── Profile Detail ──────────────────────────────────────────── -->
-      <div id="page-profile-detail" class="hidden flex-1 flex flex-col">
+      <div id="page-profile-detail" class="hidden flex-1 flex flex-col max-w-[1440px] w-full mx-auto">
         <!-- Back bar -->
         <div class="px-10 pt-8 pb-0">
           <button id="backToProfiles" class="flex items-center gap-1.5 text-xs uppercase tracking-widest text-outline hover:text-primary transition-colors">
             <span class="material-symbols-outlined text-[16px]">arrow_back</span> <span id="backToProfilesLabel">Back to Clients</span>
           </button>
         </div>
-        <!-- Content grid -->
-        <div class="flex flex-1 overflow-hidden">
+        <!-- Content: main column, then the verification cards underneath -->
+        <div class="flex flex-col flex-1 min-w-0">
           <!-- Main column -->
-          <div class="flex-1 overflow-y-auto p-10">
+          <div class="min-w-0 p-10 pb-6">
             <!-- Hero header -->
             <section id="profileDetailHeader" class="mb-8"></section>
             <!-- P&L section -->
@@ -472,7 +472,7 @@
             </section>
           </div>
           <!-- Verification panel -->
-          <aside id="verificationPanel" class="w-80 border-l border-outline-variant/10 bg-surface-container-lowest/60 overflow-y-auto p-6 flex flex-col gap-6 flex-shrink-0"></aside>
+          <aside id="verificationPanel" class="mx-10 mb-10 rounded-2xl border border-outline-variant/10 bg-surface-container-lowest/60 p-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-start"></aside>
         </div>
       </div>
 
@@ -517,7 +517,6 @@
           </div>
           <!-- Hidden legacy tile (kept for old script refs) -->
           <p id="wv-total" class="hidden">—</p>
-          </div>
         </div>
         <!-- Wishlist Waiting sub-section -->
         <div id="wishlistWaitingSection" class="glass-surface rounded-2xl overflow-hidden mb-6 hidden">
@@ -1261,7 +1260,7 @@
 <div id="markSoldModal" class="fixed inset-0 z-[115] hidden flex items-center justify-center modal-backdrop p-4">
   <div class="w-full max-w-md bg-[#161B22] border border-white/10 rounded-2xl shadow-2xl">
     <div class="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
-      <h2 class="font-playfair text-2xl text-emerald-400">Mark as Sold</h2>
+      <h2 id="soldModalTitle" class="font-playfair text-2xl text-emerald-400">Mark as Sold</h2>
       <button onclick="closeMarkSoldModal()" class="text-outline hover:text-on-surface transition-colors">
         <span class="material-symbols-outlined">close</span>
       </button>
@@ -1286,6 +1285,13 @@
           <button type="button" id="soldModeHandoverBtn" onclick="setSoldOutcome('handover')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all">Handover to me<span class="block normal-case tracking-normal font-normal text-[10px] opacity-70 mt-0.5">profitable · market price − discount</span></button>
           <button type="button" id="soldModeLossBtn" onclick="setSoldOutcome('loss')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all">Sold below list<span class="block normal-case tracking-normal font-normal text-[10px] opacity-70 mt-0.5">loss · 100% the client's</span></button>
         </div>
+      </div>
+
+      <!-- Sale Date -->
+      <div>
+        <label id="soldSaleDateLabel" class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Sale Date</label>
+        <input id="soldSaleDate" type="date"
+          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
       </div>
 
       <!-- Handover fields (Panel A) -->
@@ -1344,12 +1350,6 @@
         </div>
       </div>
 
-      <!-- Sale Date -->
-      <div>
-        <label id="soldSaleDateLabel" class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Sale Date</label>
-        <input id="soldSaleDate" type="date"
-          class="w-full bg-surface-variant/20 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary/60">
-      </div>
 
       <!-- Sale Proceeds split -->
       <div id="soldSplitWrap" class="border border-outline-variant/20 rounded-xl p-4 space-y-3 bg-white/[0.02]">
@@ -1848,7 +1848,7 @@ async function api(method, url, data) {
 const fmt = {
   date:     d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—',
   money:    v => v != null && v !== '' ? '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) : '—',
-  price:    (v, cur) => { if (v == null || v === '') return '—'; const s={CHF:'CHF ',EUR:'€',GBP:'£'}; return (s[cur]||((cur||'')+' '))+Number(v).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); },
+  price:    (v, cur) => { if (v == null || v === '') return '—'; const s={CHF:'CHF ',EUR:'€',GBP:'£'}; const n=Number(v); const r=Math.round(n); return (r<0?'−':'')+(s[cur]||((cur||'')+' '))+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}); },
   initials: n => (n||'').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2),
   // Render a per-currency amount map. Pass { CHF: 10000, EUR: 2500 }.
   // - empty/all-zero  → '—'
@@ -3064,17 +3064,21 @@ function renderClientMasterSummary(client) {
     ? `${splitCount} P/L split · ${discountCount} discount`
     : splitCount ? `${splitCount} P/L split` : `${discountCount} discount`;
 
+  // Discount-only clients get the Discount Split cards; the P/L-split summary
+  // only makes sense when at least one membership uses the split rule.
+  const allDiscount = discountCount > 0 && splitCount === 0;
   return `
     <div class="space-y-4">
+      ${memberships.length > 1 ? `
       <div class="glass-surface rounded-2xl p-5 border border-primary/10 flex items-center justify-between flex-wrap gap-3">
         <div>
           <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-primary">Master Identity Overview</p>
           <p class="text-xs text-on-surface-variant mt-1">Aggregated across ${memberships.length} shop presence${memberships.length !== 1 ? 's' : ''} · ${ruleMix}</p>
         </div>
         <span class="text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-lg border border-primary/30 text-primary bg-primary/5">${allWatches.length} watch${allWatches.length !== 1 ? 'es' : ''}</span>
-      </div>
+      </div>` : ''}
       ${discountCount ? renderDiscountClientSummary(pnls.filter(p => p.isDiscount), mc) : ''}
-      ${renderPortfolioSummary9(aggP, mc, sgn, cls)}
+      ${allDiscount ? renderDiscountFunding({ ...aggP, purchasedCount: sum('purchasedCount') }) : renderPortfolioSummary9(aggP, mc, sgn, cls)}
     </div>
   `;
 }
@@ -3085,24 +3089,19 @@ function renderDiscountClientSummary(pnls, mc) {
   const disc   = sum('discountIncome');
   const market = sum('totalMarketValue');
   const std    = pnls[0]?.discountSplit ?? 0.065;
-  const lines = [
-    ['Total discount earned',      `<span class="text-amber-400">+${mc(disc)}</span>`, 'Sum of Panel A effective discounts'],
-    ['Average effective discount', market ? `${(disc / market * 100).toFixed(2)}%` : '—', `Total discount ÷ total market price · standard ${(std * 100).toFixed(2)}%`],
-    ['Losses still owed to me',    `<span class="${sum('lossOutstanding') > 0 ? 'text-error' : 'text-emerald-400'}">${mc(sum('lossOutstanding'))}</span>`, 'Panel B outstanding'],
-    ['Losses recovered so far',    `<span class="text-emerald-400">${mc(sum('totalLossPaid'))}</span>`, 'Transfers + offsets'],
-    ['Total client contributions', mc(sum('clientContribOpen')), 'Sum of client funding on open watches'],
+  const owed   = sum('lossOutstanding');
+  const rec    = dsRecoveredBreakdown(pnls.flatMap(p => p.lossWatches || []));
+  const cpnl   = sum('clientPnl');
+  const tiles = [
+    dsKpi('Total discount earned', `+${mc(disc)}`, `${pnls.reduce((n, p) => n + (p.profitWatches || []).length, 0)} handovers`, 'gold', 'Sum of Panel A effective discounts'),
+    dsKpi('Average effective discount', market ? `${(disc / market * 100).toFixed(2)}%` : '—', `vs ${(std * 100).toFixed(2)}% standard`, 'gold', 'Total discount ÷ total market price'),
+    dsKpi('Losses still owed to me', mc(owed), 'Panel B outstanding', owed > 0 ? 'debt' : 'good'),
+    dsKpi('Losses recovered so far', mc(sum('totalLossPaid')), `${mc(rec.transfers)} transfers · ${mc(rec.offsets)} offsets`, 'good'),
+    dsKpi('Total client contributions', mc(sum('clientContribOpen')), 'on open watches', 'client'),
+    dsKpi('Client P&L', `${cpnl > 0 ? '+' : ''}${mc(cpnl)}`, 'client price − list, net of losses', cpnl >= 0 ? 'good' : 'debt', "The client's result — never counted as mine"),
   ];
-  return `
-    <div class="glass-surface rounded-2xl p-5 border border-amber-400/15">
-      <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-amber-400 mb-3">Client Summary · Discount Split</p>
-      <div class="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
-        ${lines.map(([l, v, hint]) => `
-          <div class="bg-white/[0.03] border border-outline-variant/15 rounded-lg px-3 py-2.5" title="${hint}">
-            <p class="text-[9px] uppercase tracking-widest text-on-surface-variant">${l}</p>
-            <p class="font-playfair text-lg text-on-surface mt-0.5">${v}</p>
-          </div>`).join('')}
-      </div>
-    </div>`;
+  return dsCard('Discount Split', 'Client Summary', '',
+    `<div class="px-6 pb-6 grid grid-cols-2 md:grid-cols-3 min-[1500px]:grid-cols-6 gap-3">${tiles.join('')}</div>`, 'border-amber-400/15');
 }
 
 // ── Per-shop analytics strip (inside each membership card) ───────────────
@@ -3214,20 +3213,20 @@ function renderMembershipCard(client, m, masterIdBadge) {
         </div>
       </div>
 
-      <!-- ── Contact + Registry IDs ── -->
-      <div class="px-8 py-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-10 gap-y-5 border-b border-outline-variant/10">
-        ${field('Email', m.email)}
-        ${field('PP URN', m.pp_urn, true)}
-        ${field('Full Name', fullName)}
-        ${field('Gender', m.gender === 'M' ? 'Male' : m.gender === 'F' ? 'Female' : m.gender)}
-        ${field('Date of Birth', m.dob)}
-        ${field('Address', fullAddr)}
-        ${field('City', m.city)}
-        ${field('Country', m.country)}
-      </div>
+      <!-- ── Contact + Registry IDs (only filled fields) ── -->
+      ${(() => {
+        const cells = [
+          ['Email', m.email], ['PP URN', m.pp_urn, true], ['Full Name', fullName],
+          ['Gender', m.gender === 'M' ? 'Male' : m.gender === 'F' ? 'Female' : m.gender],
+          ['Date of Birth', m.dob], ['Address', fullAddr],
+        ].filter(([, v]) => v);
+        return cells.length
+          ? `<div class="px-8 py-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-10 gap-y-4 border-b border-outline-variant/10">${cells.map(([l, v, mono]) => field(l, v, mono)).join('')}</div>`
+          : `<div class="px-8 py-3 border-b border-outline-variant/10"><button onclick="openEditProfile(${m.id})" class="text-xs text-outline hover:text-primary transition-colors flex items-center gap-1.5"><span class="material-symbols-outlined text-[15px]">person_add</span> No contact details yet — add them</button></div>`;
+      })()}
 
       <!-- ── ID Document ── -->
-      <div class="px-8 py-5 flex items-center gap-4 border-b border-outline-variant/10">
+      <div class="px-8 py-3 flex items-center gap-4 border-b border-outline-variant/10">
         <p class="text-[10px] uppercase tracking-[0.15em] text-outline font-semibold w-28 flex-shrink-0">ID Document</p>
         ${m.id_card_path ? `
           <div class="flex items-center gap-3">
@@ -3292,7 +3291,9 @@ function renderMembershipCard(client, m, masterIdBadge) {
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm">${w.list_price != null ? fmt.price(w.list_price, wc) : '<span class="text-outline">—</span>'}</td>
-              <td class="px-6 py-4 text-sm">${w.status === 'sold' && w.sale_price != null ? `<span class="text-primary font-semibold">${fmt.price(w.sale_price, wc)}</span>` : '<span class="text-outline">—</span>'}</td>
+              <td class="px-6 py-4 text-sm">${w.status === 'sold' && (m.trading_rule === 'discount') && w.market_price != null
+                ? `<span class="text-primary font-semibold">${fmt.price(discountCalc(w, m).clientPrice, wc)}</span><span class="block text-[9px] text-on-surface-variant/60 mt-0.5">market ${fmt.price(w.market_price, wc)}</span>`
+                : w.status === 'sold' && w.sale_price != null ? `<span class="text-primary font-semibold">${fmt.price(w.sale_price, wc)}</span>` : '<span class="text-outline">—</span>'}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
               <td class="px-6 py-4">
                 <div class="flex items-center justify-end gap-1">
@@ -3508,22 +3509,15 @@ async function openProfileDetail(id) {
       `}
     </div>
     ${profile.pp_urn ? `
-    <div class="space-y-3 pt-4 border-t border-outline-variant/10">
+    <div class="space-y-3">
       <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Registry Identifiers</p>
       <div class="glass-surface rounded-lg px-4 py-3">
         <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-1">PP URN</p>
         <p class="text-sm font-mono text-on-surface">${esc(profile.pp_urn)}</p>
       </div>
     </div>` : ''}
-    <div class="pt-4 border-t border-outline-variant/10">
-      <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-3">Portfolio Summary</p>
-      <div class="glass-surface rounded-lg px-4 py-3 flex items-center justify-between">
-        <span class="text-xs text-on-surface-variant">Total Pieces</span>
-        <span class="font-playfair text-lg text-on-surface">${profile.watches.length}</span>
-      </div>
-    </div>
     <!-- Company Documentation -->
-    <div class="pt-4 border-t border-outline-variant/10" id="companyDocsSection">
+    <div id="companyDocsSection">
       <div class="flex items-center justify-between mb-3">
         <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Company Documentation</p>
         <button onclick="openAddCompanyDoc(${id})" class="w-6 h-6 rounded-md bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all group" title="Add document">
@@ -4140,6 +4134,229 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
   `;
 }
 
+// ── Discount Split v2 layout ─────────────────────────────────────────────
+// One consistent card language for discount profiles: KPI tiles on top, then
+// Panel A and Panel B as real tables, then funding. Split profiles keep the
+// P/L split layout below.
+const DS_TONE = {
+  gold:    'text-amber-400',
+  debt:    'text-error',
+  good:    'text-emerald-400',
+  client:  'text-purple-300',
+  neutral: 'text-on-surface',
+};
+
+function dsKpi(label, value, sub, tone = 'neutral', hint = '') {
+  return `
+    <div class="bg-white/[0.03] border border-outline-variant/15 rounded-xl px-4 py-3.5 min-w-0" ${hint ? `title="${esc(hint)}"` : ''}>
+      <p class="text-[10px] uppercase tracking-widest leading-snug text-on-surface-variant min-h-[2.2em]">${label}</p>
+      <p class="font-playfair text-2xl mt-1 leading-tight ${DS_TONE[tone] || tone} truncate">${value}</p>
+      ${sub ? `<p class="text-[10px] leading-snug text-on-surface-variant/70 mt-1">${sub}</p>` : ''}
+    </div>`;
+}
+
+function dsCard(eyebrow, title, right, body, accent = 'border-outline-variant/10') {
+  return `
+    <div class="glass-surface rounded-2xl border ${accent} overflow-hidden">
+      <div class="px-6 pt-5 pb-4 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          ${eyebrow ? `<p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant/70">${eyebrow}</p>` : ''}
+          <p class="text-base font-semibold text-on-surface mt-0.5">${title}</p>
+        </div>
+        ${right ? `<div class="text-right">${right}</div>` : ''}
+      </div>
+      ${body}
+    </div>`;
+}
+
+const dsTh = (label, right) => `<th class="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant whitespace-nowrap ${right ? 'text-right' : ''}">${label}</th>`;
+const dsTd = (html, extra = '') => `<td class="px-3 py-3 align-top ${extra}">${html}</td>`;
+const dsNum = (html, extra = '') => dsTd(html, `text-right font-mono text-sm whitespace-nowrap ${extra}`);
+
+// Split recovered loss money into bank transfers vs offsets
+function dsRecoveredBreakdown(lossWatches) {
+  let transfers = 0, offsets = 0;
+  for (const w of lossWatches) for (const px of (w.loss_payments || [])) {
+    if (px.reversed) continue;
+    if (px.method === 'OFFSET') offsets += px.amount; else transfers += px.amount;
+  }
+  return { transfers, offsets };
+}
+
+function renderDiscountKpis(p, mc, opts = {}) {
+  const rec = dsRecoveredBreakdown(p.lossWatches || []);
+  const tiles = [
+    dsKpi('Discount earned', `+${mc(p.discountIncome)}`,
+          p.totalMarketValue ? `avg ${(p.avgDiscountPct * 100).toFixed(2)}% · standard ${(p.discountSplit * 100).toFixed(2)}%` : `standard ${(p.discountSplit * 100).toFixed(2)}% of market`,
+          'gold', 'Sum of effective discounts (market price − client price) on handovers'),
+    dsKpi('Owed to me', mc(p.lossOutstanding), 'Panel B outstanding', p.lossOutstanding > 0 ? 'debt' : 'good',
+          'Loss shortfalls the client still owes me'),
+    dsKpi('Recovered', mc(p.totalLossPaid),
+          p.totalLossPaid ? `${mc(rec.transfers)} transfers · ${mc(rec.offsets)} offsets` : 'transfers + offsets', 'good'),
+    dsKpi('Wired to client', mc(p.totalWire), p.totalOffsetsGiven ? `after ${mc(p.totalOffsetsGiven)} offsets` : 'cash to client on handovers', 'client'),
+    dsKpi('Client P&L', `${p.clientPnl > 0 ? '+' : ''}${mc(p.clientPnl)}`, 'client price − list, net of losses', p.clientPnl >= 0 ? 'good' : 'debt',
+          "The client's result — never counted as mine"),
+  ];
+  if (opts.clientContrib) tiles.push(dsKpi('Client contributions', mc(p.clientContribOpen), 'on open watches', 'client'));
+  else tiles.push(dsKpi('Watches', String(p.totalWatches),
+          `${p.wishlistCount} wishlist · ${p.purchasedCount} open · ${p.soldCount} sold`, 'neutral'));
+  return `<div class="grid grid-cols-2 md:grid-cols-3 min-[1500px]:grid-cols-6 gap-3">${tiles.join('')}</div>`;
+}
+
+function renderDiscountTerms(p) {
+  const std = (p.discountSplit * 100).toFixed(2);
+  return `
+    <div class="flex items-center gap-x-4 gap-y-2 flex-wrap text-xs text-on-surface-variant">
+      <span class="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-md border text-amber-400 border-amber-400/30 bg-amber-400/5">Discount Split</span>
+      <span><span class="text-amber-400 font-semibold">${std}%</span> of market price on handover</span>
+      <span class="text-outline">·</span>
+      <span>Losses are 100% the client's</span>
+      <span class="text-outline">·</span>
+      <span>Proceeds repay my contribution first</span>
+      <span class="has-tip cursor-help inline-flex items-center gap-1 text-outline hover:text-on-surface-variant">
+        <span class="material-symbols-outlined text-[14px]">info</span> How it works
+        <div class="tip-html hidden"><div class="px-4 py-3 text-[11px] space-y-1.5 max-w-sm">
+          <p><span class="text-amber-400 font-semibold">Handover (profitable):</span> client price = market × ${(100 - p.discountSplit * 100).toFixed(2)}% (or agreed manually). My income is the discount. I take my contribution back; the rest is wired to the client, minus any offset.</p>
+          <p><span class="text-error font-semibold">Loss:</span> sale proceeds repay my contribution first. Any shortfall is a client debt, recovered by transfer or offset against the next handover.</p>
+          <p class="text-outline">Offsets are not income — they repay losses already recorded.</p>
+        </div></div>
+      </span>
+    </div>`;
+}
+
+function renderDiscountPanelA(profile, p, cur) {
+  const mc = (v, c) => fmt.price(v, c || cur);
+  const rows = (p.profitWatches || []).map(w => {
+    const d = discountCalc(w, profile), wc = w.currency || cur;
+    const off = Math.abs(d.discPct - d.rate) > 0.0001;
+    return `
+      <tr class="border-t border-outline-variant/10 hover:bg-white/[0.02] cursor-pointer" onclick="openWatchDetail(${w.id})">
+        ${dsTd(`<p class="text-sm font-medium text-on-surface min-w-[150px]">${esc(w.model)}</p>
+               <p class="text-[10px] font-mono text-outline mt-0.5">${esc(w.reference_number || '')}${w.stock_number ? ' · ' + esc(w.stock_number) : ''}</p>`)}
+        ${dsTd(`<p class="text-sm text-on-surface whitespace-nowrap">${w.market_price_date ? fmt.date(w.market_price_date) : '—'}</p>
+               <p class="text-[10px] mt-0.5 whitespace-nowrap"><span class="${d.manual ? 'text-purple-300' : 'text-amber-400/80'}">${d.manual ? 'Manual' : 'Standard'}</span>${w.market_price_agreed_by ? `<span class="text-outline"> · ${esc(w.market_price_agreed_by)}</span>` : ''}</p>`)}
+        ${dsNum(mc(d.P, wc), 'text-on-surface')}
+        ${dsNum(mc(d.clientPrice, wc), 'text-on-surface')}
+        ${dsNum(`<span class="text-amber-400 font-semibold">+${mc(d.discAmt, wc)}</span><p class="text-[10px] mt-0.5 ${off ? 'text-purple-300' : 'text-on-surface-variant'}">${(d.discPct * 100).toFixed(2)}%</p>`)}
+        ${dsNum(`${mc(d.M, wc)}<p class="text-[10px] mt-0.5 text-purple-300/80">${mc(d.C, wc)}</p>`, 'text-on-surface')}
+        ${dsNum(d.offset ? `−${mc(d.offset, wc)}` : '<span class="text-outline">—</span>', 'text-amber-300')}
+        ${dsNum(mc(d.wire, wc), 'text-purple-300 font-semibold')}
+      </tr>`;
+  }).join('');
+  const body = rows ? `
+    <div class="overflow-x-auto">
+      <table class="w-full text-left">
+        <thead class="bg-surface-container/60"><tr>
+          ${dsTh('Watch')}${dsTh('Handover')}${dsTh('Market', 1)}${dsTh('Client price', 1)}${dsTh('Discount', 1)}${dsTh('Me / Client', 1)}${dsTh('Offset', 1)}${dsTh('Cash to wire', 1)}
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="border-t border-outline-variant/20 bg-white/[0.02]">
+          ${dsTd('<span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Total</span>')}${dsTd('')}
+          ${dsNum(mc(p.totalMarketValue), 'text-on-surface')}${dsTd('')}
+          ${dsNum(`<span class="text-amber-400 font-semibold">+${mc(p.discountIncome)}</span><p class="text-[10px] mt-0.5 text-on-surface-variant">avg ${(p.avgDiscountPct * 100).toFixed(2)}%</p>`)}
+          ${dsTd('')}
+          ${dsNum(p.totalOffsetsGiven ? `−${mc(p.totalOffsetsGiven)}` : '—', 'text-amber-300')}
+          ${dsNum(mc(p.totalWire), 'text-purple-300 font-semibold')}
+        </tr></tfoot>
+      </table>
+    </div>` : `<p class="px-6 pb-6 text-sm text-on-surface-variant/60 italic">No handovers yet — use <span class="text-emerald-400 not-italic">Mark Sold → Handover to me</span> on a watch.</p>`;
+  return dsCard('Panel A', 'My Discount Income',
+    `<p class="font-playfair text-2xl text-amber-400">+${mc(p.discountIncome)}</p>
+     <p class="text-[10px] text-on-surface-variant">${p.profitWatches.length} handover${p.profitWatches.length !== 1 ? 's' : ''}${p.totalMarketValue ? ` · avg ${(p.avgDiscountPct * 100).toFixed(2)}%` : ''}</p>`,
+    body, 'border-amber-500/15');
+}
+
+function renderDiscountPanelB(profile, p, cur) {
+  const mc = (v, c) => fmt.price(v, c || cur);
+  const statusChip = st => {
+    const map = { open: ['Open', 'text-error border-error/30 bg-error/5'], partially_paid: ['Partially settled', 'text-amber-400 border-amber-400/30 bg-amber-400/5'],
+                  settled: ['Settled', 'text-emerald-400 border-emerald-400/30 bg-emerald-400/5'], not_applicable: ['No debt', 'text-on-surface-variant border-outline-variant/30 bg-white/[0.02]'] };
+    const [l, c] = map[st] || map.open;
+    return `<span class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md border whitespace-nowrap ${c}">${l}</span>`;
+  };
+  const rows = (p.lossWatches || []).map(w => {
+    const d = discountCalc(w, profile), wc = w.currency || cur;
+    const pays = (w.loss_payments || []).filter(px => !px.reversed);
+    const canPay = d.outstanding > 0.005;
+    const subRows = pays.map(px => `
+      <tr class="text-[11px] text-on-surface-variant">
+        <td></td>
+        <td colspan="4" class="px-3 pb-1.5 pt-0">
+          <span class="inline-flex items-center gap-2 pl-3 border-l ${px.method === 'OFFSET' ? 'border-amber-400/50' : 'border-emerald-400/40'}">
+            <span class="font-mono text-outline">${fmt.date(px.date)}</span>
+            <span class="${px.method === 'OFFSET' ? 'text-amber-300' : 'text-emerald-300'}">${esc(recoveryMethodLabel(px))}</span>
+          </span>
+        </td>
+        <td class="px-3 pb-1.5 pt-0 text-right font-mono text-emerald-400/90 whitespace-nowrap">${mc(px.amount, wc)}</td>
+        <td></td>
+        <td class="px-3 pb-1.5 pt-0 text-right"><button onclick="event.stopPropagation(); reversePayment(${px.id}, ${w.id})" title="Void this recovery" class="text-outline hover:text-error transition-colors"><span class="material-symbols-outlined text-[14px]">cancel</span></button></td>
+      </tr>`).join('');
+    return `
+      <tr class="border-t border-outline-variant/10 hover:bg-white/[0.02] cursor-pointer" onclick="openWatchDetail(${w.id})">
+        ${dsTd(`<p class="text-sm font-medium text-on-surface min-w-[150px]">${esc(w.model)}</p>
+               <p class="text-[10px] font-mono text-outline mt-0.5">${esc(w.reference_number || '')}${w.stock_number ? ' · ' + esc(w.stock_number) : ''}</p>`)}
+        ${dsNum(`${mc(d.S, wc)}<p class="text-[10px] mt-0.5 text-on-surface-variant">list ${mc(d.L, wc)}</p>`, 'text-on-surface')}
+        ${dsNum(mc(d.loss, wc), 'text-error')}
+        ${dsNum(`${mc(d.cashBackMe, wc)}<p class="text-[10px] mt-0.5 ${d.payoutClient ? 'text-purple-300' : 'text-on-surface-variant'}">${d.payoutClient ? `client ${mc(d.payoutClient, wc)}` : `client —`}</p>`, 'text-on-surface')}
+        ${dsNum(d.clientOwesMe ? mc(d.clientOwesMe, wc) : '<span class="text-outline">—</span>', 'text-error')}
+        ${dsNum(d.recovered ? mc(d.recovered, wc) : '<span class="text-outline">—</span>', 'text-emerald-400')}
+        ${dsNum(d.outstanding ? mc(d.outstanding, wc) : '<span class="text-outline">—</span>', d.outstanding ? 'text-amber-400 font-semibold' : '')}
+        ${dsTd(`<div class="flex flex-col items-end gap-1.5">${statusChip(w.loss_status)}
+               ${canPay ? `<button onclick="event.stopPropagation(); openRecordPaymentModal(${w.id})" class="text-[9px] font-semibold uppercase tracking-widest px-2 py-1 rounded-md border border-amber-400/30 text-amber-400 bg-amber-400/5 hover:bg-amber-400/10 transition-all whitespace-nowrap">Record</button>` : ''}</div>`, 'text-right')}
+      </tr>${subRows}`;
+  }).join('');
+  const body = rows ? `
+    <div class="overflow-x-auto">
+      <table class="w-full text-left">
+        <thead class="bg-surface-container/60"><tr>
+          ${dsTh('Watch')}${dsTh('Sold at', 1)}${dsTh('Loss', 1)}${dsTh('Proceeds: me / client', 1)}${dsTh('Client owes', 1)}${dsTh('Recovered', 1)}${dsTh('Outstanding', 1)}${dsTh('Status', 1)}
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="border-t border-outline-variant/20 bg-white/[0.02]">
+          ${dsTd('<span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Total</span>')}${dsTd('')}
+          ${dsNum(mc(p.totalLossAmount), 'text-error')}${dsTd('')}
+          ${dsNum(mc(p.totalLossOwed), 'text-error')}
+          ${dsNum(mc(p.totalLossPaid), 'text-emerald-400')}
+          ${dsNum(mc(p.lossOutstanding), p.lossOutstanding > 0 ? 'text-amber-400 font-semibold' : 'text-emerald-400')}
+          ${dsTd('')}
+        </tr></tfoot>
+      </table>
+    </div>` : `<p class="px-6 pb-6 text-sm text-on-surface-variant/60 italic">No loss watches.</p>`;
+  return dsCard('Panel B', 'Losses Receivable from Client',
+    `<p class="font-playfair text-2xl ${p.lossOutstanding > 0 ? 'text-amber-400' : 'text-emerald-400'}">${mc(p.lossOutstanding)}</p>
+     <p class="text-[10px] text-on-surface-variant">outstanding · available to offset</p>`,
+    body, 'border-error/15');
+}
+
+// Funding & cash position — replaces the P/L-split summary for discount profiles
+function renderDiscountFunding(p) {
+  const bc = m => fmt.byCurrency(m);
+  const tile = (l, v, sub, tone = 'neutral') => dsKpi(l, v, sub, tone);
+  const tiles = [
+    tile('My capital', bc(p.myTotalCostByCur), 'my contributions · open + sold'),
+    tile('Client capital', bc(p.clientTotalCostByCur), 'client contributions · open + sold', 'client'),
+    tile('Open inventory', bc(p.totalListValueActiveByCur), `${p.purchasedCount} watch${p.purchasedCount !== 1 ? 'es' : ''} at list`),
+    tile('Still to wire client', bc(p.clientRemainingByCur), 'payouts not yet recorded', 'client'),
+    tile('Still to take myself', bc(p.myRemainingByCur), 'withdrawals not yet recorded', 'gold'),
+    tile('Expenses', bc(p.totalExpensesByCur), 'across all watches'),
+  ];
+  return dsCard('', 'Funding &amp; Cash Position', '', `<div class="px-6 pb-6 grid grid-cols-2 md:grid-cols-3 min-[1500px]:grid-cols-6 gap-3">${tiles.join('')}</div>`);
+}
+
+function renderDiscountPnlSection(profile, p, cur) {
+  const mc = v => fmt.price(v || 0, cur);
+  return `
+    <div class="space-y-5">
+      <div class="glass-surface rounded-2xl border border-outline-variant/10 p-5 space-y-4">
+        ${renderDiscountTerms(p)}
+        ${renderDiscountKpis(p, mc)}
+      </div>
+      ${renderDiscountPanelA(profile, p, cur)}
+      ${renderDiscountPanelB(profile, p, cur)}
+      ${renderDiscountFunding(p)}
+    </div>`;
+}
+
 function renderProfilePnl(profile) {
   const p   = computePnl(profile);
   const cur = (profile.watches || []).find(w => w.currency)?.currency || 'CHF';
@@ -4244,6 +4461,11 @@ function renderProfilePnl(profile) {
           </div>` : ''}
         </div>`;
     }).join('');
+  }
+
+  if (p.isDiscount) {
+    document.getElementById('profilePnlSection').innerHTML = renderDiscountPnlSection(profile, p, cur);
+    return;
   }
 
   document.getElementById('profilePnlSection').innerHTML = `
@@ -4769,7 +4991,7 @@ function renderWatchDetailPage(w) {
     ? `<p class="text-sm text-on-surface-variant/50 italic py-2">No expenses recorded</p>`
     : activeExp.map(ex => `
       <div class="flex items-center gap-3 py-2.5 border-b border-outline-variant/10 last:border-0">
-        <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${ex.date || '—'}</span>
+        <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${fmt.date(ex.date)}</span>
         <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 flex-shrink-0">${expenseCategoryLabel(ex.category)}</span>
         <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(ex.description || '')}</span>
         <span class="font-mono text-sm text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
@@ -4794,7 +5016,7 @@ function renderWatchDetailPage(w) {
     ? `<p class="text-sm text-on-surface-variant/50 italic py-2">No payments recorded</p>`
     : activePay.map(px => `
       <div class="flex items-center gap-3 py-2.5 border-b border-outline-variant/10 last:border-0">
-        <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${px.date || '—'}</span>
+        <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${fmt.date(px.date)}</span>
         <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 flex-shrink-0">${esc(px.method === 'OFFSET' ? 'Offset' : recoveryMethodLabel(px))}</span>
         <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(px.notes || '')}</span>
         <span class="font-mono text-sm text-amber-300 flex-shrink-0">${fmt.price(px.amount, cur)}</span>
@@ -4813,7 +5035,7 @@ function renderWatchDetailPage(w) {
     const accentBg = side === 'client' ? 'bg-purple-500/10' : 'bg-amber-500/10';
     return `
       <div class="flex items-center gap-3 py-2 border-b border-outline-variant/10 last:border-0">
-        <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${px.date || '—'}</span>
+        <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${fmt.date(px.date)}</span>
         <span class="text-[10px] font-semibold px-2 py-0.5 rounded ${accentBg} text-${accent} flex-shrink-0">${isAuto ? 'AUTO' : esc(px.method || 'Transfer')}</span>
         <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(px.notes || '')}</span>
         <span class="font-mono text-sm text-${accent} flex-shrink-0">${fmt.price(px.amount, px.currency || cur)}</span>
@@ -4911,10 +5133,16 @@ function renderWatchDetailPage(w) {
               <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">${w.status === 'sold' ? 'Sold For' : 'Purchase Price'}</p>
               <p class="font-playfair text-lg ${w.status === 'sold' ? 'text-primary' : 'text-on-surface'} font-mono">${w.status === 'sold' ? mc(w.sale_price) : mc(w.price ?? w.list_price)}</p>`}
             </div>
+            ${handover ? `
+            <div class="bg-amber-500/[0.05] border border-amber-500/15 rounded-xl p-3.5">
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Discount</p>
+              <p class="font-playfair text-lg text-amber-400 font-mono">+${fmt.price(dcw.discAmt, cur)}</p>
+              <p class="text-[10px] text-on-surface-variant mt-1">${(dcw.discPct * 100).toFixed(2)}% effective · standard ${(dcw.rate * 100).toFixed(2)}%</p>
+            </div>` : `
             <div class="bg-white/[0.02] rounded-xl p-3.5">
               <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Gross P&amp;L</p>
               <p class="font-playfair text-lg ${cls(gross)} font-mono">${gross != null ? sgn(gross)+fmt.price(gross,cur) : '—'}</p>
-            </div>
+            </div>`}
           </div>
           <div class="grid grid-cols-2 gap-4 text-sm pt-4 border-t border-outline-variant/10">
             <!-- My side -->
@@ -5036,14 +5264,19 @@ function renderWatchDetailPage(w) {
               </div>
               ${!dcw && clientBal.owed < 0 ? `<p class="text-[9px] text-error/80 italic">Loss exceeds client contribution by ${fmt.price(-clientBal.owed, cur)} — may need separate settlement.</p>` : ''}
               <div class="flex justify-between text-sm"><span class="text-on-surface-variant">Paid to date</span><span class="font-mono text-emerald-400">${mc(clientBal.paid)}</span></div>
+              ${dcw?.isLoss && dcw.clientOwesMe > 0 ? (lossRemain > 0 ? `
+              <button onclick="openProfileDetail(${w.profile_id})" class="w-full text-left rounded-lg border border-error/30 bg-error/[0.06] px-3 py-2.5 hover:bg-error/10 transition-all">
+                <span class="flex items-center justify-between gap-2">
+                  <span class="text-sm font-semibold text-error">Client owes ${fmt.price(lossRemain, cur)}</span>
+                  <span class="text-[10px] uppercase tracking-widest text-error/80 flex items-center gap-1 whitespace-nowrap">Open in Panel B <span class="material-symbols-outlined text-[14px]">arrow_forward</span></span>
+                </span>
+                ${totalPaid > 0 ? `<span class="block text-[10px] text-on-surface-variant mt-0.5">${fmt.price(totalPaid, cur)} of ${fmt.price(lossAmt, cur)} recovered</span>` : ''}
+              </button>` : `
+              <div class="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.05] px-3 py-2.5 text-sm font-semibold text-emerald-400">Loss recovered in full</div>`) : `
               <div class="flex justify-between text-sm">
                 <span class="text-on-surface font-semibold">Remaining</span>
-                ${dcw?.isLoss && dcw.clientOwesMe > 0
-                  ? (lossRemain > 0
-                      ? `<button onclick="openProfileDetail(${w.profile_id})" class="font-mono font-semibold text-error hover:underline text-right">Client owes ${fmt.price(lossRemain, cur)} — open in Panel B</button>`
-                      : `<span class="font-mono font-semibold text-emerald-400">Loss recovered in full</span>`)
-                  : `<span class="font-mono font-semibold ${clientBal.remaining > 0 ? 'text-purple-300' : clientBal.remaining < 0 ? 'text-error' : 'text-emerald-400'}">${clientBal.remaining < 0 ? 'overpaid by ' + fmt.price(-clientBal.remaining, cur) : fmt.price(clientBal.remaining, cur)}</span>`}
-              </div>
+                <span class="font-mono font-semibold ${clientBal.remaining > 0 ? 'text-purple-300' : clientBal.remaining < 0 ? 'text-error' : 'text-emerald-400'}">${clientBal.remaining < 0 ? 'overpaid by ' + fmt.price(-clientBal.remaining, cur) : fmt.price(clientBal.remaining, cur)}</span>
+              </div>`}
               <button onclick="openRecordPayoutModal(${w.id}, 'client')" class="w-full mt-2 text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-purple-400/30 text-purple-300 bg-purple-500/5 hover:bg-purple-500/15 transition-all flex items-center justify-center gap-1.5">
                 <span class="material-symbols-outlined text-[14px]">payments</span> Record Client Payout
               </button>
@@ -5479,29 +5712,29 @@ function watchRow(w, detail, opts) {
     ? `<img src="${w.image_path}" class="w-full h-full object-cover" alt="${esc(w.model)}" onclick="openLightbox('${w.image_path}')" style="cursor:zoom-in">`
     : `<span class="material-symbols-outlined text-outline text-[22px]">watch</span>`;
   const clientCell = detail ? '' : `
-    <td class="px-6 py-6">
+    <td class="px-5 py-4">
       <button onclick="openProfileDetail(${w.profile_id})" class="text-on-surface-variant text-sm hover:text-primary transition-colors">${esc(w.client_name || '—')}</button>
     </td>`;
   const cur = w.currency || 'CHF';
-  const shopCell = detail ? '' : `<td class="px-6 py-6 text-on-surface-variant text-sm">${esc(w.shop_name || '—')}</td>`;
+  const shopCell = detail ? '' : `<td class="px-5 py-4 text-on-surface-variant text-sm">${esc(w.shop_name || '—')}</td>`;
 
   // P&L / Settlement cell for profile-detail view
   function detailPnlCell() {
-    if (!isDiscountRow) return `<td class="px-6 py-6">${plBadge(w.list_price, w.status === 'sold' ? w.sale_price : null, cur)}</td>`;
+    if (!isDiscountRow) return `<td class="px-5 py-4">${plBadge(w.list_price, w.status === 'sold' ? w.sale_price : null, cur)}</td>`;
     // Discount mode
-    if (w.status !== 'sold') return `<td class="px-6 py-6"><span class="text-outline text-xs">—</span></td>`;
+    if (w.status !== 'sold') return `<td class="px-5 py-4"><span class="text-outline text-xs">—</span></td>`;
     if (w.list_price != null && (w.sale_price != null || w.market_price != null)) {
       const d = discountCalc(w, { discount_split: opts?.discountSplit });
       if (d.isProfit) {
         // Handover: effective discount £ and %
-        return `<td class="px-6 py-6"><span class="text-xs font-semibold font-mono text-amber-400">+${fmt.price(d.discAmt, cur)}</span><span class="block text-[9px] text-on-surface-variant/60 mt-0.5">${(d.discPct*100).toFixed(2)}% disc.${d.manual ? ' · manual' : ''}</span></td>`;
+        return `<td class="px-5 py-4"><span class="text-xs font-semibold font-mono text-amber-400">+${fmt.price(d.discAmt, cur)}</span><span class="block text-[9px] text-on-surface-variant/60 mt-0.5">${(d.discPct*100).toFixed(2)}% disc.${d.manual ? ' · manual' : ''}</span></td>`;
       } else if (d.isLoss) {
         // Loss: settlement badge + record button
         const stMap   = { open: 'text-error border-error/30 bg-error/5', partially_paid: 'text-amber-400 border-amber-400/30 bg-amber-400/5', settled: 'text-emerald-400 border-emerald-400/30 bg-emerald-400/5', not_applicable: 'text-on-surface-variant border-outline-variant/30 bg-white/[0.02]' };
         const stLabel = { open: 'Open', partially_paid: 'Partial', settled: 'Settled', not_applicable: 'No debt' };
         const st      = w.loss_status || 'open';
         const canPay  = st !== 'settled' && st !== 'not_applicable';
-        return `<td class="px-6 py-6">
+        return `<td class="px-5 py-4">
           <div class="flex items-center gap-1.5">
             <span class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md border ${stMap[st] || stMap.open}">${stLabel[st] || st}</span>
             ${canPay ? `<button onclick="openRecordPaymentModal(${w.id})" title="Record payment" class="text-[9px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md border border-amber-400/30 text-amber-400 bg-amber-400/5 hover:bg-amber-400/10 transition-all">Pay</button>` : ''}
@@ -5509,21 +5742,21 @@ function watchRow(w, detail, opts) {
         </td>`;
       }
     }
-    return `<td class="px-6 py-6"><span class="text-outline text-xs">—</span></td>`;
+    return `<td class="px-5 py-4"><span class="text-outline text-xs">—</span></td>`;
   }
 
   const detailPriceCols = detail ? `
-      <td class="px-6 py-6">${statusBadge(w.status)}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
-      <td class="px-6 py-6 text-primary font-semibold text-sm">${w.status !== 'sold' ? '<span class="text-outline">—</span>'
-        : (isDiscountRow && w.market_price != null) ? `${fmt.price(w.market_price, cur)}<span class="block text-[9px] text-on-surface-variant/60 font-normal mt-0.5">market</span>` : fmt.price(w.sale_price, cur)}</td>
+      <td class="px-5 py-4">${statusBadge(w.status)}</td>
+      <td class="px-5 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
+      <td class="px-5 py-4 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
+      <td class="px-5 py-4 text-primary font-semibold text-sm">${w.status !== 'sold' ? '<span class="text-outline">—</span>'
+        : (isDiscountRow && w.market_price != null) ? `${fmt.price(discountCalc(w, { discount_split: opts?.discountSplit }).clientPrice, cur)}<span class="block text-[9px] text-on-surface-variant/60 font-normal mt-0.5">market ${fmt.price(w.market_price, cur)}</span>` : fmt.price(w.sale_price, cur)}</td>
       ${detailPnlCell()}` : `
-      <td class="px-6 py-6">${statusBadge(w.status)}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
-      <td class="px-6 py-6 font-semibold text-primary text-sm">${fmt.price(w.list_price ?? w.price, cur)}</td>
-      <td class="px-6 py-6 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>`;
+      <td class="px-5 py-4">${statusBadge(w.status)}</td>
+      <td class="px-5 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
+      <td class="px-5 py-4 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
+      <td class="px-5 py-4 font-semibold text-primary text-sm">${fmt.price(w.list_price ?? w.price, cur)}</td>
+      <td class="px-5 py-4 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>`;
   // Detail view: include an expand chevron + emit a second row with the banner.
   // Default-collapsed; user toggles it via the chevron.
   const isOpen = _expandedWatchRows.has(w.id);
@@ -5542,7 +5775,7 @@ function watchRow(w, detail, opts) {
 
   return `
     <tr class="tbl-row">
-      <td class="px-6 py-6">
+      <td class="px-5 py-4">
         <div class="flex items-center gap-3">
           ${expandChev}
           <div class="w-12 h-12 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -5557,7 +5790,7 @@ function watchRow(w, detail, opts) {
       ${clientCell}
       ${shopCell}
       ${detailPriceCols}
-      <td class="px-6 py-6">
+      <td class="px-5 py-4">
         <div class="flex items-center justify-end gap-1.5">
           <button onclick="openWatchDetail(${w.id})" title="View watch detail" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-sky-400 transition-colors">
             <span class="material-symbols-outlined text-[18px]">open_in_new</span>
@@ -5616,6 +5849,7 @@ function openMarkSoldModal(id) {
   ['soldSalePriceWrap', 'soldSplitWrap', 'soldToWrap', 'soldPnlPreview'].forEach(i => document.getElementById(i).classList.remove('hidden'));
   document.getElementById('soldSaleDateLabel').textContent = 'Sale Date';
   document.getElementById('soldConfirmLabel').textContent  = 'Confirm Sale';
+  document.getElementById('soldModalTitle').textContent    = 'Mark as Sold';
 
   updateSoldPnl();
   updateSoldSplitFooter();
@@ -5680,6 +5914,7 @@ function setSoldOutcome(mode) {
   document.getElementById('soldSplitWrap').classList.add('hidden');
   document.getElementById('soldSaleDateLabel').textContent = handover ? 'Handover Date' : 'Sale Date';
   document.getElementById('soldConfirmLabel').textContent  = handover ? 'Confirm Handover' : 'Confirm Sale';
+  document.getElementById('soldModalTitle').textContent    = handover ? 'Record Handover' : 'Record Sale';
   if (handover) updateHandoverPreview(); else updateSoldPnl();
 }
 
@@ -5747,7 +5982,10 @@ function updateHandoverPreview(src) {
   const row = (l, v, c = 'text-on-surface', b = '') => `<div class="flex justify-between ${b}"><span class="text-on-surface-variant">${l}</span><span class="font-mono ${c}">${v}</span></div>`;
   const offWarn = h.wantOffset > h.cap + 0.005
     ? `<p class="text-[10px] text-amber-400/90">Offset capped at ${fmt.price(h.cap, cur)} (Panel B outstanding${h.entitlement < _soldAvailOffset ? ' / entitlement' : ''}).</p>` : '';
+  const belowList = w.list_price != null && h.P < w.list_price
+    ? `<p class="text-[11px] text-amber-400/90 bg-amber-400/[0.06] border border-amber-400/20 rounded-lg px-3 py-2">Market price is below list — the client makes a loss on this handover. If the watch was sold to a buyer below list, choose <b>Sold below list</b> instead.</p>` : '';
   box.innerHTML = `
+    ${belowList}
     <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1">Handover Preview</p>
     ${row('Client price', fmt.price(h.clientPrice, cur), 'text-primary')}
     ${row('Effective discount (my income)', '+' + fmt.price(h.discAmt, cur), 'text-amber-400 font-semibold')}

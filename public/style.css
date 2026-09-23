@@ -86,3 +86,7 @@ select {
   background: rgba(11, 14, 20, 0.82);
   backdrop-filter: blur(8px);
 }
+
+/* Wide tables scroll inside their card instead of stretching the page */
+div:has(> table) { overflow-x: auto; }
+table { min-width: 100%; }
