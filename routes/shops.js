@@ -32,6 +32,28 @@ router.get('/:id', (req, res) => {
   res.json({ ...shop, profiles: db.listProfilesForShop(req.params.id, uid(req)) });
 });
 
+// GET /api/shops/:id/report — everything the shop PDF report needs in one go:
+// portfolios plus every client in the shop with full watch ledgers.
+router.get('/:id/report', (req, res) => {
+  const shop = db.getShop(req.params.id, uid(req));
+  if (!shop) return res.status(404).json({ error: 'Not found' });
+  const profiles = db.listProfilesForShop(req.params.id, uid(req)).map(p => {
+    const master = p.client_id ? db.getClient(p.client_id, uid(req)) : null;
+    return {
+      ...p,
+      client_master_id: master?.master_id || null,
+      watches: db.listWatchesForProfile(p.id, uid(req)).map(w => ({
+        ...w,
+        loss_payments:  db.listLossPayments(w.id),
+        expenses:       db.listExpenses(w.id),
+        client_payouts: db.listClientPayouts(w.id),
+        my_payouts:     db.listMyPayouts(w.id),
+      })),
+    };
+  });
+  res.json({ shop, portfolios: db.listPortfolios(req.params.id, uid(req)), profiles });
+});
+
 // GET /api/shops/:id/individual-clients
 router.get('/:id/individual-clients', (req, res) => {
   const shop = db.getShop(req.params.id, uid(req));
