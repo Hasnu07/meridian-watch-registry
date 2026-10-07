@@ -459,6 +459,7 @@
                     <tr class="bg-surface-container border-b border-outline-variant/15">
                       <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
                       <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status</th>
+                      <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Stock #</th>
                       <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
                       <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">List Price</th>
                       <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Sale Price</th>
@@ -4934,7 +4935,7 @@ function renderProfileWatches(watches, profile) {
   // Update P&L column header to reflect discount mode
   const headRow = document.querySelector('#profileWatchesBody')?.parentElement?.querySelector('thead tr');
   if (headRow) {
-    const pnlTh = headRow.children[5]; // 0:Timepiece, 1:Status, 2:Serial, 3:List, 4:Sale, 5:P&L
+    const pnlTh = headRow.children[6]; // 0:Timepiece, 1:Status, 2:Stock, 3:Serial, 4:List, 5:Sale, 6:P&L
     if (pnlTh) pnlTh.textContent = isDiscount ? 'Income / Settlement' : 'P&L';
   }
   const opts = { isDiscount, discountSplit: profile?.discount_split ?? 0.08 };
@@ -4943,7 +4944,7 @@ function renderProfileWatches(watches, profile) {
     : watches;
   document.getElementById('profileWatchesBody').innerHTML = filtered.length
     ? filtered.map(w => watchRow(w, true, opts)).join('')
-    : `<tr><td colspan="7" class="px-6 py-16 text-center text-on-surface-variant text-sm">${profileWatchStatusFilter ? `No ${profileWatchStatusFilter} watches.` : 'No watches recorded yet.'}</td></tr>`;
+    : `<tr><td colspan="8" class="px-6 py-16 text-center text-on-surface-variant text-sm">${profileWatchStatusFilter ? `No ${profileWatchStatusFilter} watches.` : 'No watches recorded yet.'}</td></tr>`;
 }
 
 // Status filter tab clicks
@@ -5257,6 +5258,7 @@ function renderWatchDetailPage(w) {
                 ${pr.shop_name ? `<span class="text-on-surface-variant">${esc(pr.shop_name)}</span> · ` : ''}
                 ${pr.name ? `<button onclick="openProfileDetail(${w.profile_id})" class="hover:text-primary transition-colors">${esc(pr.name)}</button>` : ''}
                 ${cur ? ` · <span class="font-mono text-on-surface-variant">${cur}</span>` : ''}
+                ${w.stock_number ? ` · <span class="text-outline">Stock</span> <span class="font-mono text-on-surface">${esc(w.stock_number)}</span>` : ''}
               </p>
             </div>
             <!-- Actions -->
@@ -5640,6 +5642,7 @@ function watchCard(w) {
     ? `<img src="${w.image_path}" class="w-full h-full object-cover cursor-zoom-in" onclick="openLightbox('${w.image_path}')">`
     : `<span class="material-symbols-outlined text-outline text-[28px]">watch</span>`;
   const meta = [
+    w.stock_number   ? `<span><span class="text-outline">Stock</span> <span class="font-mono text-on-surface">${esc(w.stock_number)}</span></span>` : null,
     w.serial_number  ? `<span><span class="text-outline">S/N</span> ${esc(w.serial_number)}</span>` : null,
     w.purchase_date  ? `<span><span class="text-outline">Date</span> ${fmt.date(w.purchase_date)}</span>` : null,
     w.list_price != null ? `<span class="text-primary font-semibold">${fmt.price(w.list_price, cur)}</span>` : null,
@@ -5699,7 +5702,7 @@ function renderWishlistWaiting() {
         ${w.image_path ? `<img src="${w.image_path}" class="w-full h-full object-cover">` : '<span class="material-symbols-outlined text-outline text-[18px]">watch</span>'}
       </div>
       <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+        <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}${w.stock_number ? ` <span class="font-mono text-[11px] text-outline">· ${esc(w.stock_number)}</span>` : ''}</p>
         <p class="text-xs text-on-surface-variant">${esc(w.client_name || '—')}</p>
       </div>
       <div class="text-right flex-shrink-0">
@@ -5929,6 +5932,7 @@ function watchRow(w, detail, opts) {
 
   const detailPriceCols = detail ? `
       <td class="px-5 py-4">${statusBadge(w.status)}</td>
+      <td class="px-5 py-4 text-on-surface-variant text-sm font-mono whitespace-nowrap">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-5 py-4 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
       <td class="px-5 py-4 text-primary font-semibold text-sm">${w.status !== 'sold' ? '<span class="text-outline">—</span>'
@@ -5947,7 +5951,7 @@ function watchRow(w, detail, opts) {
       <span id="watchChev-${w.id}" class="material-symbols-outlined text-on-surface-variant text-[18px] transition-transform" style="transform:${isOpen ? 'rotate(90deg)' : 'rotate(0deg)'}">chevron_right</span>
     </button>` : '';
 
-  const colSpan = detail ? 7 : 7; // adjust if other tables need different
+  const colSpan = detail ? 8 : 7; // detail table: + Stock # column
   const detailBannerRow = detail ? `
     <tr id="watchDetail-${w.id}" class="${isOpen ? '' : 'hidden'}">
       <td colspan="${colSpan}" class="p-0">
@@ -6010,7 +6014,7 @@ function openMarkSoldModal(id) {
   }
   document.getElementById('soldWatchModel').textContent = w.model;
   const cur = w.currency || 'CHF';
-  document.getElementById('soldWatchListPrice').textContent = w.list_price != null ? `List: ${fmt.price(w.list_price, cur)}` : 'No list price set';
+  document.getElementById('soldWatchListPrice').textContent = (w.stock_number ? `Stock ${w.stock_number} · ` : '') + (w.list_price != null ? `List: ${fmt.price(w.list_price, cur)}` : 'No list price set');
   document.getElementById('soldCurrencyBadge').textContent = cur;
   document.getElementById('soldMyCurLabel').textContent     = `(${cur})`;
   document.getElementById('soldClientCurLabel').textContent = `(${cur})`;
@@ -7385,7 +7389,7 @@ document.getElementById('wSystemSearch').addEventListener('input', function() {
         ${w.image_path ? `<img src="${w.image_path}" class="w-8 h-8 rounded object-cover flex-shrink-0">` : `<div class="w-8 h-8 rounded bg-surface-variant flex items-center justify-center flex-shrink-0"><span class="material-symbols-outlined text-outline text-[14px]">watch</span></div>`}
         <div class="flex-1 min-w-0">
           <p class="text-on-surface text-xs font-medium truncate">${esc(w.model)}</p>
-          <p class="text-outline text-[10px] font-mono">${[w.serial_number, w.reference_number].filter(Boolean).join(' · ') || '—'}</p>
+          <p class="text-outline text-[10px] font-mono">${[w.stock_number ? 'Stock ' + w.stock_number : '', w.serial_number, w.reference_number].filter(Boolean).map(esc).join(' · ') || '—'}</p>
         </div>
         ${w.list_price ? `<span class="text-primary text-xs font-semibold flex-shrink-0">${fmt.money(w.list_price)}</span>` : ''}
       </button>`).join('');

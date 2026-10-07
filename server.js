@@ -105,6 +105,7 @@ function sanitizeWatchForShare(w) {
     source:           w.source,
     serial_number:    w.serial_number,
     reference_number: w.reference_number,
+    stock_number:     w.stock_number,
     movement_number:  w.movement_number,
     case_number:      w.case_number,
     purchase_date:    w.purchase_date,
