@@ -111,7 +111,10 @@ router.put('/:id', (req, res) => {
       // Offset engine (Discount Split v2): a handover's offset writes
       // "Offset against <ref>" recoveries into Panel B. Undoing the sale or
       // the handover removes them again.
-      const stillHandover = updated.status === 'sold' && updated.market_price != null;
+      // Offsets exist only for Discount-rule handovers (Panel B); switching the
+      // watch to P/L Split (Mark Sold or Edit Watch) undoes them.
+      const effRule = updated.rule_applied || db.getProfile(watch.profile_id, uid(req))?.trading_rule || 'split';
+      const stillHandover = updated.status === 'sold' && updated.market_price != null && effRule === 'discount';
       if (!stillHandover && (watch.offset_amount || 0) > 0) {
         db.clearOffsetsFrom(updated.id);
         db.updateWatch(updated.id, { offset_amount: 0 }, uid(req));
