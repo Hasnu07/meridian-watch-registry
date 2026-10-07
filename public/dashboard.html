@@ -7551,8 +7551,17 @@ function closeConfirm() {
 document.getElementById('closeConfirm').addEventListener('click', closeConfirm);
 document.getElementById('cancelConfirm').addEventListener('click', closeConfirm);
 document.getElementById('okConfirm').addEventListener('click', async () => {
-  if (pendingDelete) await pendingDelete();
-  closeConfirm();
+  const btn = document.getElementById('okConfirm');
+  btn.disabled = true;
+  try {
+    if (pendingDelete) await pendingDelete();
+    closeConfirm();
+  } catch (e) {
+    // Never fail silently — a swallowed error looked like "the delete didn't stick"
+    alert(e.message || 'Delete failed — please try again.');
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 function confirmDeleteProfile(id, name, goBack) {
@@ -7570,6 +7579,10 @@ function confirmDeleteProfile(id, name, goBack) {
 function confirmDeleteWatch(id, model) {
   showConfirm(`Delete watch "${model}"? This cannot be undone.`, async () => {
     await api('DELETE', `/api/watches/${id}`);
+    delete watchCache[id];
+    allWatches = allWatches.filter(w => w.id !== id);
+    // Deleted from its own page: go back to where it was opened from
+    if (currentPage === 'watch-detail') { document.getElementById('backFromWatchDetail').click(); return; }
     if (currentPage === 'profile-detail')    openProfileDetail(currentProfileId);
     else if (currentPage === 'client-detail')    openClientDetail(currentClientId);
     else if (currentPage === 'portfolio-detail') openPortfolioDetail(currentPortfolioId);
