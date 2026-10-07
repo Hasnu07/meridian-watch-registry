@@ -142,11 +142,16 @@ app.get('/p/:token', (req, res) => {
 app.get('/api/share/:token', (req, res) => {
   const portfolio = db.getPortfolioByToken(req.query.token || req.params.token);
   if (!portfolio) return res.status(404).json({ error: 'Invalid or expired link' });
+  // Public link: send only what the page shows — never costs, payouts,
+  // split rules, capital or other internal fields.
   const clients = db.listProfilesForPortfolio(portfolio.id).map(p => ({
-    ...p,
-    watches: db.listWatchesForProfile(p.id),
+    ...sanitizeProfileForShare(p),
+    watches: db.listWatchesForProfile(p.id).map(sanitizeWatchForShare),
   }));
-  res.json({ portfolio, clients });
+  res.json({
+    portfolio: { name: portfolio.name, shop_name: portfolio.shop_name },
+    clients,
+  });
 });
 
 // Client share — HTML + API

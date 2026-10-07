@@ -99,8 +99,14 @@ const token = location.pathname.split('/p/')[1];
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function fmt(v) {
-  return v != null && v !== '' ? '$' + Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : null;
+function fmtPrice(v, currency) {
+  if (v == null || v === '') return null;
+  const cur = currency || 'CHF';
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(v));
+  } catch {
+    return cur + ' ' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
 }
 function fmtDate(d) {
   return d ? new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : null;
@@ -186,7 +192,7 @@ async function load() {
                 <td class="px-6 py-5 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
                 <td class="px-6 py-5 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
                 <td class="px-6 py-5 text-on-surface-variant text-sm">${fmtDate(w.purchase_date) || '—'}</td>
-                <td class="px-6 py-5 font-semibold text-primary text-sm">${fmt(w.price) || '—'}</td>
+                <td class="px-6 py-5 font-semibold text-primary text-sm">${fmtPrice(w.status === 'sold' ? w.sale_price : w.list_price, w.currency) || '—'}</td>
               </tr>`).join('')}
             </tbody>
           </table>
