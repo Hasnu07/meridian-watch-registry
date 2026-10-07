@@ -1278,12 +1278,22 @@
     </div>
 
     <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-      <!-- Discount Split v2: outcome toggle (discount profiles only) -->
+      <!-- Rule for this watch: Discount Split or P/L Split (defaults to the client's rule) -->
+      <div id="soldRuleWrap" class="hidden">
+        <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Rule for this watch</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" id="soldRuleDiscBtn" onclick="setSoldRule('discount')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all">Discount Split<span id="soldRuleDiscSub" class="block normal-case tracking-normal font-normal text-[10px] opacity-70 mt-0.5"></span></button>
+          <button type="button" id="soldRuleSplitBtn" onclick="setSoldRule('split')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all">P/L Split<span id="soldRuleSplitSub" class="block normal-case tracking-normal font-normal text-[10px] opacity-70 mt-0.5"></span></button>
+        </div>
+        <p id="soldRuleHint" class="text-[10px] text-on-surface-variant/70 mt-1.5"></p>
+      </div>
+
+      <!-- Outcome: Handover to me, or Sold below list (Discount) / Sold to buyer (P/L) -->
       <div id="soldDiscountModeWrap" class="hidden">
         <label class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant block mb-2">Outcome</label>
         <div class="grid grid-cols-2 gap-2">
-          <button type="button" id="soldModeHandoverBtn" onclick="setSoldOutcome('handover')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all">Handover to me<span class="block normal-case tracking-normal font-normal text-[10px] opacity-70 mt-0.5">profitable · market price − discount</span></button>
-          <button type="button" id="soldModeLossBtn" onclick="setSoldOutcome('loss')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all">Sold below list<span class="block normal-case tracking-normal font-normal text-[10px] opacity-70 mt-0.5">loss · 100% the client's</span></button>
+          <button type="button" id="soldModeHandoverBtn" onclick="setSoldOutcome('handover')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all">Handover to me<span id="soldModeHandoverSub" class="block normal-case tracking-normal font-normal text-[10px] opacity-70 mt-0.5">market price − discount</span></button>
+          <button type="button" id="soldModeLossBtn" onclick="setSoldOutcome('alt')" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all"><span id="soldModeAltTitle">Sold below list</span><span id="soldModeAltSub" class="block normal-case tracking-normal font-normal text-[10px] opacity-70 mt-0.5">loss · 100% the client's</span></button>
         </div>
       </div>
 
@@ -1327,7 +1337,7 @@
               class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-on-surface font-mono focus:outline-none focus:border-primary/60">
           </div>
         </div>
-        <div>
+        <div id="soldOffsetWrap">
           <div class="flex items-center justify-between mb-1.5">
             <label class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Losses Offset</label>
             <button type="button" onclick="useMaxOffset()" class="text-[9px] uppercase tracking-widest font-semibold text-amber-400 border border-amber-400/30 px-2 py-0.5 rounded hover:bg-amber-400/10 transition-all">Use max</button>
@@ -2228,10 +2238,10 @@ async function loadMainKpi() {
     const lossSplit    = prof.loss_split_me   ?? 100;
     const isDiscount   = (prof.trading_rule || 'split') === 'discount';
     const discountSplit= prof.discount_split  ?? 0.08;
-    let grossProfit = 0, grossLoss = 0, discountIncome = 0, clientProfitResidual = 0;
+    let grossProfit = 0, grossLoss = 0, discountIncome = 0, clientProfitResidual = 0, splitNet = 0;
     for (const w of watches) {
       if (w.status !== 'sold' || w.list_price == null) continue;
-      if (isDiscount) {
+      if (watchRule(w, prof) === 'discount') {
         if (w.sale_price == null && w.market_price == null) continue;
         // Discount Split v2: income = market − client price; losses are the client's
         const d = discountCalc(w, prof);
@@ -2241,19 +2251,17 @@ async function loadMainKpi() {
       } else {
         if (w.sale_price == null) continue;
         const diff = w.sale_price - w.list_price;
-        if (diff > 0) grossProfit += diff; else grossLoss += diff;
+        const hd   = splitHandoverDisc(w);
+        if (diff + hd > 0) grossProfit += diff + hd; else grossLoss += diff + hd;
+        splitNet += diff;
+        discountIncome += hd;      // P/L handover: discount vs market is mine
       }
     }
     const netPnl = grossProfit + grossLoss;
-    let myShare, clientShare;
-    if (isDiscount) {
-      myShare     = discountIncome;
-      clientShare = clientProfitResidual;
-    } else {
-      const splitMe = netPnl >= 0 ? profitSplit : lossSplit;
-      myShare     = (splitMe / 100) * netPnl;
-      clientShare = ((100 - splitMe) / 100) * netPnl;
-    }
+    // P/L split on the split-rule watches + Discount-rule results
+    const splitMe = splitNet >= 0 ? profitSplit : lossSplit;
+    const myShare     = (splitMe / 100) * splitNet + discountIncome;
+    const clientShare = ((100 - splitMe) / 100) * splitNet + clientProfitResidual;
     const totalExpenses = watches.reduce((s, w) =>
       s + (w.expenses || []).filter(ex => !ex.reversed).reduce((es, ex) => es + ex.amount, 0), 0);
     // Aggregate payout balances across this profile's watches (paid only — wishlist excluded)
@@ -2484,7 +2492,7 @@ function downloadClientReport() {
                 clientRemainingByCur:{}, myRemainingByCur:{} };
 
   // ── Watches sheet ──
-  const wRows = [[ 'Shop','Membership','Stock #','Reference','Model','Status','Currency','List Price','Sale Price',
+  const wRows = [[ 'Shop','Membership','Stock #','Reference','Model','Status','Rule','Currency','List Price','Sale Price',
                    'Market Price','Client Price','Discount %','Offset','Client Owes Me','Gross P&L','My Cost','Client Cost','My P&L','Client P&L','Paid to Me','Paid to Client',
                    'My Outstanding','Client Outstanding','Expenses','Loss Status','Date','Sold To','Serial' ]];
   // ── Transactions sheet ──
@@ -2495,7 +2503,7 @@ function downloadClientReport() {
   for (const m of memberships) {
     const p = computePnl(m);
     for (const k of Object.keys(agg)) mergeInto(agg[k], p[k]);
-    memRows.push([ m.shop_name || '—', m.name || '—', (m.trading_rule || 'split') === 'discount' ? 'Discount' : 'P/L Split',
+    memRows.push([ m.shop_name || '—', m.name || '—', ((m.trading_rule || 'split') === 'discount' ? 'Discount' : 'P/L Split') + ((m.trading_rule || 'split') === 'discount' ? (p.hasSplitWatches ? ' + P/L sales' : '') : (p.hasDiscountWatches ? ' + Discount sales' : '')),
                    (m.watches || []).length, p.soldCount || 0, rnd(p.netPnl), rnd(p.myPnl), rnd(p.clientPnl), rnd(p.totalExpenses) ]);
 
     for (const w of (m.watches || [])) {
@@ -2509,9 +2517,11 @@ function downloadClientReport() {
       const expSum = (w.expenses || []).filter(x => !x.reversed).reduce((s, x) => s + x.amount, 0);
       wRows.push([
         m.shop_name || '—', m.name || '—', w.stock_number || '', w.reference_number || '—', w.model || '—',
-        w.status || '—', cur, rnd(w.list_price), sold ? rnd(w.sale_price) : '',
-        dx?.isProfit ? rnd(dx.P) : '', dx?.isProfit ? rnd(dx.clientPrice) : '',
-        dx?.isProfit ? Math.round(dx.discPct * 10000) / 100 : '', dx?.isProfit ? rnd(dx.offset) : '',
+        w.status || '—', sold ? (watchRule(w, m) === 'discount' ? 'Discount' : 'P/L Split') : '', cur, rnd(w.list_price), sold ? rnd(w.sale_price) : '',
+        sold && w.market_price != null ? rnd(w.market_price) : '',
+        dx?.isProfit ? rnd(dx.clientPrice) : (sold && w.market_price != null ? rnd(w.sale_price) : ''),
+        dx?.isProfit ? Math.round(dx.discPct * 10000) / 100 : (sold && w.market_price ? Math.round(splitHandoverDisc(w) / w.market_price * 10000) / 100 : ''),
+        dx?.isProfit ? rnd(dx.offset) : '',
         dx?.isLoss ? rnd(dx.outstanding) : '',
         gross === '' ? '' : rnd(gross), rnd(w.my_cost), rnd(w.client_cost),
         sold ? rnd(mb.share) : '', sold ? rnd(cb.share) : '',
@@ -2560,7 +2570,7 @@ function downloadClientReport() {
   XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
 
   const wsW = XLSX.utils.aoa_to_sheet(wRows);
-  wsW['!cols'] = [{ wch: 16 },{ wch: 18 },{ wch: 14 },{ wch: 16 },{ wch: 22 },{ wch: 10 },{ wch: 8 },{ wch: 12 },{ wch: 12 },{ wch: 13 },{ wch: 13 },{ wch: 10 },{ wch: 11 },{ wch: 14 },{ wch: 12 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 12 },{ wch: 14 },{ wch: 16 },{ wch: 10 },{ wch: 14 },{ wch: 12 },{ wch: 16 },{ wch: 16 }];
+  wsW['!cols'] = [{ wch: 16 },{ wch: 18 },{ wch: 14 },{ wch: 16 },{ wch: 22 },{ wch: 10 },{ wch: 10 },{ wch: 8 },{ wch: 12 },{ wch: 12 },{ wch: 13 },{ wch: 13 },{ wch: 10 },{ wch: 11 },{ wch: 14 },{ wch: 12 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 11 },{ wch: 12 },{ wch: 14 },{ wch: 16 },{ wch: 10 },{ wch: 14 },{ wch: 12 },{ wch: 16 },{ wch: 16 }];
   XLSX.utils.book_append_sheet(wb, wsW, 'Watches');
 
   const wsT = XLSX.utils.aoa_to_sheet(tRows);
@@ -2614,9 +2624,10 @@ function pdfReportKit() {
   const watchCard = (w, m, opts = {}) => {
     const cur = w.currency || 'CHF';
     const sold = w.status === 'sold';
-    const isDiscount = (m.trading_rule || 'split') === 'discount';
+    const isDiscount = watchRule(w, m) === 'discount';
     const dcw = (isDiscount && sold && w.list_price != null) ? discountCalc(w, m) : null;
     const handover = !!dcw?.isProfit;
+    const plHandover = !isDiscount && sold && w.market_price != null && w.sale_price != null;
     const gross = handover ? null
       : (sold && w.list_price != null && w.sale_price != null) ? (w.sale_price - w.list_price) : null;
     const income = handover ? dcw.discAmt : null;
@@ -2632,9 +2643,10 @@ function pdfReportKit() {
     // Transaction detail row (only non-empty fields)
     const detail = [
       kv('List',      w.list_price != null ? money(w.list_price, cur) : ''),
-      kv('Market Price', handover ? money(dcw.P, cur) : ''),
-      kv('Client Price', handover ? `<span class="gold">${money(dcw.clientPrice, cur)}</span>` : ''),
-      kv('Sold For',  !handover && sold && w.sale_price != null ? `<span class="gold">${money(w.sale_price, cur)}</span>` : ''),
+      kv('Market Price', handover ? money(dcw.P, cur) : plHandover ? money(w.market_price, cur) : ''),
+      kv('Client Price', handover ? `<span class="gold">${money(dcw.clientPrice, cur)}</span>` : plHandover ? `<span class="gold">${money(w.sale_price, cur)}</span>` : ''),
+      kv('My Discount', plHandover ? `<span style="color:#f2ca50">+${money(splitHandoverDisc(w), cur)}</span>` : ''),
+      kv('Sold For',  !handover && !plHandover && sold && w.sale_price != null ? `<span class="gold">${money(w.sale_price, cur)}</span>` : ''),
       kv('Gross P&L', gross != null ? `<span style="color:${col(gross)}">${smoney(gross, cur)}</span>` : ''),
       kv('Offset',    handover && dcw.offset ? money(dcw.offset, cur) : ''),
       kv('Client Owes', dcw?.isLoss && dcw.clientOwesMe > 0 ? `<span style="color:#ffb4ab">${money(dcw.outstanding, cur)}</span>` : ''),
@@ -2713,8 +2725,9 @@ function pdfReportKit() {
       return `<span style="color:${c}">${s}</span>`;
     };
     const one = (v, c = '#eae1d4') => Math.round(v || 0) ? `<span style="color:${c}">${money(v, cur)}</span>` : '';
-    const defs = p.isDiscount ? [
-      ['Discount Earned',    val(p.myPnlByCur, 'gold')],
+    const defs = (p.isDiscount || p.hasDiscountWatches) ? [
+      ['Discount Earned',    val(p.discountIncomeByCur, 'gold')],
+      ['My P&L',             p.hasSplitWatches ? val(p.myPnlByCur, 'pl') : ''],
       ['Avg Discount',       p.totalMarketValue ? `<span style="color:#f2ca50">${(p.avgDiscountPct * 100).toFixed(2)}%</span>` : ''],
       ['Owed to Me',         one(p.lossOutstanding, '#ffb4ab')],
       ['Losses Recovered',   one(p.totalLossPaid, '#5dcaa5')],
@@ -2742,7 +2755,7 @@ function pdfReportKit() {
     const tiles = defs.filter(([, v]) => v);
     if (!tiles.length) return '';
     return `
-        <div class="shop-stats-title">${title || 'Summary'} · ${p.isDiscount ? 'Discount split' : 'P/L split'}</div>
+        <div class="shop-stats-title">${title || 'Summary'} · ${p.hasDiscountWatches && p.hasSplitWatches ? 'Discount + P/L split' : (p.isDiscount || p.hasDiscountWatches) ? 'Discount split' : 'P/L split'}</div>
         <div class="stats">
           ${tiles.map(([l, v]) => `<div class="stat"><div class="stat-l">${l}</div><div class="stat-v">${v}</div></div>`).join('')}
         </div>`;
@@ -3052,7 +3065,7 @@ async function downloadShopPdf(shopId) {
   for (const p of profiles) {
     const pnl = computePnl(p);
     for (const k of Object.keys(agg)) K.mergeInto(agg[k], pnl[k]);
-    if (pnl.isDiscount) { hasDiscount = true; owedToMe += pnl.lossOutstanding || 0; discount += pnl.discountIncome || 0; }
+    if (pnl.isDiscount || pnl.hasDiscountWatches) { hasDiscount = true; owedToMe += pnl.lossOutstanding || 0; discount += pnl.discountIncome || 0; }
   }
   const shopCur = dominantCurrency(allWatches);
   const tone = (map) => { const t = Object.values(map).reduce((a, b) => a + b, 0); return t > 0 ? '#5dcaa5' : t < 0 ? '#ffb4ab' : '#eae1d4'; };
@@ -3316,7 +3329,7 @@ function renderClientMasterSummary(client) {
 
   // Discount-only clients get the Discount Split cards; the P/L-split summary
   // only makes sense when at least one membership uses the split rule.
-  const allDiscount = discountCount > 0 && splitCount === 0;
+  const allDiscount = discountCount > 0 && splitCount === 0 && !pnls.some(p => p.hasSplitWatches);
   return `
     <div class="space-y-4">
       ${memberships.length > 1 ? `
@@ -3327,7 +3340,7 @@ function renderClientMasterSummary(client) {
         </div>
         <span class="text-[10px] font-semibold uppercase tracking-widest px-3 py-1 rounded-lg border border-primary/30 text-primary bg-primary/5">${allWatches.length} watch${allWatches.length !== 1 ? 'es' : ''}</span>
       </div>` : ''}
-      ${discountCount ? renderDiscountClientSummary(pnls.filter(p => p.isDiscount), mc) : ''}
+      ${pnls.some(p => p.isDiscount || p.hasDiscountWatches) ? renderDiscountClientSummary(pnls.filter(p => p.isDiscount || p.hasDiscountWatches), mc) : ''}
       ${allDiscount ? renderDiscountFunding({ ...aggP, purchasedCount: sum('purchasedCount') }) : renderPortfolioSummary9(aggP, mc, sgn, cls)}
     </div>
   `;
@@ -3541,8 +3554,8 @@ function renderMembershipCard(client, m, masterIdBadge) {
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm">${w.list_price != null ? fmt.price(w.list_price, wc) : '<span class="text-outline">—</span>'}</td>
-              <td class="px-6 py-4 text-sm">${w.status === 'sold' && (m.trading_rule === 'discount') && w.market_price != null
-                ? `<span class="text-primary font-semibold">${fmt.price(discountCalc(w, m).clientPrice, wc)}</span><span class="block text-[9px] text-on-surface-variant/60 mt-0.5">market ${fmt.price(w.market_price, wc)}</span>`
+              <td class="px-6 py-4 text-sm">${w.status === 'sold' && w.market_price != null
+                ? `<span class="text-primary font-semibold">${fmt.price(watchRule(w, m) === 'discount' ? discountCalc(w, m).clientPrice : w.sale_price, wc)}</span><span class="block text-[9px] text-on-surface-variant/60 mt-0.5">handover · market ${fmt.price(w.market_price, wc)}</span>`
                 : w.status === 'sold' && w.sale_price != null ? `<span class="text-primary font-semibold">${fmt.price(w.sale_price, wc)}</span>` : '<span class="text-outline">—</span>'}</td>
               <td class="px-6 py-4 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
               <td class="px-6 py-4">
@@ -3835,10 +3848,24 @@ function recoveryMethodLabel(px) {
   return ({ BANK_TRANSFER: 'Bank transfer', CASH: 'Cash', OTHER: 'Other' })[px.method] || (px.method || '').replace(/_/g, ' ').toLowerCase();
 }
 
+// Which rule a watch is settled under: its own (chosen on Mark Sold) or,
+// when none was chosen, its client's rule.
+function watchRule(w, profile) {
+  return w.rule_applied || profile?.trading_rule || w.profile?.trading_rule || w.trading_rule || 'split';
+}
+
+// P/L Split handover: the watch came to me at the client price (sale_price)
+// below the agreed market price — that discount is mine on top of my P/L %.
+function splitHandoverDisc(w) {
+  return (w.market_price != null && w.sale_price != null) ? Math.max(w.market_price - w.sale_price, 0) : 0;
+}
+
 function computePnl(profile) {
   const watches      = profile.watches || [];
   const profitSplit  = profile.profit_split_me ?? 100;
   const lossSplit    = profile.loss_split_me   ?? 100;
+  // Client's default rule — drives the page layout; each sold watch may still
+  // be settled under the other rule (watch.rule_applied).
   const isDiscount   = (profile.trading_rule || 'split') === 'discount';
   const discountSplit= profile.discount_split  ?? 0.08;
 
@@ -3846,33 +3873,40 @@ function computePnl(profile) {
   const soldWatches     = watches.filter(w => w.status === 'sold');
   const wishlistWatches = watches.filter(w => w.status === 'wishlist');
 
+  const isDiscW = w => watchRule(w, profile) === 'discount';
   const dcOf = w => discountCalc(w, profile);
   // Raw gain/loss per sold watch. Discount handovers use market − list (my
   // resale price is never part of this portal).
   const rawDiff = w => {
     if (w.list_price == null) return null;
-    if (isDiscount) { const d = dcOf(w); return (d.isProfit || w.sale_price != null) ? d.rawDiff : null; }
-    return w.sale_price == null ? null : w.sale_price - w.list_price;
+    if (isDiscW(w)) { const d = dcOf(w); return (d.isProfit || w.sale_price != null) ? d.rawDiff : null; }
+    return w.sale_price == null ? null : w.sale_price - w.list_price + splitHandoverDisc(w);
   };
+  // Part of a P/L watch's result that is split by the % (handover discount excluded)
+  const splitDiff = w => (w.sale_price == null || w.list_price == null) ? 0 : w.sale_price - w.list_price;
 
-  const profitWatches = isDiscount
-    ? soldWatches.filter(w => w.list_price != null && dcOf(w).isProfit)
-    : soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price > w.list_price);
-  const lossWatches   = isDiscount
-    ? soldWatches.filter(w => w.list_price != null && dcOf(w).isLoss)
-    : soldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price < w.list_price);
+  const discSoldWatches  = soldWatches.filter(isDiscW);
+  const splitSoldWatches = soldWatches.filter(w => !isDiscW(w));
+  // Panel A / Panel B — watches settled under the Discount rule
+  const profitWatches = discSoldWatches.filter(w => w.list_price != null && dcOf(w).isProfit);
+  const lossWatches   = discSoldWatches.filter(w => w.list_price != null && dcOf(w).isLoss);
+  // Watches settled under the P/L split rule
+  const splitProfitWatches = splitSoldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price > w.list_price);
+  const splitLossWatches   = splitSoldWatches.filter(w => w.sale_price != null && w.list_price != null && w.sale_price < w.list_price);
 
   let grossProfit = 0, grossLoss = 0, discountIncome = 0, totalMarketValue = 0;
   let totalLossAmount = 0, totalLossOwed = 0, totalLossPaid = 0, lossOutstanding = 0;
   let totalOffsetsGiven = 0, totalWire = 0, clientDiscountPnl = 0;
 
+  let splitNet = 0, splitHandoverDiscount = 0;
   for (const w of soldWatches) {
     const diff = rawDiff(w);
     if (diff == null) continue;
-    // Raw gain/loss is tracked for BOTH modes (used by Portfolio Summary tiles)
+    // Raw gain/loss is tracked for BOTH rules (used by Portfolio Summary tiles)
     if (diff > 0) grossProfit += diff;
     else          grossLoss  += diff;
-    if (isDiscount) {
+    if (!isDiscW(w)) { splitNet += splitDiff(w); splitHandoverDiscount += splitHandoverDisc(w); }
+    if (isDiscW(w)) {
       const d = dcOf(w);
       clientDiscountPnl += d.clientPnl;
       if (d.isProfit) {
@@ -3894,15 +3928,11 @@ function computePnl(profile) {
   const avgDiscountPct = totalMarketValue ? discountIncome / totalMarketValue : 0;
   const netPnl = grossProfit + grossLoss;
 
-  let myShare, clientShare;
-  if (isDiscount) {
-    myShare     = discountIncome;
-    clientShare = clientDiscountPnl;
-  } else {
-    const splitMe = netPnl >= 0 ? profitSplit : lossSplit;
-    myShare     = (splitMe / 100) * netPnl;
-    clientShare = ((100 - splitMe) / 100) * netPnl;
-  }
+  // My / client share = P/L split of the split-rule watches' net result
+  // + Discount-rule results (my discount; client price − list or the loss)
+  const splitMeNet  = splitNet >= 0 ? profitSplit : lossSplit;
+  const myShare     = (splitMeNet / 100) * splitNet + splitHandoverDiscount + discountIncome;
+  const clientShare = ((100 - splitMeNet) / 100) * splitNet + clientDiscountPnl;
 
   const myCapital       = profile.my_capital       || 0;
   const clientCapital   = profile.client_capital   || 0;
@@ -3962,32 +3992,34 @@ function computePnl(profile) {
   // the user has partially or incorrectly filled in those fields.
   const myPnlByCur     = {};
   const clientPnlByCur = {};
-  if (isDiscount) {
-    // Discount Split v2: my P&L = effective discount on handovers only; the
-    // client carries 100% of every loss and keeps client price − list.
-    for (const w of soldWatches) {
-      if (rawDiff(w) == null) continue;
-      const c = w.currency || 'CHF';
-      const d = dcOf(w);
-      if (d.myIncome)  myPnlByCur[c]     = (myPnlByCur[c]     || 0) + d.myIncome;
-      if (d.clientPnl) clientPnlByCur[c] = (clientPnlByCur[c] || 0) + d.clientPnl;
-    }
-  } else {
-    // Split mode: apply profit/loss split to the net P&L per currency
-    for (const [c, net] of Object.entries(netPnlByCur)) {
-      if (!net) continue;
-      const splitMe = net >= 0 ? profitSplit : lossSplit;
-      myPnlByCur[c]     = (splitMe / 100) * net;
-      clientPnlByCur[c] = ((100 - splitMe) / 100) * net;
-    }
+  const addTo = (m, c, v) => { if (v) m[c] = (m[c] || 0) + v; };
+  // Discount-rule watches: my P&L = effective discount on handovers only; the
+  // client carries 100% of every loss and keeps client price − list.
+  const discountIncomeByCur = {};
+  for (const w of discSoldWatches) {
+    if (rawDiff(w) == null) continue;
+    const c = w.currency || 'CHF';
+    const d = dcOf(w);
+    addTo(myPnlByCur, c, d.myIncome);
+    addTo(discountIncomeByCur, c, d.myIncome);
+    addTo(clientPnlByCur, c, d.clientPnl);
+  }
+  // P/L-split watches: apply profit/loss split to their net P&L per currency
+  const splitNetByCur = byCur(splitSoldWatches, w => splitDiff(w));
+  for (const w of splitSoldWatches) addTo(myPnlByCur, w.currency || 'CHF', splitHandoverDisc(w));
+  for (const [c, net] of Object.entries(splitNetByCur)) {
+    if (!net) continue;
+    const splitMe = net >= 0 ? profitSplit : lossSplit;
+    addTo(myPnlByCur, c, (splitMe / 100) * net);
+    addTo(clientPnlByCur, c, ((100 - splitMe) / 100) * net);
   }
 
   // Legacy single-currency totals (used by older code paths / displays)
   const myTotalCost     = Object.values(myTotalCostByCur).reduce((s, v) => s + v, 0);
   const clientTotalCost = Object.values(clientTotalCostByCur).reduce((s, v) => s + v, 0);
   const totalCost       = myTotalCost + clientTotalCost;
-  const myPnl     = isDiscount ? discountIncome    : myShare;
-  const clientPnl = isDiscount ? clientDiscountPnl : clientShare;
+  const myPnl     = myShare;
+  const clientPnl = clientShare;
   const totalProfit = Math.max(grossProfit, 0);
   const totalLoss   = Math.min(grossLoss, 0);
 
@@ -4024,7 +4056,7 @@ function computePnl(profile) {
     const mCon = w.my_cost     || 0;
 
     let cOwed = cCon, mOwed = mCon;
-    if (w.status === 'sold' && w.list_price != null && isDiscount && (w.sale_price != null || w.market_price != null)) {
+    if (w.status === 'sold' && w.list_price != null && isDiscW(w) && (w.sale_price != null || w.market_price != null)) {
       // v2: handover → me: M + discount, client: wire; loss → me: min(S, M), client: max(S − M, 0)
       const d = dcOf(w);
       mOwed = d.myOwed;
@@ -4032,7 +4064,7 @@ function computePnl(profile) {
     } else if (w.status === 'sold' && w.list_price != null && w.sale_price != null) {
       const gross = w.sale_price - w.list_price;
       const sp = gross >= 0 ? profitSplit : lossSplit;
-      mOwed = mCon + (sp / 100) * gross;
+      mOwed = mCon + (sp / 100) * gross + splitHandoverDisc(w);
       cOwed = cCon + ((100 - sp) / 100) * gross;
     }
     const cPaid = (w.client_payouts || []).filter(p => !p.reversed).reduce((s, p) => s + p.amount, 0);
@@ -4048,8 +4080,11 @@ function computePnl(profile) {
 
   return {
     isDiscount, profitSplit, lossSplit, discountSplit,
-    grossProfit, grossLoss, discountIncome, netPnl,
+    grossProfit, grossLoss, discountIncome, netPnl, splitNet, splitHandoverDiscount,
     profitWatches, lossWatches, soldWatches, activeWatches, wishlistWatches,
+    discSoldWatches, splitSoldWatches, splitProfitWatches, splitLossWatches,
+    hasDiscountWatches: discSoldWatches.length > 0,
+    hasSplitWatches:    splitSoldWatches.length > 0,
     totalLossAmount, totalLossPaid, lossOutstanding,
     totalLossOwed, totalMarketValue, avgDiscountPct, totalOffsetsGiven, totalWire,
     clientContribOpen: activeWatches.reduce((s, w) => s + (w.client_cost || 0), 0),
@@ -4070,9 +4105,9 @@ function computePnl(profile) {
     myTotalCostByCur, clientTotalCostByCur, totalCostByCur,
     totalListValueActiveByCur, totalSaleValueByCur,
     totalProfitByCur, totalLossByCur, netPnlByCur,
-    myPnlByCur, clientPnlByCur,
-    profitWatchCount: profitWatches.length,
-    lossWatchCount:   lossWatches.length,
+    myPnlByCur, clientPnlByCur, discountIncomeByCur,
+    profitWatchCount: profitWatches.length + splitProfitWatches.length,
+    lossWatchCount:   lossWatches.length + splitLossWatches.length,
     // Expenses
     totalExpenses, totalExpensesByCur, adjustedNetPnlByCur,
     // Funding & Payouts
@@ -4094,7 +4129,7 @@ function computePnl(profile) {
 //   "Client P&L" = -Total Loss Exposure (client liability via Panel B)
 function renderPortfolioSummary9(p, mc, sgn, cls) {
   const activeSplit   = (p.netPnl || 0) >= 0 ? p.profitSplit : p.lossSplit;
-  const myPnlNote     = p.isDiscount ? `Panel A · ${p.profitWatchCount} sale${p.profitWatchCount !== 1 ? 's' : ''}` : (activeSplit != null ? `${activeSplit}% of net` : 'split rule');
+  const myPnlNote     = p.isDiscount ? `Panel A · ${p.profitWatchCount} sale${p.profitWatchCount !== 1 ? 's' : ''}` : (activeSplit != null ? `${activeSplit}% of net${p.splitHandoverDiscount || p.discountIncome ? ' + discounts' : ''}` : 'split rule');
   const clientPnlNote = p.isDiscount ? `Panel B liability` : (activeSplit != null ? `${100 - activeSplit}% of net` : 'split rule');
 
   // ── Build per-tile tooltip HTML ────────────────────────────────────────
@@ -4122,14 +4157,14 @@ function renderPortfolioSummary9(p, mc, sgn, cls) {
     'Total', mc(p.totalCost || 0)
   );
 
-  const profitList = (p.profitWatches || []).filter(w => w.list_price != null && (w.sale_price != null || w.market_price != null));
-  const lossList   = (p.lossWatches   || []).filter(w => w.list_price != null && w.sale_price != null);
+  const profitList = [...(p.splitProfitWatches || []), ...(p.profitWatches || [])].filter(w => w.list_price != null && (w.sale_price != null || w.market_price != null));
+  const lossList   = [...(p.splitLossWatches   || []), ...(p.lossWatches   || [])].filter(w => w.list_price != null && w.sale_price != null);
 
   const tipProfit = buildWatchListTip(
     'Profit — per watch',
     profitList,
     w => {
-      const hv   = p.isDiscount && w.market_price != null;
+      const hv   = w.market_price != null;
       const diff = hv ? w.market_price - w.list_price : w.sale_price - w.list_price;
       return `<div class="py-0.5"><div class="flex justify-between"><span class="text-on-surface truncate">${esc(w.model)}</span><span class="font-mono text-emerald-400">+${mc(diff)}</span></div><div class="text-[9px] text-outline/70">List ${mc(w.list_price)} → ${hv ? 'Market' : 'Sold'} ${mc(hv ? w.market_price : w.sale_price)}</div></div>`;
     },
@@ -4448,6 +4483,9 @@ function renderDiscountKpis(p, mc, opts = {}) {
           "The client's result — never counted as mine"),
   ];
   if (opts.clientContrib) tiles.push(dsKpi('Client contributions', mc(p.clientContribOpen), 'on open watches', 'client'));
+  // Watches sold under both rules: show my combined result instead of the count
+  else if (p.hasSplitWatches) tiles.push(dsKpi('My P&L · all rules', `${p.myPnl > 0 ? '+' : ''}${mc(p.myPnl)}`,
+          `discount ${mc(p.discountIncome)} + P/L sales ${mc(p.myPnl - p.discountIncome)}`, p.myPnl >= 0 ? 'good' : 'debt'));
   else tiles.push(dsKpi('Watches', String(p.totalWatches),
           `${p.wishlistCount} wishlist · ${p.purchasedCount} open · ${p.soldCount} sold`, 'neutral'));
   return `<div class="grid grid-cols-2 md:grid-cols-3 min-[1500px]:grid-cols-6 gap-3">${tiles.join('')}</div>`;
@@ -4593,6 +4631,80 @@ function renderDiscountFunding(p) {
   return dsCard('', 'Funding &amp; Cash Position', '', `<div class="px-6 pb-6 grid grid-cols-2 md:grid-cols-3 min-[1500px]:grid-cols-6 gap-3">${tiles.join('')}</div>`);
 }
 
+// "Rules Applied to P&L" for watches settled under the P/L split rule.
+// Shown on split clients, and on discount clients that sold some watches
+// under the P/L rule.
+function renderSplitRulesCard(p, mc, sgn, cls, opts = {}) {
+  const ws    = (p.splitSoldWatches || []).filter(w => w.list_price != null && w.sale_price != null);
+  const gp    = ws.reduce((s, w) => s + Math.max(w.sale_price - w.list_price, 0), 0);
+  const gl    = ws.reduce((s, w) => s + Math.min(w.sale_price - w.list_price, 0), 0);
+  const nP    = ws.filter(w => w.sale_price > w.list_price).length;
+  const nL    = ws.filter(w => w.sale_price < w.list_price).length;
+  const net   = gp + gl;
+  const sp    = net >= 0 ? p.profitSplit : p.lossSplit;
+  const hDisc = ws.reduce((t, w) => t + splitHandoverDisc(w), 0);   // P/L handover discounts (mine)
+  const mine  = (sp / 100) * net + hDisc, theirs = ((100 - sp) / 100) * net;
+  return `
+      <div class="glass-surface rounded-2xl p-6 ${opts.accent || ''}">
+        <div class="flex items-center justify-between mb-5 gap-3 flex-wrap">
+          <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant">${opts.title || 'Rules Applied to P&amp;L'}</p>
+          <span class="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1 rounded-md border text-purple-400 border-purple-400/30 bg-purple-400/5">P/L split ${p.profitSplit}/${100 - p.profitSplit} · losses ${p.lossSplit}/${100 - p.lossSplit}</span>
+        </div>
+
+        ${ws.length > 0 ? `
+        <div class="mb-5 space-y-0">
+          <div class="grid grid-cols-12 gap-2 text-[9px] uppercase tracking-widest text-outline pb-2 border-b border-outline-variant/10 mb-1">
+            <div class="col-span-4">Timepiece</div>
+            <div class="col-span-2 text-right">List</div>
+            <div class="col-span-2 text-right">Sold</div>
+            <div class="col-span-4 text-right">P&amp;L</div>
+          </div>
+          ${ws.map(w => {
+            const diff = w.sale_price - w.list_price;
+            return `
+            <div class="grid grid-cols-12 gap-2 text-xs py-1.5 border-b border-outline-variant/[0.04] last:border-0 cursor-pointer hover:bg-white/[0.02]" onclick="openWatchDetail(${w.id})">
+              <div class="col-span-4 truncate text-on-surface">${esc(w.model)}${w.market_price != null ? `<span class="block text-[9px] text-amber-400/80">Handover · market ${mc(w.market_price)} · my discount +${mc(splitHandoverDisc(w))}</span>` : ''}</div>
+              <div class="col-span-2 text-right text-on-surface-variant font-mono">${mc(w.list_price)}</div>
+              <div class="col-span-2 text-right text-on-surface-variant font-mono">${mc(w.sale_price)}</div>
+              <div class="col-span-4 text-right font-mono ${cls(diff)} font-medium">${sgn(diff)}${mc(diff)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        ` : '<p class="text-xs text-on-surface-variant/60 italic mb-5">No sold watches yet — P&L will populate as you mark sales.</p>'}
+
+        <div class="space-y-3 text-sm border-t border-outline-variant/10 pt-4">
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Gross profit (${nP} watch${nP !== 1 ? 'es' : ''})</span>
+            <span class="${cls(gp)} font-medium">${sgn(gp)}${mc(gp)}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-on-surface-variant">Gross loss (${nL} watch${nL !== 1 ? 'es' : ''})</span>
+            <span class="${cls(gl)} font-medium">${gl !== 0 ? sgn(gl) : ''}${mc(gl)}</span>
+          </div>
+          <div class="flex justify-between border-t border-outline-variant/10 pt-3 mt-1">
+            <span class="text-on-surface font-semibold">Net P&amp;L</span>
+            <span class="${cls(net)} font-bold font-playfair text-lg">${sgn(net)}${mc(net)}</span>
+          </div>
+          <div class="border-t border-outline-variant/15 pt-4 space-y-4">
+            <div class="flex justify-between items-baseline gap-4">
+              <div>
+                <span class="text-on-surface font-medium">My share</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${sp}% × net ${mc(net)}${hDisc ? ` + handover discounts ${mc(hDisc)}` : ''}</span>
+              </div>
+              <span class="${cls(mine)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(mine)}${mc(mine)}</span>
+            </div>
+            <div class="flex justify-between items-baseline gap-4">
+              <div>
+                <span class="text-on-surface font-medium">Client share</span>
+                <span class="block text-[11px] text-on-surface-variant mt-0.5">${100 - sp}% × net ${mc(net)}</span>
+              </div>
+              <span class="${cls(theirs)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(theirs)}${mc(theirs)}</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+}
+
 function renderDiscountPnlSection(profile, p, cur) {
   const mc = v => fmt.price(v || 0, cur);
   return `
@@ -4603,6 +4715,7 @@ function renderDiscountPnlSection(profile, p, cur) {
       </div>
       ${renderDiscountPanelA(profile, p, cur)}
       ${renderDiscountPanelB(profile, p, cur)}
+      ${p.hasSplitWatches ? renderSplitRulesCard(p, mc, v => v > 0 ? '+' : '', v => v >= 0 ? 'text-emerald-400' : 'text-error', { title: 'P/L Split Sales' }) : ''}
       ${renderDiscountFunding(p)}
     </div>`;
 }
@@ -4614,104 +4727,6 @@ function renderProfilePnl(profile) {
   const mc  = (v, c) => v == null ? '—' : fmt.price(v, c || cur);
   const sgn = v => v > 0 ? '+' : '';
   const cls = v => v >= 0 ? 'text-emerald-400' : 'text-error';
-
-  function lossStatusBadge(st) {
-    const map = {
-      open:           'text-error border-error/30 bg-error/5',
-      partially_paid: 'text-amber-400 border-amber-400/30 bg-amber-400/5',
-      settled:        'text-emerald-400 border-emerald-400/30 bg-emerald-400/5',
-      not_applicable: 'text-on-surface-variant border-outline-variant/30 bg-white/[0.02]',
-    };
-    const labels = { open: 'Open', partially_paid: 'Partially settled', settled: 'Settled', not_applicable: 'No debt' };
-    const s = st || 'open';
-    return `<span class="text-[9px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md border ${map[s] || map.open}">${labels[s] || s}</span>`;
-  }
-
-  // ── Discount panel A rows ─────────────────────────────────────────────
-  function renderPanelARows() {
-    if (!p.profitWatches.length) {
-      return `<p class="text-xs text-on-surface-variant/60 italic py-2">No profitable sales yet</p>`;
-    }
-    return p.profitWatches.map(w => {
-      const d  = discountCalc(w, profile);
-      const wc = w.currency || cur;
-      const cell = (label, val, extra = '') => `<div><p class="text-[9px] uppercase tracking-widest text-outline">${label}</p><p class="font-mono text-on-surface ${extra}">${val}</p></div>`;
-      return `
-        <div class="py-2.5 border-b border-outline-variant/10 last:border-0">
-          <div class="flex items-center justify-between gap-4 mb-1.5">
-            <div class="min-w-0">
-              <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}${w.reference_number ? ` <span class="text-[10px] text-outline font-mono">${esc(w.reference_number)}</span>` : ''}</p>
-              <p class="text-[10px] text-on-surface-variant mt-0.5">
-                Handover ${w.market_price_date ? fmt.date(w.market_price_date) : '—'}
-                · <span class="${d.manual ? 'text-purple-300' : 'text-amber-400/80'}">${d.manual ? 'Manual' : 'Standard'}</span>
-                ${w.market_price_agreed_by ? ` · agreed by ${esc(w.market_price_agreed_by)}` : ''}
-              </p>
-            </div>
-            <div class="text-right flex-shrink-0">
-              <span class="text-amber-400 font-semibold font-mono whitespace-nowrap">+${mc(d.discAmt, wc)}</span>
-              <p class="text-[10px] ${Math.abs(d.discPct - d.rate) > 0.0001 ? 'text-purple-300' : 'text-on-surface-variant'}">${(d.discPct * 100).toFixed(2)}% effective</p>
-            </div>
-          </div>
-          <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-[11px]">
-            ${cell('Market', mc(d.P, wc))}
-            ${cell('Client price', mc(d.clientPrice, wc))}
-            ${cell('My contrib.', mc(d.M, wc))}
-            ${cell('Client contrib.', mc(d.C, wc))}
-            ${cell('Offset', d.offset ? `−${mc(d.offset, wc)}` : '—', d.offset ? 'text-amber-300' : '')}
-            ${cell('Cash to wire', mc(d.wire, wc), 'text-purple-300 font-semibold')}
-          </div>
-        </div>`;
-    }).join('');
-  }
-
-  // ── Discount panel B rows ─────────────────────────────────────────────
-  function renderPanelBRows() {
-    if (!p.lossWatches.length) {
-      return `<p class="text-xs text-on-surface-variant/60 italic py-2">No loss watches — all sales above list price</p>`;
-    }
-    return p.lossWatches.map(w => {
-      const d         = discountCalc(w, profile);
-      const wc        = w.currency || cur;
-      const canPay    = d.outstanding > 0.005;
-      const cell = (label, val, extra = '') => `<div><p class="text-[9px] uppercase tracking-widest text-outline">${label}</p><p class="font-mono ${extra}">${val}</p></div>`;
-      return `
-        <div class="py-2.5 border-b border-outline-variant/10 last:border-0">
-          <div class="flex items-center justify-between gap-4 mb-1.5">
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}${w.reference_number ? ` <span class="text-[10px] text-outline font-mono">${esc(w.reference_number)}</span>` : ''}</p>
-              <p class="text-[10px] text-on-surface-variant mt-0.5">List ${mc(d.L, wc)} − Sold ${mc(d.S, wc)} · funded ${mc(d.M, wc)} me / ${mc(d.C, wc)} client</p>
-            </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              ${lossStatusBadge(w.loss_status)}
-              ${canPay ? `<button onclick="openRecordPaymentModal(${w.id})" class="text-[9px] font-semibold uppercase tracking-widest px-2 py-1 rounded-md border border-amber-400/30 text-amber-400 bg-amber-400/5 hover:bg-amber-400/10 transition-all flex items-center gap-1">
-                <span class="material-symbols-outlined text-[11px]">payments</span> Record
-              </button>` : ''}
-            </div>
-          </div>
-          <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-[11px] text-on-surface-variant">
-            ${cell('Loss', mc(d.loss, wc), 'text-error')}
-            ${cell('Cash back to me', mc(d.cashBackMe, wc), 'text-on-surface')}
-            ${cell('Payout to client', mc(d.payoutClient, wc), 'text-on-surface')}
-            ${cell('Client owes me', mc(d.clientOwesMe, wc), d.clientOwesMe > 0 ? 'text-error font-semibold' : 'text-on-surface')}
-            ${cell('Recovered', mc(d.recovered, wc), d.recovered > 0 ? 'text-emerald-400' : 'text-on-surface')}
-            ${cell('Outstanding', mc(d.outstanding, wc), d.outstanding > 0 ? 'text-amber-400 font-semibold' : 'text-on-surface')}
-          </div>
-          ${(w.loss_payments || []).filter(px => !px.reversed).length > 0 ? `
-          <div class="mt-2 space-y-1">
-            ${(w.loss_payments || []).filter(px => !px.reversed).map(px => `
-              <div class="flex justify-between text-[10px] text-on-surface-variant/60 pl-2 border-l ${px.method === 'OFFSET' ? 'border-amber-400/40' : 'border-outline-variant/20'}">
-                <span>${px.date} · ${esc(recoveryMethodLabel(px))}</span>
-                <div class="flex items-center gap-2">
-                  <span class="text-emerald-400/70">${mc(px.amount)}</span>
-                  <button onclick="reversePayment(${px.id}, ${w.id})" title="Void payment" class="hover:text-error transition-colors">
-                    <span class="material-symbols-outlined text-[11px]">cancel</span>
-                  </button>
-                </div>
-              </div>`).join('')}
-          </div>` : ''}
-        </div>`;
-    }).join('');
-  }
 
   if (p.isDiscount) {
     document.getElementById('profilePnlSection').innerHTML = renderDiscountPnlSection(profile, p, cur);
@@ -4872,113 +4887,8 @@ function renderProfilePnl(profile) {
         </div>
       </div>
 
-      ${p.isDiscount ? `
-      <!-- Panel A — Discount Income -->
-      <div class="glass-surface rounded-2xl p-6 border border-amber-500/10">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-amber-400/70">Panel A</p>
-            <p class="text-sm font-semibold text-on-surface mt-0.5">My Discount Income</p>
-          </div>
-          <div class="text-right">
-            <p class="font-playfair text-xl text-amber-400">+${mc(p.discountIncome)}</p>
-            ${p.totalMarketValue ? `<p class="text-[10px] text-on-surface-variant">avg ${(p.avgDiscountPct * 100).toFixed(2)}% effective · std ${(p.discountSplit * 100).toFixed(2)}%</p>` : ''}
-          </div>
-        </div>
-        <div class="space-y-0">
-          ${renderPanelARows()}
-        </div>
-        ${p.profitWatches.length > 0 ? `
-        <div class="border-t border-outline-variant/10 mt-3 pt-3 grid grid-cols-3 gap-2 text-xs text-on-surface-variant">
-          <div><span class="text-amber-400 font-semibold">+${mc(p.discountIncome)}</span><br>total discount · ${p.profitWatches.length} watch${p.profitWatches.length !== 1 ? 'es' : ''}</div>
-          <div><span class="text-amber-300 font-medium">${mc(p.totalOffsetsGiven)}</span><br>losses offset</div>
-          <div><span class="text-purple-300 font-medium">${mc(p.totalWire)}</span><br>cash wired to client</div>
-        </div>
-        <p class="text-[10px] text-on-surface-variant/60 mt-2">Offsets are not income — they repay losses already recorded in Panel B.</p>` : ''}
-      </div>
-
-      <!-- Panel B — Losses Receivable -->
-      <div class="glass-surface rounded-2xl p-6 border border-error/10">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-error/70">Panel B</p>
-            <p class="text-sm font-semibold text-on-surface mt-0.5">Losses Receivable from Client</p>
-          </div>
-          <div class="text-right">
-            <p class="font-playfair text-xl ${p.lossOutstanding > 0 ? 'text-amber-400' : 'text-emerald-400'}">${mc(p.lossOutstanding)}</p>
-            <p class="text-[10px] text-on-surface-variant">outstanding</p>
-          </div>
-        </div>
-        <div class="space-y-0">
-          ${renderPanelBRows()}
-        </div>
-        ${p.lossWatches.length > 0 ? `
-        <div class="border-t border-outline-variant/10 mt-3 pt-3 grid grid-cols-4 gap-2 text-xs text-on-surface-variant">
-          <div><span class="text-error font-medium">${mc(p.totalLossAmount)}</span><br>total loss</div>
-          <div><span class="text-error/80 font-medium">${mc(p.totalLossOwed)}</span><br>client owes me</div>
-          <div><span class="text-emerald-400 font-medium">${mc(p.totalLossPaid)}</span><br>recovered</div>
-          <div><span class="${p.lossOutstanding > 0 ? 'text-amber-400 font-medium' : 'text-on-surface-variant'}">${mc(p.lossOutstanding)}</span><br>outstanding</div>
-        </div>
-        <p class="text-[10px] text-on-surface-variant/60 mt-2">Loss is 100% the client's. Proceeds repay my contribution first; the client owes me any shortfall. Outstanding is what the next handover can offset.</p>` : ''}
-      </div>
-      ` : `
-      <!-- P&L Breakdown (split mode) — with per-watch detail -->
-      <div class="glass-surface rounded-2xl p-6">
-        <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-5">Rules Applied to P&amp;L</p>
-
-        ${p.soldWatches.length > 0 ? `
-        <div class="mb-5 space-y-0">
-          <div class="grid grid-cols-12 gap-2 text-[9px] uppercase tracking-widest text-outline pb-2 border-b border-outline-variant/10 mb-1">
-            <div class="col-span-4">Timepiece</div>
-            <div class="col-span-2 text-right">List</div>
-            <div class="col-span-2 text-right">Sold</div>
-            <div class="col-span-4 text-right">P&amp;L</div>
-          </div>
-          ${p.soldWatches.filter(w => w.list_price != null && w.sale_price != null).map(w => {
-            const diff = w.sale_price - w.list_price;
-            return `
-            <div class="grid grid-cols-12 gap-2 text-xs py-1.5 border-b border-outline-variant/[0.04] last:border-0">
-              <div class="col-span-4 truncate text-on-surface">${esc(w.model)}</div>
-              <div class="col-span-2 text-right text-on-surface-variant font-mono">${mc(w.list_price)}</div>
-              <div class="col-span-2 text-right text-on-surface-variant font-mono">${mc(w.sale_price)}</div>
-              <div class="col-span-4 text-right font-mono ${cls(diff)} font-medium">${sgn(diff)}${mc(diff)}</div>
-            </div>`;
-          }).join('')}
-        </div>
-        ` : '<p class="text-xs text-on-surface-variant/60 italic mb-5">No sold watches yet — P&L will populate as you mark sales.</p>'}
-
-        <div class="space-y-3 text-sm border-t border-outline-variant/10 pt-4">
-          <div class="flex justify-between">
-            <span class="text-on-surface-variant">Gross profit (${p.profitWatchCount} watch${p.profitWatchCount !== 1 ? 'es' : ''})</span>
-            <span class="${cls(p.grossProfit)} font-medium">${sgn(p.grossProfit)}${mc(p.grossProfit)}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-on-surface-variant">Gross loss (${p.lossWatchCount} watch${p.lossWatchCount !== 1 ? 'es' : ''})</span>
-            <span class="${cls(p.grossLoss)} font-medium">${p.grossLoss !== 0 ? sgn(p.grossLoss) : ''}${mc(p.grossLoss)}</span>
-          </div>
-          <div class="flex justify-between border-t border-outline-variant/10 pt-3 mt-1">
-            <span class="text-on-surface font-semibold">Net P&amp;L</span>
-            <span class="${cls(p.netPnl)} font-bold font-playfair text-lg">${sgn(p.netPnl)}${mc(p.netPnl)}</span>
-          </div>
-          <div class="border-t border-outline-variant/15 pt-4 space-y-4">
-            <div class="flex justify-between items-baseline gap-4">
-              <div>
-                <span class="text-on-surface font-medium">My share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.netPnl >= 0 ? p.profitSplit : p.lossSplit}% × net ${mc(p.netPnl)}</span>
-              </div>
-              <span class="${cls(p.myShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.myShare)}${mc(p.myShare)}</span>
-            </div>
-            <div class="flex justify-between items-baseline gap-4">
-              <div>
-                <span class="text-on-surface font-medium">Client share</span>
-                <span class="block text-[11px] text-on-surface-variant mt-0.5">${p.netPnl >= 0 ? (100 - p.profitSplit) : (100 - p.lossSplit)}% × net ${mc(p.netPnl)}</span>
-              </div>
-              <span class="${cls(p.clientShare)} font-semibold font-playfair text-xl whitespace-nowrap">${sgn(p.clientShare)}${mc(p.clientShare)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      `}
+      ${renderSplitRulesCard(p, mc, sgn, cls)}
+      ${p.hasDiscountWatches ? renderDiscountPanelA(profile, p, cur) + renderDiscountPanelB(profile, p, cur) : ''}
 
       <!-- Portfolio Summary — unified 9-tile layout -->
       ${renderPortfolioSummary9(p, mc, sgn, cls)}
@@ -5205,13 +5115,21 @@ function renderWatchDetailPage(w) {
   const stLabel = { wishlist:'Wishlist', purchased:'Purchased', sold:'Sold' };
 
   // ── Financial split calc (mirrors computePnl single-watch) ───────────────
-  const isDiscount   = (pr.trading_rule || 'split') === 'discount';
+  // This watch's rule: chosen on Mark Sold, else the client's rule
+  const isDiscount   = watchRule(w, pr) === 'discount';
+  const ruleIsOwn    = !!w.rule_applied && w.rule_applied !== (pr.trading_rule || 'split');
   const profitSplit  = pr.profit_split_me ?? 100;
   const lossSplit    = pr.loss_split_me   ?? 100;
   const discountRate = w.discount_rate_applied ?? pr.discount_split ?? 0.08;
   const list         = w.list_price, sale = w.sale_price;
   const dcw          = (isDiscount && w.status === 'sold' && list != null && (sale != null || w.market_price != null)) ? discountCalc(w, pr) : null;
   const handover     = !!dcw?.isProfit;
+  // Handover under either rule (P/L Split handovers: sale_price = client price)
+  const plHandover   = !isDiscount && w.status === 'sold' && w.market_price != null && sale != null;
+  const hv = handover ? { P: dcw.P, cp: dcw.clientPrice, manual: dcw.manual, disc: dcw.discAmt, pct: dcw.discPct, rate: dcw.rate }
+           : plHandover ? { P: w.market_price, cp: sale, manual: w.discount_mode === 'manual', disc: splitHandoverDisc(w),
+                            pct: w.market_price ? (w.market_price - sale) / w.market_price : 0, rate: w.discount_rate_applied ?? pr.discount_split ?? 0.08 }
+           : null;
   const gross        = handover ? dcw.rawDiff : (list != null && sale != null) ? (sale - list) : null;
   let myPnl = null, clientPnl = null, myPnlNote = '', clientPnlNote = '';
   if (w.status === 'sold' && gross != null) {
@@ -5227,10 +5145,11 @@ function renderWatchDetailPage(w) {
       }
     } else {
       const sp  = gross >= 0 ? profitSplit : lossSplit;
-      myPnl       = (sp / 100) * gross;
+      const hd  = splitHandoverDisc(w);
+      myPnl       = (sp / 100) * gross + hd;
       clientPnl   = ((100 - sp) / 100) * gross;
-      myPnlNote     = `${sp}% of gross`;
-      clientPnlNote = `${100 - sp}% of gross`;
+      myPnlNote     = hd ? `${sp}% of profit + handover discount ${fmt.price(hd, cur)}` : `${sp}% of gross`;
+      clientPnlNote = `${100 - sp}% of ${hd ? 'profit vs list' : 'gross'}`;
     }
   }
 
@@ -5333,8 +5252,8 @@ function renderWatchDetailPage(w) {
               ${w.status !== 'sold' ? `<button onclick="openMarkSoldModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-emerald-500/30 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 transition-all flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[13px]">sell</span> Mark Sold
               </button>` : ''}
-              ${w.status === 'sold' && isDiscount ? `<button onclick="openMarkSoldModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-emerald-500/30 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 transition-all flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[13px]">handshake</span> ${handover ? 'Edit Handover' : 'Edit Sale'}
+              ${w.status === 'sold' ? `<button onclick="openMarkSoldModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-emerald-500/30 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 transition-all flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[13px]">handshake</span> ${hv ? 'Edit Handover' : 'Edit Sale'}
               </button>` : ''}
               ${w.status !== 'sold' && isDiscount ? `<button onclick="openRecordPaymentModal(${w.id})" class="text-[10px] font-semibold uppercase tracking-widest px-3 py-2 rounded-lg border border-amber-400/30 text-amber-400 bg-amber-400/5 hover:bg-amber-400/10 transition-all flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-[13px]">payments</span> Loss Payment
@@ -5375,19 +5294,19 @@ function renderWatchDetailPage(w) {
               <p class="font-playfair text-lg text-on-surface font-mono">${mc(w.list_price)}</p>
             </div>
             <div class="bg-white/[0.02] rounded-xl p-3.5">
-              ${handover ? `
+              ${hv ? `
               <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Market Price</p>
-              <p class="font-playfair text-lg text-primary font-mono">${mc(dcw.P)}</p>
-              <p class="text-[10px] text-on-surface-variant mt-1">Client price ${fmt.price(dcw.clientPrice, cur)} · ${dcw.manual ? 'manual' : 'standard'}${w.market_price_date ? ' · ' + fmt.date(w.market_price_date) : ''}${w.market_price_agreed_by ? ' · agreed by ' + esc(w.market_price_agreed_by) : ''}</p>
+              <p class="font-playfair text-lg text-primary font-mono">${mc(hv.P)}</p>
+              <p class="text-[10px] text-on-surface-variant mt-1">Handover · client price ${fmt.price(hv.cp, cur)} · ${hv.manual ? 'manual' : 'standard'}${w.market_price_date ? ' · ' + fmt.date(w.market_price_date) : ''}${w.market_price_agreed_by ? ' · agreed by ' + esc(w.market_price_agreed_by) : ''}</p>
               ${(w.market_prices || []).length > 1 ? `<p class="text-[9px] text-outline mt-1" title="${esc(w.market_prices.map(mp => `${mp.date || ''} ${fmt.price(mp.price, cur)}${mp.agreed_by ? ' (' + mp.agreed_by + ')' : ''}`).join(' → '))}">${w.market_prices.length} agreed prices on record</p>` : ''}` : `
               <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">${w.status === 'sold' ? 'Sold For' : 'Purchase Price'}</p>
               <p class="font-playfair text-lg ${w.status === 'sold' ? 'text-primary' : 'text-on-surface'} font-mono">${w.status === 'sold' ? mc(w.sale_price) : mc(w.price ?? w.list_price)}</p>`}
             </div>
-            ${handover ? `
+            ${hv ? `
             <div class="bg-amber-500/[0.05] border border-amber-500/15 rounded-xl p-3.5">
               <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">My Discount</p>
-              <p class="font-playfair text-lg text-amber-400 font-mono">+${fmt.price(dcw.discAmt, cur)}</p>
-              <p class="text-[10px] text-on-surface-variant mt-1">${(dcw.discPct * 100).toFixed(2)}% effective · standard ${(dcw.rate * 100).toFixed(2)}%</p>
+              <p class="font-playfair text-lg text-amber-400 font-mono">+${fmt.price(hv.disc, cur)}</p>
+              <p class="text-[10px] text-on-surface-variant mt-1">${(hv.pct * 100).toFixed(2)}% effective · standard ${(hv.rate * 100).toFixed(2)}%${plHandover ? ` · profit vs list ${sgn(gross)}${fmt.price(gross, cur)} split ${gross >= 0 ? profitSplit : lossSplit}/${100 - (gross >= 0 ? profitSplit : lossSplit)}` : ''}</p>
             </div>` : `
             <div class="bg-white/[0.02] rounded-xl p-3.5">
               <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Gross P&amp;L</p>
@@ -5649,7 +5568,8 @@ function renderWatchDetailPage(w) {
         <div class="glass-surface rounded-2xl p-5 border border-outline-variant/10">
           <p class="text-[10px] uppercase tracking-[0.2em] font-semibold text-on-surface-variant mb-4">Trading Rules</p>
           <div class="space-y-2.5 text-sm">
-            <div class="flex justify-between"><span class="text-on-surface-variant">Rule</span><span class="font-semibold ${isDiscount ? 'text-amber-400' : 'text-purple-400'}">${isDiscount ? 'Discount Split' : 'P/L Split'}</span></div>
+            <div class="flex justify-between"><span class="text-on-surface-variant">${w.status === 'sold' ? 'Rule (this watch)' : 'Rule'}</span><span class="font-semibold ${isDiscount ? 'text-amber-400' : 'text-purple-400'}">${isDiscount ? 'Discount Split' : 'P/L Split'}</span></div>
+            ${ruleIsOwn ? `<p class="text-[10px] text-on-surface-variant/70 -mt-1">Chosen for this sale · client default is ${(pr.trading_rule || 'split') === 'discount' ? 'Discount Split' : 'P/L Split'}</p>` : ''}
             ${isDiscount
               ? `<div class="flex justify-between"><span class="text-on-surface-variant">Discount Rate</span><span class="font-mono text-amber-300">${((discountRate)*100).toFixed(2)}%</span></div>`
               : `<div class="flex justify-between"><span class="text-on-surface-variant">Profit Split (me)</span><span class="font-mono text-emerald-400">${profitSplit}%</span></div>
@@ -5957,7 +5877,7 @@ function watchDetailBanner(w) {
 }
 
 function watchRow(w, detail, opts) {
-  const isDiscountRow = !!(opts?.isDiscount);
+  const isDiscountRow = watchRule(w, { trading_rule: opts?.isDiscount ? 'discount' : 'split' }) === 'discount';
   const thumb = w.image_path
     ? `<img src="${w.image_path}" class="w-full h-full object-cover" alt="${esc(w.model)}" onclick="openLightbox('${w.image_path}')" style="cursor:zoom-in">`
     : `<span class="material-symbols-outlined text-outline text-[22px]">watch</span>`;
@@ -6000,7 +5920,7 @@ function watchRow(w, detail, opts) {
       <td class="px-5 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-5 py-4 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
       <td class="px-5 py-4 text-primary font-semibold text-sm">${w.status !== 'sold' ? '<span class="text-outline">—</span>'
-        : (isDiscountRow && w.market_price != null) ? `${fmt.price(discountCalc(w, { discount_split: opts?.discountSplit }).clientPrice, cur)}<span class="block text-[9px] text-on-surface-variant/60 font-normal mt-0.5">market ${fmt.price(w.market_price, cur)}</span>` : fmt.price(w.sale_price, cur)}</td>
+        : (w.market_price != null) ? `${fmt.price(isDiscountRow ? discountCalc(w, { discount_split: opts?.discountSplit }).clientPrice : w.sale_price, cur)}<span class="block text-[9px] text-on-surface-variant/60 font-normal mt-0.5">handover · market ${fmt.price(w.market_price, cur)}</span>` : fmt.price(w.sale_price, cur)}</td>
       ${detailPnlCell()}` : `
       <td class="px-5 py-4">${statusBadge(w.status)}</td>
       <td class="px-5 py-4 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
@@ -6092,8 +6012,9 @@ function openMarkSoldModal(id) {
   document.getElementById('soldSaleDate').value = new Date().toISOString().split('T')[0];
 
   // Reset the Discount Split v2 section until the profile has loaded
-  _soldIsDiscount = false; _soldProfile = null; _soldAvailOffset = 0;
+  _soldIsDiscount = false; _soldProfile = null; _soldAvailOffset = 0; _soldRule = null; _soldDiscPrefilled = false;
   document.getElementById('soldError').classList.add('hidden');
+  document.getElementById('soldRuleWrap').classList.add('hidden');
   document.getElementById('soldDiscountModeWrap').classList.add('hidden');
   document.getElementById('soldHandoverFields').classList.add('hidden');
   ['soldSalePriceWrap', 'soldSplitWrap', 'soldToWrap', 'soldPnlPreview'].forEach(i => document.getElementById(i).classList.remove('hidden'));
@@ -6111,6 +6032,7 @@ function openMarkSoldModal(id) {
 // ── Mark Sold · Discount Split v2 (handover vs loss) ──────────────────────
 let _soldIsDiscount = false, _soldProfile = null, _soldAvailOffset = 0;
 let _soldOutcome = 'handover', _soldDiscMode = 'standard';
+let _soldRule = null, _soldDiscPrefilled = false;
 
 async function loadSoldModalProfile(w) {
   let prof;
@@ -6121,20 +6043,63 @@ async function loadSoldModalProfile(w) {
   _soldWatchData = { ...w, ...fresh, trading_rule: prof.trading_rule, discount_split: prof.discount_split,
                      profit_split_me: prof.profit_split_me, loss_split_me: prof.loss_split_me };
   _soldProfile   = prof;
-  if ((prof.trading_rule || 'split') !== 'discount') { updateSoldPnl(); return; }
 
-  _soldIsDiscount = true;
-  const sw  = _soldWatchData;
-  const cur = sw.currency || 'CHF';
+  // Rule toggle: this watch's earlier choice, else the client's rule
+  const clientRule = prof.trading_rule || 'split';
+  const rate0 = _soldWatchData.discount_rate_applied ?? prof.discount_split ?? 0.08;
+  document.getElementById('soldRuleDiscSub').textContent  = `${(rate0 * 100).toFixed(2)}% of market price`;
+  document.getElementById('soldRuleSplitSub').textContent = `profit ${prof.profit_split_me ?? 100}/${100 - (prof.profit_split_me ?? 100)} · loss ${prof.loss_split_me ?? 100}/${100 - (prof.loss_split_me ?? 100)}`;
+  document.getElementById('soldRuleHint').textContent = `Client default: ${clientRule === 'discount' ? 'Discount Split' : 'P/L Split'} · this choice applies to this watch only`;
+  document.getElementById('soldRuleWrap').classList.remove('hidden');
+  setSoldRule(_soldWatchData.rule_applied || clientRule);
+}
+
+// Switch the modal between the Discount Split and P/L Split rule. Both rules
+// offer "Handover to me"; the alternative is "Sold below list" (Discount) or
+// "Sold to buyer" (P/L Split).
+function setSoldRule(rule) {
+  const prev = _soldRule;
+  _soldRule = rule;
+  _soldIsDiscount = rule === 'discount';
+  const off = 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30';
+  document.getElementById('soldRuleDiscBtn').className  = `text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all ${rule === 'discount' ? 'bg-amber-400/10 border-amber-400/40 text-amber-400' : off}`;
+  document.getElementById('soldRuleSplitBtn').className = `text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all ${rule === 'split' ? 'bg-purple-500/10 border-purple-400/40 text-purple-300' : off}`;
+  const prof = _soldProfile;
+  document.getElementById('soldModeHandoverSub').textContent = rule === 'discount'
+    ? 'market price − discount · discount is mine'
+    : `market price − discount · profit split ${prof?.profit_split_me ?? 100}/${100 - (prof?.profit_split_me ?? 100)}`;
+  document.getElementById('soldModeAltTitle').textContent = rule === 'discount' ? 'Sold below list' : 'Sold to buyer';
+  document.getElementById('soldModeAltSub').textContent   = rule === 'discount' ? "loss · 100% the client's" : 'sale price · split by P/L %';
+  prefillHandoverFields();
+  document.getElementById('soldDiscountModeWrap').classList.remove('hidden');
+
+  // First time: pick the outcome that matches this watch; later keep the user's choice
+  let outcome;
+  if (!prev) {
+    const sw = _soldWatchData;
+    if (sw.market_price != null) outcome = 'handover';
+    else if (sw.status === 'sold' && sw.sale_price != null) outcome = (rule === 'discount' && !(sw.list_price != null && sw.sale_price < sw.list_price)) ? 'handover' : 'alt';
+    else outcome = rule === 'discount' ? 'handover' : 'alt';
+  } else {
+    outcome = _soldOutcome === 'handover' ? 'handover' : 'alt';
+  }
+  setSoldOutcome(outcome);
+}
+
+// Fill the handover fields once per opening (switching rules keeps what was typed)
+function prefillHandoverFields() {
+  if (_soldDiscPrefilled) return;
+  _soldDiscPrefilled = true;
+  const prof = _soldProfile;
+  const sw   = _soldWatchData;
+  const cur  = sw.currency || 'CHF';
   // Panel B outstanding available to offset (plus whatever this watch already offsets)
   _soldAvailOffset = computePnl(prof).lossOutstanding + (sw.offset_amount || 0);
-  const rate = sw.discount_rate_applied ?? prof.discount_split ?? 0.065;
+  const rate = sw.discount_rate_applied ?? prof.discount_split ?? 0.08;
   document.getElementById('soldStdRateLabel').textContent = `${(rate * 100).toFixed(2)}%`;
   document.getElementById('soldOffsetHint').innerHTML = _soldAvailOffset > 0
-    ? `Client's outstanding losses (Panel B): <span class="text-amber-400 font-mono">${fmt.price(_soldAvailOffset, cur)}</span> · enter £0 up to this`
+    ? `Client's outstanding losses (Panel B): <span class="text-amber-400 font-mono">${fmt.price(_soldAvailOffset, cur)}</span> · enter ${fmt.price(0, cur)} up to this`
     : `No outstanding losses in Panel B — nothing to offset.`;
-
-  // Prefill from an existing handover when editing
   setMoneyValue('soldMarketPrice', sw.market_price);
   document.getElementById('soldAgreedBy').value = sw.market_price_agreed_by || prof.name || '';
   setMoneyValue('soldClientPrice', sw.discount_mode === 'manual' ? sw.client_price_manual : null);
@@ -6142,30 +6107,32 @@ async function loadSoldModalProfile(w) {
   setMoneyValue('soldOffset', sw.offset_amount || null);
   if (sw.market_price_date) document.getElementById('soldSaleDate').value = sw.market_price_date;
   _soldDiscMode = sw.discount_mode === 'manual' ? 'manual' : 'standard';
-  const isLossSale = sw.status === 'sold' && sw.market_price == null && sw.sale_price != null;
-  document.getElementById('soldDiscountModeWrap').classList.remove('hidden');
   setSoldDiscountMode(_soldDiscMode, true);
-  setSoldOutcome(isLossSale ? 'loss' : 'handover');
 }
 
+// mode: 'handover' | 'alt' → 'loss' (Discount rule) or 'sale' (P/L Split rule)
 function setSoldOutcome(mode) {
+  if (mode === 'alt' || mode === 'loss' || mode === 'sale') mode = _soldRule === 'discount' ? 'loss' : 'sale';
   _soldOutcome = mode;
+  const handover = mode === 'handover';
   const on  = 'bg-primary/15 border-primary/40 text-primary';
   const off = 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30';
-  const hb = document.getElementById('soldModeHandoverBtn'), lb = document.getElementById('soldModeLossBtn');
-  hb.className = `text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all ${mode === 'handover' ? on : off}`;
-  lb.className = `text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all ${mode === 'loss' ? 'bg-error/10 border-error/40 text-error' : off}`;
-  const handover = mode === 'handover';
+  const altOn = _soldRule === 'discount' ? 'bg-error/10 border-error/40 text-error' : 'bg-purple-500/10 border-purple-400/40 text-purple-300';
+  document.getElementById('soldModeHandoverBtn').className = `text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all ${handover ? on : off}`;
+  document.getElementById('soldModeLossBtn').className     = `text-[10px] font-semibold uppercase tracking-widest px-3 py-2.5 rounded-lg border transition-all ${!handover ? altOn : off}`;
   document.getElementById('soldHandoverFields').classList.toggle('hidden', !handover);
+  // Offsets repay Panel B, which only exists for the Discount rule
+  document.getElementById('soldOffsetWrap').classList.toggle('hidden', _soldRule !== 'discount');
   document.getElementById('soldSalePriceWrap').classList.toggle('hidden', handover);
   document.getElementById('soldToWrap').classList.toggle('hidden', handover);
   document.getElementById('soldPnlPreview').classList.toggle('hidden', handover);
-  // Cash split follows the v2 rules automatically for discount profiles
-  document.getElementById('soldSplitWrap').classList.add('hidden');
+  // P/L sale keeps the editable proceeds split; Discount figures are automatic
+  document.getElementById('soldSplitWrap').classList.toggle('hidden', mode !== 'sale');
   document.getElementById('soldSaleDateLabel').textContent = handover ? 'Handover Date' : 'Sale Date';
   document.getElementById('soldConfirmLabel').textContent  = handover ? 'Confirm Handover' : 'Confirm Sale';
   document.getElementById('soldModalTitle').textContent    = handover ? 'Record Handover' : 'Record Sale';
-  if (handover) updateHandoverPreview(); else updateSoldPnl();
+  if (handover) updateHandoverPreview();
+  else { updateSoldPnl(); updateSoldSplitFooter(); }
 }
 
 function setSoldDiscountMode(mode, silent) {
@@ -6198,6 +6165,20 @@ function handoverFigures() {
   } else {
     clientPrice = P * (1 - rate);
   }
+  if (_soldRule === 'split') {
+    // P/L Split handover: the watch comes to me at the client price; the
+    // discount vs market is mine and (client price − list) is split by P/L %.
+    const prof = _soldProfile || {};
+    const L = w.list_price ?? 0;
+    const M = w.my_cost != null ? w.my_cost : Math.max(L - (w.client_cost || 0), 0);
+    const C = w.client_cost != null ? w.client_cost : Math.max(L - M, 0);
+    const gross = clientPrice - L;
+    const sp = gross >= 0 ? (prof.profit_split_me ?? 100) : (prof.loss_split_me ?? 100);
+    const mine = (sp / 100) * gross, theirs = ((100 - sp) / 100) * gross;
+    const discAmt = P - clientPrice;
+    return { split: true, P, rate, clientPrice, discAmt, discPct: P ? discAmt / P : 0, L, M, C, gross, sp, mine, theirs,
+             clientCash: C + theirs, myResult: discAmt + mine };
+  }
   const d = discountCalc({ ...w, market_price: P, discount_mode: _soldDiscMode,
                            client_price_manual: _soldDiscMode === 'manual' ? clientPrice : null, offset_amount: 0 }, _soldProfile);
   const want   = parseFloat(readMoneyInput('soldOffset'));
@@ -6209,7 +6190,7 @@ function handoverFigures() {
 
 function updateHandoverPreview(src) {
   const w = _soldWatchData;
-  if (!w || !_soldIsDiscount) return;
+  if (!w || !_soldRule) return;
   const cur = w.currency || 'CHF';
   // Manual mode: typing the client price fills the discount, and vice versa
   if (_soldDiscMode === 'manual') {
@@ -6230,6 +6211,21 @@ function updateHandoverPreview(src) {
   const h = handoverFigures();
   if (!h) { box.innerHTML = `<p class="text-xs text-on-surface-variant/70">Enter the market price agreed with the client.</p>`; return; }
   const row = (l, v, c = 'text-on-surface', b = '') => `<div class="flex justify-between ${b}"><span class="text-on-surface-variant">${l}</span><span class="font-mono ${c}">${v}</span></div>`;
+  if (h.split) {
+    const sg = v => (v > 0 ? '+' : '') + fmt.price(v, cur);
+    box.innerHTML = `
+      ${h.gross < 0 ? `<p class="text-[11px] text-amber-400/90 bg-amber-400/[0.06] border border-amber-400/20 rounded-lg px-3 py-2">Client price is below list — this handover is a loss, shared ${h.sp}/${100 - h.sp} under the P/L rule.</p>` : ''}
+      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-1">Handover Preview · P/L Split</p>
+      ${row('Client price (I take the watch at)', fmt.price(h.clientPrice, cur), 'text-primary')}
+      ${row('Discount vs market (mine)', '+' + fmt.price(h.discAmt, cur), 'text-amber-400 font-semibold')}
+      ${row('Discount %', (h.discPct * 100).toFixed(2) + '%', Math.abs(h.discPct - h.rate) > 0.0001 ? 'text-purple-300' : 'text-on-surface')}
+      ${row('Profit vs list (client price − list)', sg(h.gross), h.gross >= 0 ? 'text-emerald-400' : 'text-error', 'pt-2 border-t border-white/[0.06]')}
+      ${row(`→ me ${h.sp}%`, sg(h.mine), h.mine >= 0 ? 'text-emerald-400' : 'text-error')}
+      ${row(`→ client ${100 - h.sp}%`, sg(h.theirs), h.theirs >= 0 ? 'text-emerald-400' : 'text-error')}
+      ${row('Client receives (contribution + share)', fmt.price(h.clientCash, cur), 'text-purple-300 font-semibold', 'pt-2 border-t border-white/[0.06]')}
+      ${row('My result (discount + my share)', sg(h.myResult), 'text-amber-400 font-semibold')}`;
+    return;
+  }
   const offWarn = h.wantOffset > h.cap + 0.005
     ? `<p class="text-[10px] text-amber-400/90">Offset capped at ${fmt.price(h.cap, cur)} (Panel B outstanding${h.entitlement < _soldAvailOffset ? ' / entitlement' : ''}).</p>` : '';
   const belowList = w.list_price != null && h.P < w.list_price
@@ -6265,7 +6261,7 @@ function autoFillSoldSplit() {
   const clientCost = w.client_cost || 0;
   if (isNaN(sale)) { alert('Enter a sale price first.'); return; }
 
-  const isDiscount  = (w.trading_rule || 'split') === 'discount';
+  const isDiscount  = (_soldRule || w.trading_rule || 'split') === 'discount';
   const profitSplit = w.profit_split_me ?? 100;
   const lossSplit   = w.loss_split_me   ?? 100;
   // Unified formula across both rules: side_receives = side_cost + side_pnl_share.
@@ -6584,7 +6580,7 @@ function watchPayoutBalance(w, side /* 'client' | 'my' */) {
   const paid = ledger.filter(p => !p.reversed).reduce((s, p) => s + p.amount, 0);
 
   let share = 0, owed = con, dc = null, debt = 0;
-  const isDiscount = (w.profile?.trading_rule || w.trading_rule || 'split') === 'discount';
+  const isDiscount = watchRule(w, w.profile) === 'discount';
   if (isDiscount && w.status === 'sold' && w.list_price != null && (w.sale_price != null || w.market_price != null)) {
     // Discount Split v2 — handover: me = M + discount, client = cash to wire;
     // loss: me = min(S, M), client = max(S − M, 0) and the shortfall is a
@@ -6598,7 +6594,7 @@ function watchPayoutBalance(w, side /* 'client' | 'my' */) {
     const lossSplit    = w.profile?.loss_split_me   ?? w.loss_split_me   ?? 100;
     const gross        = w.sale_price - w.list_price;
     const sp = gross >= 0 ? profitSplit : lossSplit;
-    share = side === 'my' ? (sp / 100) * gross : ((100 - sp) / 100) * gross;
+    share = side === 'my' ? (sp / 100) * gross + splitHandoverDisc(w) : ((100 - sp) / 100) * gross;
     owed  = con + share;
   }
   const remaining = owed - paid;
@@ -6770,7 +6766,7 @@ function updateSoldPnl() {
   }
 
   const gross          = salePrice - listPrice;
-  const isDiscount     = (w.trading_rule || 'split') === 'discount';
+  const isDiscount     = (_soldRule || w.trading_rule || 'split') === 'discount';
   const discountSplit  = w.discount_split ?? 0.08;
   const lossSplitMe    = w.loss_split_me   ?? 100;
   const profitSplitMe  = w.profit_split_me ?? 100;
@@ -6836,6 +6832,7 @@ async function submitMarkSold() {
   if (_soldIsDiscount) {
     // Discount Split v2 — the cash split always follows the rules
     const r2 = v => String(Math.round(v * 100) / 100);
+    fd.append('rule_applied', 'discount');
     if (saleDate) fd.append('sale_date', saleDate);
     if (_soldOutcome === 'handover') {
       const h = handoverFigures();
@@ -6862,7 +6859,33 @@ async function submitMarkSold() {
       fd.append('client_received',     r2(d.payoutClient));
       if (soldTo) fd.append('sold_to', soldTo);
     }
+  } else if (_soldRule === 'split' && _soldOutcome === 'handover') {
+    // P/L Split handover: sale price = client price; discount mine; profit split by P/L %
+    const r2 = v => String(Math.round(v * 100) / 100);
+    const h = handoverFigures();
+    if (!h) return showErr('Enter the agreed market price.');
+    if (h.clientPrice <= 0 || h.clientPrice > h.P) return showErr('Client price must be between 0 and the market price.');
+    fd.append('rule_applied',           'split');
+    fd.append('sale_price',             r2(h.clientPrice));
+    fd.append('market_price',           r2(h.P));
+    fd.append('market_price_date',      saleDate || new Date().toISOString().split('T')[0]);
+    fd.append('market_price_agreed_by', document.getElementById('soldAgreedBy').value.trim());
+    fd.append('discount_mode',          _soldDiscMode);
+    fd.append('client_price_manual',    _soldDiscMode === 'manual' ? r2(h.clientPrice) : '');
+    fd.append('offset_amount',          '0');
+    fd.append('my_received',            r2(h.M + h.mine + h.discAmt));
+    fd.append('client_received',        r2(h.clientCash));
+    if (saleDate) fd.append('sale_date', saleDate);
   } else {
+  if (_soldRule) {
+    if (salePrice === '' || isNaN(parseFloat(salePrice))) return showErr('Enter the sale price.');
+    // P/L Split sale: record the rule and drop any earlier handover figures
+    fd.append('rule_applied',        'split');
+    fd.append('market_price',        '');
+    fd.append('discount_mode',       'standard');
+    fd.append('client_price_manual', '');
+    fd.append('offset_amount',       '0');
+  }
   if (salePrice      !== '') fd.append('sale_price',      salePrice);
   if (myReceived     !== '') fd.append('my_received',     myReceived);
   if (clientReceived !== '') fd.append('client_received', clientReceived);

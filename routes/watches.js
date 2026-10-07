@@ -69,6 +69,7 @@ router.put('/:id', (req, res) => {
     });
     if (updates.status && !['wishlist','purchased','sold'].includes(updates.status)) delete updates.status;
     if (updates.discount_mode !== undefined && !['standard','manual'].includes(updates.discount_mode)) updates.discount_mode = 'standard';
+    if (updates.rule_applied !== undefined && !['split','discount'].includes(updates.rule_applied)) updates.rule_applied = null;
     // The offset is applied (and capped) by the offset engine below, not written raw
     const requestedOffset = updates.offset_amount;
     delete updates.offset_amount;
@@ -82,13 +83,18 @@ router.put('/:id', (req, res) => {
       const oldStatus = watch.status;
       const newStatus = updates.status || oldStatus;
 
-      // Lock discount_rate_applied on first transition to 'sold' for discount profiles
+      // Lock discount_rate_applied on first transition to 'sold' when the watch
+      // is settled under the Discount rule (its own choice or its client's rule)
       if (newStatus === 'sold' && oldStatus !== 'sold' && watch.discount_rate_applied == null) {
         const profile = db.getProfile(watch.profile_id, uid(req));
-        if (profile?.trading_rule === 'discount') {
-          updates.discount_rate_applied = profile.discount_split ?? 0.08;
+        const rule = (updates.rule_applied !== undefined ? updates.rule_applied : watch.rule_applied) || profile?.trading_rule || 'split';
+        // …and for any handover (P/L Split handovers use the discount too)
+        if (rule === 'discount' || (updates.market_price != null && updates.market_price !== '')) {
+          updates.discount_rate_applied = profile?.discount_split ?? 0.08;
         }
       }
+      // Un-selling a watch forgets its per-sale rule (next sale starts on the client's rule)
+      if (oldStatus === 'sold' && newStatus !== 'sold') updates.rule_applied = null;
 
       db.updateWatch(req.params.id, updates, uid(req));
       let updated = db.getWatch(req.params.id, uid(req));

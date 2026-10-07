@@ -334,6 +334,9 @@ function init() {
   if (!wcols.includes('discount_mode'))            db.exec("ALTER TABLE watches ADD COLUMN discount_mode TEXT DEFAULT 'standard'");
   if (!wcols.includes('client_price_manual'))      db.exec("ALTER TABLE watches ADD COLUMN client_price_manual REAL");
   if (!wcols.includes('offset_amount'))            db.exec("ALTER TABLE watches ADD COLUMN offset_amount REAL DEFAULT 0");
+  // Rule a sold watch was settled under ('split' | 'discount'); NULL = the
+  // client's (profile's) rule. Chosen per watch on Mark Sold.
+  if (!wcols.includes('rule_applied'))             db.exec("ALTER TABLE watches ADD COLUMN rule_applied TEXT");
   const lpcols = db.prepare("PRAGMA table_info(loss_payments)").all().map(r => r.name);
   if (!lpcols.includes('offset_from_watch_id'))    db.exec("ALTER TABLE loss_payments ADD COLUMN offset_from_watch_id INTEGER");
 
@@ -934,7 +937,7 @@ function updateWatch(id, updates, ownerId) {
                   'my_cost','client_cost','my_received','client_received',
                   'loss_status','discount_rate_applied',
                   'market_price','market_price_date','market_price_agreed_by',
-                  'discount_mode','client_price_manual','offset_amount'];
+                  'discount_mode','client_price_manual','offset_amount','rule_applied'];
   const setParts = [];
   const values = [];
   for (const f of FIELDS) {
@@ -1186,6 +1189,11 @@ function _discountCalc(w, profile) {
            clientOwesMe: Math.max(M - s, 0), discAmt: 0, offset: 0 };
 }
 
+// The rule a watch is settled under: its own choice, else its client's rule
+function _ruleOf(w, profile) {
+  return w.rule_applied || profile?.trading_rule || 'split';
+}
+
 function _profileForWatch(w) {
   return db.prepare('SELECT trading_rule, profit_split_me, loss_split_me, discount_split FROM profiles WHERE id = ?').get(w.profile_id);
 }
@@ -1193,7 +1201,7 @@ function _profileForWatch(w) {
 // Amount the client still owes on a loss watch (Panel B outstanding)
 function _lossBasis(w, profile) {
   if (w.list_price == null || w.sale_price == null) return null;
-  if ((profile?.trading_rule || 'split') === 'discount') return _discountCalc(w, profile).clientOwesMe;
+  if (_ruleOf(w, profile) === 'discount') return _discountCalc(w, profile).clientOwesMe;
   return Math.max(w.list_price - w.sale_price, 0);
 }
 
@@ -1236,8 +1244,11 @@ function applyDiscountOffset(sourceWatchId, amount, date) {
     const candidates = db.prepare(
       "SELECT id FROM watches WHERE profile_id = ? AND id != ? AND status = 'sold' AND market_price IS NULL ORDER BY COALESCE(purchase_date, ''), id"
     ).all(src.profile_id, sourceWatchId);
+    const prof = _profileForWatch(src);
     for (const { id } of candidates) {
       if (remaining <= 0.005) break;
+      const cw = db.prepare('SELECT * FROM watches WHERE id = ?').get(id);
+      if (_ruleOf(cw, prof) !== 'discount') continue;   // Panel B = Discount-rule losses only
       const out = _lossOutstanding(id);
       if (out <= 0.005) continue;
       const take = Math.min(out, remaining);
@@ -1337,7 +1348,7 @@ function _computeOwed(watchId) {
 
   // Sold: add split-rule share to contribution
   const profile = _profileForWatch(w);
-  const isDiscount    = (profile?.trading_rule || 'split') === 'discount';
+  const isDiscount    = _ruleOf(w, profile) === 'discount';
   const profitSplit   = profile?.profit_split_me ?? 100;
   const lossSplit     = profile?.loss_split_me   ?? 100;
   const gross         = w.sale_price - w.list_price;
@@ -1350,7 +1361,10 @@ function _computeOwed(watchId) {
     return { clientOwed: d.payoutClient, myOwed: d.cashBackMe };
   }
   const sp = gross >= 0 ? profitSplit : lossSplit;
-  const mShare = (sp / 100) * gross;
+  // P/L Split handover: the watch came to me at sale_price below the agreed
+  // market price — that discount is mine on top of my P/L share.
+  const handoverDisc = w.market_price != null ? Math.max(w.market_price - w.sale_price, 0) : 0;
+  const mShare = (sp / 100) * gross + handoverDisc;
   const cShare = ((100 - sp) / 100) * gross;
   return { clientOwed: cCon + cShare, myOwed: mCon + mShare };
 }
