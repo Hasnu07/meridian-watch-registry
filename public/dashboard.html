@@ -433,10 +433,14 @@
 
       <!-- ── Portfolio Detail ───────────────────────────────────────── -->
       <div id="page-portfolio-detail" class="hidden flex-1 flex flex-col">
-        <div class="px-10 pt-8 pb-0">
+        <div class="px-10 pt-8 pb-0 flex items-center justify-between gap-4 flex-wrap">
           <button id="backToShopFromPortfolio" class="flex items-center gap-1.5 text-xs uppercase tracking-wider text-outline hover:text-primary transition-colors">
             <span class="material-symbols-outlined text-[16px]">arrow_back</span> Back to Shop
           </button>
+          <div class="view-toggle" data-view-key="portfolioDetail" role="group" aria-label="Layout">
+            <button type="button" data-view="list" aria-pressed="false" title="List view"><span class="material-symbols-outlined">view_list</span><span>List</span></button>
+            <button type="button" data-view="cards" aria-pressed="false" title="Card view"><span class="material-symbols-outlined">grid_view</span><span>Cards</span></button>
+          </div>
         </div>
         <div class="p-10">
           <div id="portfolioDetailHeader" class="mb-8"></div>
@@ -452,7 +456,7 @@
                 </button>
               </div>
             </div>
-            <div class="overflow-x-auto">
+            <div id="portfolioClientsListWrap" class="overflow-x-auto">
               <table class="w-full text-left">
                 <thead>
                   <tr class="bg-surface-container-low border-b border-outline-variant/10">
@@ -465,6 +469,7 @@
                 <tbody id="portfolioClientsBody" class="divide-y divide-white/[0.04]"></tbody>
               </table>
             </div>
+            <div id="portfolioClientsCards" class="hidden p-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
           </div>
         </div>
       </div>
@@ -2483,13 +2488,14 @@ const PER_PAGE = 15;
 // One toggle per list page (same spot: top-right of the page header). The
 // choice is a per-browser convenience, so it lives in localStorage; if that
 // is unavailable the page just falls back to its default layout.
-const VIEW_DEFAULTS = { clients: 'list', watches: 'list', shops: 'cards', portfolios: 'cards', shopDetail: 'list' };
+const VIEW_DEFAULTS = { clients: 'list', watches: 'list', shops: 'cards', portfolios: 'cards', shopDetail: 'list', portfolioDetail: 'list' };
 const VIEW_RENDERERS = {
   clients:    () => renderClients(),
   watches:    () => renderWatches(),
   shops:      () => renderShops(),
   portfolios: () => renderAllPortfolios(),
   shopDetail: () => renderShopDetailLists(),
+  portfolioDetail: () => renderPortfolioDetailClients(),
 };
 function getView(key) {
   try {
@@ -8668,14 +8674,33 @@ async function openPortfolioDetail(id) {
     </div>
   `;
 
-  document.getElementById('portfolioClientsBody').innerHTML = clients.length
-    ? clients.map(p => clientRow(p)).join('')
-    : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients in this portfolio yet.</td></tr>`;
+  _portfolioDetailClients = clients;
+  renderPortfolioDetailClients();
 
   document.getElementById('addClientForPortfolioBtn').onclick = () => openAddProfile(portfolio.shop_id, id);
   document.getElementById('addExistingClientForPortfolioBtn').onclick = () =>
     openClientPicker(c => openAddProfile(portfolio.shop_id, id, c.id, c));
   document.getElementById('backToShopFromPortfolio').onclick = () => openShopDetail(portfolio.shop_id);
+}
+
+let _portfolioDetailClients = null;
+
+// Portfolio page clients: table rows (with the expandable watch list) or cards
+function renderPortfolioDetailClients() {
+  const clients = _portfolioDetailClients;
+  if (!clients) return;
+  const asCards = getView('portfolioDetail') === 'cards';
+  document.getElementById('portfolioClientsListWrap').classList.toggle('hidden', asCards);
+  document.getElementById('portfolioClientsCards').classList.toggle('hidden', !asCards);
+  if (asCards) {
+    document.getElementById('portfolioClientsCards').innerHTML = clients.length
+      ? clients.map(shopClientCardHtml).join('')
+      : `<div class="col-span-full py-16 text-center text-on-surface-variant text-sm">No clients in this portfolio yet.</div>`;
+  } else {
+    document.getElementById('portfolioClientsBody').innerHTML = clients.length
+      ? clients.map(p => clientRow(p)).join('')
+      : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients in this portfolio yet.</td></tr>`;
+  }
 }
 
 // ── Portfolio modal ────────────────────────────────────────────────────────
