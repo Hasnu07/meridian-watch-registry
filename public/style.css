@@ -342,3 +342,126 @@ select:focus, textarea:not(.bg-transparent):focus {
   font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--muted); margin-bottom: 2px;
 }
+
+/* ── Sparklines ───────────────────────────────────────────────────────── */
+.sparkline { display: block; width: 100%; overflow: visible; }
+.spark-caption { margin-top: 4px; font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+.spark-empty {
+  display: flex; align-items: center; font-size: 11px; color: var(--muted);
+  border-top: 1px dashed var(--line); margin-top: 4px;
+}
+
+/* ── Vault ────────────────────────────────────────────────────────────── */
+.vault-section-title {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.vault-section-title::before {
+  content: ''; width: 6px; height: 6px; border-radius: 2px;
+  background: var(--neon-line); box-shadow: 0 0 8px rgba(155, 107, 255, 0.6);
+}
+.vault-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+
+/* Attention cards: colour = meaning (amber waiting/money due, violet client side, cyan to do) */
+.attention-card {
+  --tone: var(--accent);
+  display: flex; align-items: flex-start; gap: 12px; width: 100%;
+  padding: 14px 16px; border-radius: 10px; text-align: left;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 12%, transparent), transparent 70%), var(--panel);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, var(--line));
+  box-shadow: inset 3px 0 0 var(--tone);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+button.attention-card:hover {
+  border-color: color-mix(in srgb, var(--tone) 70%, var(--line));
+  box-shadow: inset 3px 0 0 var(--tone), 0 0 22px color-mix(in srgb, var(--tone) 22%, transparent);
+  transform: translateY(-1px);
+}
+.attention-card.is-loading { color: var(--muted); font-size: 13px; }
+.attention-card.tone-amber  { --tone: var(--warn); }
+.attention-card.tone-violet { --tone: #B18CFF; }
+.attention-card.tone-cyan   { --tone: var(--accent); }
+.attention-card.tone-green  { --tone: var(--gain); }
+.attention-icon {
+  width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 20px !important;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.attention-title { display: block; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.attention-value { display: block; margin-top: 2px; font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; color: var(--text); line-height: 1.25; }
+.attention-unit  { margin-left: 6px; font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--muted); }
+.attention-cta   { display: block; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--tone); }
+
+/* ── Sorting ──────────────────────────────────────────────────────────── */
+.sort-th {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-2); border-radius: 4px; padding: 2px 0;
+}
+.sort-th:hover { color: var(--text); }
+.sort-th .sort-icon { font-size: 15px !important; color: var(--muted); }
+.sort-th.is-sorted, .sort-th.is-sorted .sort-icon { color: var(--accent); }
+table[data-dom-sort] thead th { cursor: pointer; user-select: none; }
+table[data-dom-sort] thead th:hover { color: var(--text) !important; }
+table[data-dom-sort] thead th.dom-sorted { color: var(--accent) !important; }
+table[data-dom-sort] thead th.dom-sorted::after { content: ' ' attr(data-sort-arrow); }
+
+.sort-select-wrap {
+  display: inline-flex; align-items: center; gap: 4px; height: 36px; padding-left: 10px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2);
+}
+.sort-select-wrap:focus-within { border-color: var(--accent); }
+.sort-select {
+  height: 34px; border: 0 !important; background-color: transparent !important; box-shadow: none !important;
+  font-size: 13px; color: var(--text); padding: 0 2rem 0 4px; cursor: pointer;
+}
+
+/* ── Quick filters / saved views ──────────────────────────────────────── */
+.qf-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2);
+  font-size: 12px; font-weight: 500; color: var(--text-2);
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+.qf-chip .material-symbols-outlined { font-size: 16px; }
+.qf-chip:hover { color: var(--text); border-color: rgba(34, 211, 255, 0.45); }
+.qf-chip.is-on {
+  color: #04101F; font-weight: 600; border-color: transparent;
+  background: linear-gradient(135deg, #22D3FF 0%, #3DB4FF 55%, #6B8CFF 100%);
+  box-shadow: 0 0 12px rgba(34, 211, 255, 0.3);
+}
+.qf-count {
+  min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; display: inline-grid; place-items: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600;
+  background: rgba(255, 255, 255, 0.07); color: var(--text);
+}
+.qf-chip.is-on .qf-count { background: rgba(4, 16, 31, 0.18); color: #04101F; }
+.qf-chip-group { display: inline-flex; align-items: center; }
+.qf-chip-group .qf-chip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.qf-remove {
+  height: 30px; width: 28px; display: grid; place-items: center; color: var(--muted);
+  border: 1px solid var(--line); border-left: 0; border-radius: 0 999px 999px 0; background: var(--panel-2);
+}
+.qf-remove .material-symbols-outlined { font-size: 15px; }
+.qf-remove:hover { color: var(--loss); }
+.qf-divider { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.qf-add { border-style: dashed; }
+.qf-clear { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--accent); }
+.qf-clear:hover { text-decoration: underline; }
+.qf-save-form { display: inline-flex; align-items: center; gap: 6px; }
+.qf-save-form input {
+  height: 30px; width: 180px; padding: 0 10px; border-radius: 999px; font-size: 12px;
+  background: var(--panel-2); border: 1px solid var(--accent); color: var(--text);
+}
+
+/* ── Keyboard shortcuts ───────────────────────────────────────────────── */
+.kbd-lg { min-width: 26px; height: 26px; font-size: 12px; color: var(--text); }
+.go-hint {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px); z-index: 130;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+  max-width: min(92vw, 860px); padding: 10px 14px; border-radius: 10px;
+  background: rgba(19, 26, 36, 0.97); border: 1px solid rgba(34, 211, 255, 0.4);
+  box-shadow: 0 0 24px rgba(34, 211, 255, 0.2); font-size: 12px; color: var(--text-2);
+  opacity: 0; pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.go-hint.is-on { opacity: 1; transform: translate(-50%, 0); }

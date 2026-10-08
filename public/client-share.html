@@ -4,47 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meridian — Client</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
-            mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
-          },
-          colors: {
-            emerald: { 300: '#8CFFD0', 400: '#2CFFA8', 500: '#00E68A' },
-            amber:   { 200: '#FFE9A8', 300: '#FFD966', 400: '#FFC233', 500: '#FFAA00' },
-            sky:     { 300: '#9BEAFF', 400: '#3DD8FF', 500: '#00C2FF' },
-            blue:    { 400: '#6B8CFF', 500: '#4D6BFF' },
-            purple:  { 300: '#CDB4FF', 400: '#B18CFF', 500: '#9B6BFF' },
-            red:     { 400: '#FF4D6D', 500: '#FF2E55' },
-            green:   { 400: '#2CFFA8' },
-            'neon-cyan':   '#22D3FF',
-            'neon-violet': '#9B6BFF',
-            'neon-pink':   '#FF3DCB',
-            background:                  '#0A0E14',
-            'surface-container-low':     '#0F141C',
-            'surface-container':         '#131A24',
-            'surface-container-high':    '#1A2230',
-            'surface-container-highest': '#222C3C',
-            'surface-variant':           '#222C3C',
-            'outline-variant':           '#2A3547',
-            outline:                     '#8392A8',
-            primary:                     '#22D3FF',
-            'on-primary':                '#04101F',
-            'on-surface':                '#E6EDF7',
-            'on-surface-variant':        '#AEBBCD',
-            error:                       '#FF4D6D',
-          }
-        }
-      }
-    }
-  </script>
   <style>
     .font-playfair { font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
     body { font-feature-settings: 'tnum' 1; }
@@ -59,6 +20,7 @@
     .tbl-row { transition: background .15s; }
     .tbl-row:hover { background: rgba(34, 211, 255,0.07); box-shadow: inset 3px 0 0 #22D3FF; }
   </style>
+  <link rel="stylesheet" href="/css/app.css?v=f648d974e8">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased min-h-screen">
 

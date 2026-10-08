@@ -1,0 +1,5 @@
+/* Tailwind entry — compiled to public/css/app.css by `npm run build`.
+   Hand-written theme styles live in public/style.css. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
