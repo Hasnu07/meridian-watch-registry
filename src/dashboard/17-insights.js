@@ -72,15 +72,16 @@ function sparklineSvg(values, { color = '#22D3FF', height = 34, label = '' } = {
   const id = `spk${++_sparkSeq}`;
   const zeroY = y(0).toFixed(1);
   const last = vals.length - 1;
-  return `<svg class="sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label || '12-month trend')}" style="height:${H}px">
+  // The SVG stretches to the tile width (preserveAspectRatio=none), so the end
+  // marker is an HTML dot laid over it — a <circle> would be squashed into an oval.
+  return `<div class="spark-wrap"><svg class="sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label || '12-month trend')}" style="height:${H}px">
     <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/>
     </linearGradient></defs>
     ${min < 0 ? `<line x1="0" x2="${W}" y1="${zeroY}" y2="${zeroY}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/>` : ''}
     <polygon points="0,${zeroY} ${pts.join(' ')} ${W},${zeroY}" fill="url(#${id})"/>
     <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" style="filter:drop-shadow(0 0 3px ${color})"/>
-    <circle cx="${x(last).toFixed(1)}" cy="${y(vals[last]).toFixed(1)}" r="2.4" fill="${color}"/>
-  </svg>`;
+  </svg><span class="spark-dot" style="left:100%;top:${y(vals[last]).toFixed(1)}px;background:${color};box-shadow:0 0 6px ${color}"></span></div>`;
 }
 // Sparkline with a one-line caption ("12 mo · GBP")
 function sparkBlock(values, opts = {}) {

@@ -207,23 +207,40 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Display: neon cursor switch (cursor.js owns the behaviour) ────────────
+// ── Cursor mode: neon (animated + morph) or normal ─────────────────────────
+// Two controls share one setting: the top-bar button and Settings → Display.
+// cursor.js owns the behaviour and fires "neoncursorchange" whenever it flips.
 (function () {
-  const btn = document.getElementById('neonCursorToggle');
-  if (!btn) return;
   const supported = typeof window.setNeonCursor === 'function';
-  const sync = () => btn.setAttribute('aria-checked', String(supported && window.neonCursorEnabled()));
-  if (!supported) {            // touch screen / no fine pointer: nothing to toggle
-    btn.disabled = true;
-    btn.title = 'Not available on touch screens';
+  const topBtn = document.getElementById('cursorModeBtn');
+  const sw     = document.getElementById('neonCursorToggle');
+  const on = () => supported && window.neonCursorEnabled();
+
+  function sync() {
+    const isOn = on();
+    if (sw) sw.setAttribute('aria-checked', String(isOn));
+    if (topBtn) {
+      topBtn.setAttribute('aria-pressed', String(isOn));
+      topBtn.classList.toggle('is-on', isOn);
+      document.getElementById('cursorModeIcon').textContent  = isOn ? 'ads_click' : 'arrow_selector_tool';
+      document.getElementById('cursorModeLabel').textContent = isOn ? 'Neon' : 'Normal';
+      topBtn.title = isOn ? 'Neon cursor is on — click for the normal cursor' : 'Normal cursor — click to turn the neon cursor back on';
+    }
   }
-  btn.addEventListener('click', () => {
+  function toggle() {
     if (!supported) return;
-    const on = !window.neonCursorEnabled();
-    window.setNeonCursor(on);
+    const next = !window.neonCursorEnabled();
+    window.setNeonCursor(next);
     // Patek Desk runs in an iframe with its own copy of the cursor
-    try { document.getElementById('patekDeskFrame')?.contentWindow?.setNeonCursor?.(on); } catch {}
-    sync();
-  });
+    try { document.getElementById('patekDeskFrame')?.contentWindow?.setNeonCursor?.(next); } catch {}
+  }
+
+  if (!supported) {            // touch screen / no fine pointer: nothing to toggle
+    if (sw) { sw.disabled = true; sw.title = 'Not available on touch screens'; }
+    topBtn?.remove();
+  }
+  sw?.addEventListener('click', toggle);
+  topBtn?.addEventListener('click', toggle);
+  window.addEventListener('neoncursorchange', sync);
   sync();
 })();

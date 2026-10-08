@@ -141,71 +141,14 @@ div.neon-sign { cursor: default; }
 }
 
 /* ── Neon cursor (cursor.js) ──────────────────────────────────────────── */
-/* Native cursor hidden only while the neon cursor is active; text fields keep the I-beam */
+/* The cursor is drawn on one transparent full-screen canvas that is wiped
+   and redrawn every frame (no moving glowing elements → no trails). */
 html.neon-cursor, html.neon-cursor * { cursor: none !important; }
 html.neon-cursor :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="range"]):not([type="color"]), textarea, [contenteditable=""], [contenteditable="true"]) { cursor: text !important; }
 
-.nc-dot, .nc-ring, .nc-ripple { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 2147483647; }
-.nc-dot, .nc-ring { opacity: 0; transition: opacity 0.2s ease; will-change: transform; }
-html.nc-visible .nc-dot, html.nc-visible .nc-ring { opacity: 1; }
-html.nc-text .nc-dot, html.nc-text .nc-ring { opacity: 0; }
-
-/* Precise core: sits exactly under the pointer */
-.nc-dot { width: 0; height: 0; }
-.nc-dot::before {
-  content: ''; position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%;
-  background: #EAFDFF;
-  box-shadow: 0 0 0 1px rgba(34, 211, 255, 0.9), 0 0 6px #22D3FF, 0 0 14px #22D3FF;
-  transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-/* Trailing ring */
-.nc-ring { width: 0; height: 0; }
-.nc-ring-shape {
-  position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 50%;
-  border: 1.5px solid rgba(34, 211, 255, 0.85);
-  box-shadow: 0 0 8px rgba(34, 211, 255, 0.55), inset 0 0 6px rgba(34, 211, 255, 0.3);
-  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-}
-
-/* Hover over something clickable: ring grows, turns pink, spins like a reticle */
-html.nc-hover .nc-ring-shape {
-  transform: scale(1.45);
-  border-color: #FF3DCB; border-style: dashed;
-  background-color: rgba(255, 61, 203, 0.07);
-  box-shadow: 0 0 10px rgba(255, 61, 203, 0.6), inset 0 0 8px rgba(255, 61, 203, 0.35);
-  animation: nc-spin 3.2s linear infinite;
-}
-html.nc-hover .nc-dot::before {
-  transform: scale(1.35); background: #FFE3F7;
-  box-shadow: 0 0 0 1px rgba(255, 61, 203, 0.9), 0 0 6px #FF3DCB, 0 0 16px #FF3DCB;
-}
-/* Disabled control: dim, no reticle */
-html.nc-disabled .nc-ring-shape { border-color: rgba(131, 146, 168, 0.6); box-shadow: none; transform: scale(0.85); }
-html.nc-disabled .nc-dot::before { background: #8392A8; box-shadow: none; }
-
-/* Pressed: squeeze */
-html.nc-down .nc-ring-shape { transform: scale(0.72); border-style: solid; }
-html.nc-down.nc-hover .nc-ring-shape { transform: scale(1.1); }
-html.nc-down .nc-dot::before { transform: scale(0.8); }
-
-/* Click ripple */
-.nc-ripple {
-  width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
-  border: 2px solid #22D3FF; box-shadow: 0 0 10px #22D3FF;
-  animation: nc-ripple 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-.nc-ripple.is-hover { border-color: #FF3DCB; box-shadow: 0 0 12px #FF3DCB; }
-
-@keyframes nc-spin { to { rotate: 360deg; } }
-@keyframes nc-ripple {
-  from { transform: scale(1); opacity: 0.9; }
-  to   { transform: scale(5.5); opacity: 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html.nc-hover .nc-ring-shape { animation: none; }
-  .nc-ring-shape, .nc-dot::before { transition: none; }
+.nc-canvas {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  pointer-events: none; z-index: 2147483647;
 }
 
 /* Settings switch */
@@ -220,3 +163,7 @@ html.nc-down .nc-dot::before { transform: scale(0.8); }
 .neon-switch[aria-checked="true"] { background: rgba(34, 211, 255, 0.15); border-color: #22D3FF; box-shadow: 0 0 12px rgba(34, 211, 255, 0.35); }
 .neon-switch[aria-checked="true"] .neon-switch-knob { transform: translateX(22px); background: #EAFDFF; box-shadow: 0 0 6px #22D3FF, 0 0 14px #22D3FF; }
 .neon-switch:disabled { opacity: 0.5; }
+
+/* Top-bar cursor mode button: lit while the neon cursor is on */
+.cursor-mode-btn.is-on { color: #E6EDF7; border-color: rgba(34, 211, 255, 0.55); box-shadow: 0 0 12px rgba(34, 211, 255, 0.25); }
+.cursor-mode-btn.is-on .material-symbols-outlined { color: #22D3FF; filter: drop-shadow(0 0 4px rgba(34, 211, 255, 0.8)); }

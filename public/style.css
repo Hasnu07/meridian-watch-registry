@@ -37,14 +37,19 @@ body {
   font-feature-settings: 'tnum' 1, 'zero' 0;
   -webkit-font-smoothing: antialiased;
   background-color: var(--bg);
-  /* faint terminal grid + two soft neon washes in opposite corners */
+}
+/* Faint terminal grid + two soft neon washes, painted once on its own fixed
+   layer (instead of background-attachment: fixed, which repaints the whole
+   viewport whenever anything moves and can leave trails on some GPUs). */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background-image:
     radial-gradient(900px 520px at 100% -8%, rgba(155, 107, 255, 0.09), transparent 62%),
     radial-gradient(760px 460px at 12% 108%, rgba(34, 211, 255, 0.07), transparent 60%),
     linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
   background-size: auto, auto, 40px 40px, 40px 40px;
-  background-attachment: fixed;
+  will-change: transform;
 }
 
 /* Numbers line up in every column */
@@ -465,3 +470,124 @@ table[data-dom-sort] thead th.dom-sorted::after { content: ' ' attr(data-sort-ar
   opacity: 0; pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease;
 }
 .go-hint.is-on { opacity: 1; transform: translate(-50%, 0); }
+.spark-wrap { position: relative; }
+.spark-dot {
+  position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ── Vault tiles → detailed charts (22-vault-charts.js) ──────────────── */
+.vault-tile { cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+.vault-tile:not(.is-active):hover { transform: translateY(-2px); }
+.vault-tile-open {
+  font-size: 18px !important; color: var(--muted); opacity: 0.55; flex-shrink: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.vault-tile:hover .vault-tile-open, .vault-tile:focus-visible .vault-tile-open { opacity: 1; color: var(--tile, var(--accent)); transform: scale(1.1); }
+.vault-tile-close {
+  display: none; width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; place-items: center;
+  color: var(--text-2); border: 1px solid var(--line); background: var(--panel-2);
+}
+.vault-tile-close:hover { color: var(--text); border-color: rgba(34, 211, 255, 0.5); }
+.vault-tile.is-active { cursor: default; transform: none; }
+.vault-tile.is-active .vault-tile-close { display: grid; }
+.vault-tile.is-active .vault-tile-open,
+.vault-tile.is-active .vault-tile-spark { display: none; }
+.vault-detail { display: none; }
+.vault-tile.is-active .vault-detail { display: block; margin-top: 18px; }
+
+/* Expanded layout: chosen tile on the left, the other three stacked on the right */
+#vaultTiles.is-expanded { grid-template-columns: minmax(0, 1fr) 300px; align-items: stretch; }
+#vaultTiles.is-expanded > .vault-tile.is-active { grid-column: 1; grid-row: 1 / span 3; }
+#vaultTiles.is-expanded > .vault-tile:not(.is-active) { grid-column: 2; padding: 14px 16px; }
+#vaultTiles.is-expanded > .vault-tile:not(.is-active) .font-playfair { font-size: 1.2rem; }
+#vaultTiles.is-expanded > .vault-tile:not(.is-active) .spark-caption { display: none; }
+@media (max-width: 1023px) {
+  #vaultTiles.is-expanded { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #vaultTiles.is-expanded > .vault-tile.is-active { grid-column: 1 / -1; grid-row: 1; }
+  #vaultTiles.is-expanded > .vault-tile:not(.is-active) { grid-column: auto; grid-row: 2; }
+}
+@media (max-width: 639px) {
+  #vaultTiles.is-expanded { grid-template-columns: minmax(0, 1fr); }
+  #vaultTiles.is-expanded > .vault-tile:not(.is-active) { grid-row: auto; }
+}
+
+/* Layout morph (View Transitions API, Chrome/Edge): tiles glide to their new spots */
+::view-transition-group(*) { animation-duration: 0.45s; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+
+/* Chart */
+.vd-chart { position: relative; }
+.vd-chart svg { display: block; width: 100%; height: auto; overflow: visible; outline: none; border-radius: 6px; }
+.vd-chart svg:focus-visible { box-shadow: 0 0 0 2px rgba(34, 211, 255, 0.6); }
+.vc-grid { stroke: rgba(255, 255, 255, 0.06); }
+.vc-zero { stroke: rgba(255, 255, 255, 0.22); stroke-dasharray: 3 4; }
+.vc-axis { fill: var(--muted); font: 11px 'IBM Plex Mono', monospace; }
+.vc-cross { stroke: rgba(230, 237, 247, 0.4); stroke-dasharray: 3 3; opacity: 0; transition: opacity 0.12s ease; pointer-events: none; }
+.vd-chart.is-hovering .vc-cross { opacity: 1; }
+.vc-bar {
+  transform-box: view-box;
+  animation: vc-grow 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(120ms + var(--d, 0ms));
+  transition: opacity 0.15s ease;
+}
+.vd-chart.is-hovering .vc-bar:not(.is-on) { opacity: 0.32; }
+.vc-line {
+  fill: none; stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 4px currentColor);
+  animation: vc-draw 1.1s 0.3s ease-out forwards;
+  pointer-events: none;
+}
+.vc-area { opacity: 0; animation: vc-fade 0.8s 0.55s ease-out forwards; pointer-events: none; }
+.vc-pt {
+  opacity: 0; pointer-events: none;
+  animation: vc-fade 0.3s ease-out forwards; animation-delay: calc(420ms + var(--d, 0ms));
+  transition: r 0.15s ease, stroke-width 0.15s ease;
+}
+.vc-pt.is-on { r: 5.5; stroke-width: 2.5; }
+.vd-chart.no-anim .vc-bar, .vd-chart.no-anim .vc-line, .vd-chart.no-anim .vc-area, .vd-chart.no-anim .vc-pt { animation-duration: 0s; animation-delay: 0s; }
+
+/* Tooltip */
+.vd-tip {
+  position: absolute; top: 8px; left: 0; min-width: 170px; padding: 8px 10px; border-radius: 8px;
+  background: rgba(19, 26, 36, 0.97); border: 1px solid rgba(34, 211, 255, 0.4);
+  box-shadow: 0 0 18px rgba(34, 211, 255, 0.18); font-size: 12px; color: var(--text-2);
+  pointer-events: none; opacity: 0; transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease, left 0.08s linear;
+}
+.vd-chart.is-hovering .vd-tip { opacity: 1; transform: none; }
+.vd-tip-title { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.vd-tip-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.vd-tip-row b { margin-left: auto; padding-left: 12px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--text); }
+.vd-key { display: inline-block; width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.vd-key-line { height: 3px; border-radius: 2px; width: 12px; }
+
+.vd-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; font-size: 12px; color: var(--text-2); }
+.vd-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.vd-legend i { display: inline-block; }
+
+/* Summary boxes */
+.vd-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+@media (min-width: 1280px) { .vd-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.vd-stat { padding: 10px 12px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); animation: vc-rise 0.4s ease-out both; }
+.vd-stat:nth-child(2) { animation-delay: 0.05s; } .vd-stat:nth-child(3) { animation-delay: 0.1s; } .vd-stat:nth-child(4) { animation-delay: 0.15s; }
+.vd-stat.is-gain { box-shadow: inset 3px 0 0 var(--gain); }
+.vd-stat.is-loss { box-shadow: inset 3px 0 0 var(--loss); }
+.vd-stat-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.vd-stat-value { margin-top: 2px; font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 600; color: var(--text); }
+.vd-stat.is-gain .vd-stat-value { color: var(--gain); }
+.vd-stat.is-loss .vd-stat-value { color: var(--loss); }
+.vd-stat-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.vd-note { margin-top: 10px; font-size: 11px; color: var(--muted); }
+
+@keyframes vc-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes vc-draw { to { stroke-dashoffset: 0; } }
+@keyframes vc-fade { to { opacity: 1; } }
+@keyframes vc-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vc-bar, .vc-line, .vc-area, .vc-pt, .vd-stat { animation: none !important; }
+  .vc-line { stroke-dashoffset: 0; }
+  .vc-area, .vc-pt { opacity: 1; }
+}

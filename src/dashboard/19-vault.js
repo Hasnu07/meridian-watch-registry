@@ -64,23 +64,33 @@ async function loadVaultInsights() {
   const t = watchTrendSeries(watches);
   const longest = watches.filter(w => w.status === 'wishlist').reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
   const pnlTotal = t.pnl.reduce((a, b) => a + b, 0);
-  const tile = (label, value, sub, spark) => `
-    <div class="glass-surface rounded-lg p-5">
-      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-2">${label}</p>
-      <div class="font-playfair text-2xl text-on-surface leading-tight">${value}</div>
-      <p class="text-xs text-on-surface-variant mt-1">${sub}</p>
-      ${spark}
-    </div>`;
+  // Each tile opens a detailed, interactive chart (22-vault-charts.js)
+  const tile = (key, label, value, sub, spark) => `
+    <article class="vault-tile glass-surface rounded-lg p-5" data-tile="${key}" role="button" tabindex="0" aria-expanded="false" aria-label="Open the ${label.replace('&amp;', 'and')} chart" style="view-transition-name: vt-${key}">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-2">${label}</p>
+          <div class="font-playfair text-2xl text-on-surface leading-tight">${value}</div>
+          <p class="text-xs text-on-surface-variant mt-1">${sub}</p>
+        </div>
+        <span class="vault-tile-open material-symbols-outlined" aria-hidden="true">open_in_full</span>
+        <button type="button" class="vault-tile-close" data-close-chart aria-label="Close chart" title="Close (Esc)"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="vault-tile-spark">${spark}</div>
+      <div class="vault-detail"></div>
+    </article>`;
   document.getElementById('vaultTiles').innerHTML = [
-    tile('Realised P&amp;L', fmt.byCurrency(stats.net_pnl, { signed: true, colour: true }), `${stats.sold_count} sold · sale − list price`,
+    tile('pnl', 'Realised P&amp;L', fmt.byCurrency(stats.net_pnl, { signed: true, colour: true }), `${stats.sold_count} sold · sale − list price`,
          sparkBlock(t.pnl, { color: pnlTotal >= 0 ? SPARK.green : SPARK.red, caption: `P&L / month · ${t.currency}`, label: 'Profit and loss per month' })),
-    tile('Sales', fmt.byCurrency(stats.total_sale_value), `${stats.sold_count} piece${stats.sold_count !== 1 ? 's' : ''} sold`,
+    tile('sales', 'Sales', fmt.byCurrency(stats.total_sale_value), `${stats.sold_count} piece${stats.sold_count !== 1 ? 's' : ''} sold`,
          sparkBlock(t.soldCount, { color: SPARK.pink, caption: 'pieces sold / month', label: 'Pieces sold per month' })),
-    tile('Active inventory', fmt.byCurrency(stats.active_list_value), `${stats.purchased_count} bought, not yet sold`,
+    tile('inventory', 'Active inventory', fmt.byCurrency(stats.active_list_value), `${stats.purchased_count} bought, not yet sold`,
          sparkBlock(t.bought, { color: SPARK.violet, caption: 'pieces bought / month', label: 'Pieces bought per month' })),
-    tile('Wishlist', `${stats.wishlist_count}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">pieces</span>`, stats.wishlist_count ? `longest wait ${longest} day${longest !== 1 ? 's' : ''}` : 'nothing waiting',
+    tile('wishlist', 'Wishlist', `${stats.wishlist_count}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">pieces</span>`, stats.wishlist_count ? `longest wait ${longest} day${longest !== 1 ? 's' : ''}` : 'nothing waiting',
          sparkBlock(t.wishAdds, { color: SPARK.amber, caption: 'added to wishlist / month', label: 'Watches added to the wishlist per month' })),
   ].join('');
+  _vaultData = { watches, stats };
+  restoreVaultChart();             // keep an open chart open across refreshes
 
   // ── Longest waiting ──
   const waiting = watches.filter(w => w.status === 'wishlist')

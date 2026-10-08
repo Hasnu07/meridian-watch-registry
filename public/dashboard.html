@@ -7,10 +7,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Tilt+Neon&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=94cc2ad9d8">
-  <script src="/cursor.js?v=a8380fbe4f"></script>
-  <link rel="stylesheet" href="/neon.css?v=d2d1ae7517">
-  <link rel="stylesheet" href="/css/app.css?v=86c65329d6">
+  <link rel="stylesheet" href="style.css?v=5cad12b007">
+  <script src="/cursor.js?v=1d36b475b2"></script>
+  <link rel="stylesheet" href="/neon.css?v=83ffa28203">
+  <link rel="stylesheet" href="/css/app.css?v=310b64d72e">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased">
 
@@ -130,6 +130,9 @@
         </div>
         <button type="button" id="shortcutsBtn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts" class="hidden md:inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-outline-variant text-on-surface-variant hover:text-on-surface hover:border-primary/50 transition-colors">
           <span class="material-symbols-outlined text-[18px]">keyboard</span><span class="kbd">?</span>
+        </button>
+        <button type="button" id="cursorModeBtn" aria-pressed="true" title="Neon cursor is on — click for the normal cursor" class="cursor-mode-btn hidden md:inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-outline-variant text-on-surface-variant hover:text-on-surface hover:border-primary/50 transition-colors">
+          <span class="material-symbols-outlined text-[18px]" id="cursorModeIcon">ads_click</span><span class="text-xs font-semibold" id="cursorModeLabel">Neon</span>
         </button>
         <!-- Action buttons -->
         <button id="addProfileBtn" class="hidden bg-primary text-on-primary text-sm font-semibold px-4 h-10 rounded-lg hover:brightness-110 active:brightness-95 transition-all flex items-center gap-2">
@@ -1940,6 +1943,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=f45dec31d2"></script>
+<script src="/js/dashboard.js?v=cb59e2d8bd"></script>
 </body>
 </html>
