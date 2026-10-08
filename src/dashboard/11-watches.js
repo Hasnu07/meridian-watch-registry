@@ -37,12 +37,12 @@ async function loadWatches(q, source) {
 }
 
 function renderWatchSparklines(watches) {
-  const t = watchTrendSeries(watches);
-  const pnlTotal = t.pnl.reduce((a, b) => a + b, 0);
-  document.getElementById('wv-value-spark').innerHTML    = sparkBlock(t.proceeds,  { color: SPARK.cyan,   caption: `sales value / month · ${t.currency}`, label: 'Sales value per month' });
-  document.getElementById('wv-active-spark').innerHTML   = sparkBlock(t.bought,    { color: SPARK.violet, caption: 'pieces bought / month', label: 'Pieces bought per month' });
-  document.getElementById('wv-proceeds-spark').innerHTML = sparkBlock(t.soldCount, { color: SPARK.pink,   caption: 'pieces sold / month', label: 'Pieces sold per month' });
-  document.getElementById('wv-pnl-spark').innerHTML      = sparkBlock(t.pnl,       { color: pnlTotal >= 0 ? SPARK.green : SPARK.red, caption: `P&L / month · ${t.currency}`, label: 'Profit and loss per month' });
+  // Same series + colours as the Vault tiles / zoomed charts (VAULT_METRICS)
+  const vs = vaultSeries(watches, 12);
+  document.getElementById('wv-value-spark').innerHTML    = sparkBlock(vs.boughtCount, { color: SPARK.cyan, caption: 'pieces bought / month', label: 'Pieces bought per month' });
+  document.getElementById('wv-active-spark').innerHTML   = vaultSpark('inventory', vs);
+  document.getElementById('wv-proceeds-spark').innerHTML = vaultSpark('sales', vs);
+  document.getElementById('wv-pnl-spark').innerHTML      = vaultSpark('pnl', vs);
 }
 
 function renderWatches() {

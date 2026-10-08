@@ -591,3 +591,6 @@ table[data-dom-sort] thead th.dom-sorted::after { content: ' ' attr(data-sort-ar
   .vc-line { stroke-dashoffset: 0; }
   .vc-area, .vc-pt { opacity: 1; }
 }
+.vd-tip-extra { color: var(--muted); font-size: 11px; padding-left: 18px; }
+.vd-tip-extra b { font-size: 11px; color: var(--text-2); }
+.vc-pt.is-last { filter: drop-shadow(0 0 4px currentColor); }

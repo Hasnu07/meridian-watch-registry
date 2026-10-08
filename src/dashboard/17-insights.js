@@ -89,18 +89,3 @@ function sparkBlock(values, opts = {}) {
 }
 
 const SPARK = { cyan: '#22D3FF', violet: '#B18CFF', green: '#2CFFA8', red: '#FF4D6D', amber: '#FFC233', pink: '#FF3DCB' };
-
-// Trend lines for a set of watches (used by the Watches tiles and the Vault)
-function watchTrendSeries(watches) {
-  const sold = watches.filter(w => w.status === 'sold');
-  const cur = dominantCurrency(sold.length ? sold : watches);
-  const soldCur = sold.filter(w => (w.currency || 'CHF') === cur);
-  return {
-    currency:  cur,
-    pnl:       monthlySeries(soldCur.filter(w => watchPnl(w) != null), watchDate, watchPnl),
-    proceeds:  monthlySeries(soldCur.filter(w => w.sale_price != null), watchDate, w => w.sale_price),
-    soldCount: monthlySeries(sold, watchDate),
-    bought:    monthlySeries(watches.filter(w => w.status === 'purchased' || w.status === 'sold'), watchDate),
-    wishAdds:  monthlySeries(watches.filter(w => w.status === 'wishlist'), w => (w.created_at || '').slice(0, 10)),
-  };
-}

@@ -61,9 +61,8 @@ async function loadVaultInsights() {
       </div>`;
 
   // ── At a glance: four KPI tiles with 12-month trend lines ──
-  const t = watchTrendSeries(watches);
+  const vs = vaultSeries(watches, 12);       // same series as the zoomed charts
   const longest = watches.filter(w => w.status === 'wishlist').reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
-  const pnlTotal = t.pnl.reduce((a, b) => a + b, 0);
   // Each tile opens a detailed, interactive chart (22-vault-charts.js)
   const tile = (key, label, value, sub, spark) => `
     <article class="vault-tile glass-surface rounded-lg p-5" data-tile="${key}" role="button" tabindex="0" aria-expanded="false" aria-label="Open the ${label.replace('&amp;', 'and')} chart" style="view-transition-name: vt-${key}">
@@ -81,13 +80,13 @@ async function loadVaultInsights() {
     </article>`;
   document.getElementById('vaultTiles').innerHTML = [
     tile('pnl', 'Realised P&amp;L', fmt.byCurrency(stats.net_pnl, { signed: true, colour: true }), `${stats.sold_count} sold · sale − list price`,
-         sparkBlock(t.pnl, { color: pnlTotal >= 0 ? SPARK.green : SPARK.red, caption: `P&L / month · ${t.currency}`, label: 'Profit and loss per month' })),
+         vaultSpark('pnl', vs)),
     tile('sales', 'Sales', fmt.byCurrency(stats.total_sale_value), `${stats.sold_count} piece${stats.sold_count !== 1 ? 's' : ''} sold`,
-         sparkBlock(t.soldCount, { color: SPARK.pink, caption: 'pieces sold / month', label: 'Pieces sold per month' })),
+         vaultSpark('sales', vs)),
     tile('inventory', 'Active inventory', fmt.byCurrency(stats.active_list_value), `${stats.purchased_count} bought, not yet sold`,
-         sparkBlock(t.bought, { color: SPARK.violet, caption: 'pieces bought / month', label: 'Pieces bought per month' })),
+         vaultSpark('inventory', vs)),
     tile('wishlist', 'Wishlist', `${stats.wishlist_count}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">pieces</span>`, stats.wishlist_count ? `longest wait ${longest} day${longest !== 1 ? 's' : ''}` : 'nothing waiting',
-         sparkBlock(t.wishAdds, { color: SPARK.amber, caption: 'added to wishlist / month', label: 'Watches added to the wishlist per month' })),
+         vaultSpark('wishlist', vs)),
   ].join('');
   _vaultData = { watches, stats };
   restoreVaultChart();             // keep an open chart open across refreshes
