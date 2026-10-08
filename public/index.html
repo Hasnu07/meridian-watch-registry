@@ -3,119 +3,137 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meridian — Elite Horology</title>
+  <title>Meridian — Sign in</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+          },
           colors: {
-            background: '#16130b',
-            'surface-container-low': '#1f1b13',
-            'surface-container': '#231f17',
-            'surface-container-highest': '#38342b',
-            'outline-variant': '#4d4635',
-            outline: '#99907c',
-            primary: '#f2ca50',
-            'on-primary': '#3c2f00',
-            'on-surface': '#eae1d4',
-            'on-surface-variant': '#d0c5af',
-            error: '#ffb4ab',
-            'error-container': '#93000a',
+            emerald: { 300: '#8CFFD0', 400: '#2CFFA8', 500: '#00E68A' },
+            amber:   { 200: '#FFE9A8', 300: '#FFD966', 400: '#FFC233', 500: '#FFAA00' },
+            sky:     { 300: '#9BEAFF', 400: '#3DD8FF', 500: '#00C2FF' },
+            blue:    { 400: '#6B8CFF', 500: '#4D6BFF' },
+            purple:  { 300: '#CDB4FF', 400: '#B18CFF', 500: '#9B6BFF' },
+            red:     { 400: '#FF4D6D', 500: '#FF2E55' },
+            green:   { 400: '#2CFFA8' },
+            'neon-cyan':   '#22D3FF',
+            'neon-violet': '#9B6BFF',
+            'neon-pink':   '#FF3DCB',
+            background: '#0A0E14',
+            'surface-container-low': '#0F141C',
+            'surface-container': '#131A24',
+            'surface-container-highest': '#222C3C',
+            'outline-variant': '#2A3547',
+            outline: '#8392A8',
+            primary: '#22D3FF',
+            'on-primary': '#04101F',
+            'on-surface': '#E6EDF7',
+            'on-surface-variant': '#AEBBCD',
+            error: '#FF4D6D',
+            'error-container': '#5A1220',
           }
         }
       }
     }
   </script>
   <style>
-    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
-    .glass-card {
-      background: rgba(31, 27, 19, 0.85);
-      backdrop-filter: blur(24px);
-      border: 1px solid rgba(255,255,255,0.08);
+    body { font-family: 'IBM Plex Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .grid-bg {
+      background-color: #0A0E14;
+      background-image:
+        linear-gradient(rgba(34, 211, 255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34, 211, 255,0.05) 1px, transparent 1px);
+      background-size: 48px 48px;
     }
+    .brand-mark {
+      width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center;
+      background: linear-gradient(135deg, #22D3FF 0%, #9B6BFF 100%);
+      color: #04101F; font: 700 20px 'IBM Plex Mono', monospace;
+    }
+    .field:focus { border-color: #22D3FF; box-shadow: 0 0 0 3px rgba(34, 211, 255,0.22); outline: none; }
+    :focus-visible { outline: 2px solid #22D3FF; outline-offset: 2px; }
     input:-webkit-autofill,
     input:-webkit-autofill:focus {
-      -webkit-box-shadow: 0 0 0 100px #1f1b13 inset;
-      -webkit-text-fill-color: #eae1d4;
+      -webkit-box-shadow: 0 0 0 100px #070A0F inset;
+      -webkit-text-fill-color: #E6EDF7;
     }
+    .brand-mark { box-shadow: 0 0 18px rgba(34,211,255,0.4), 0 0 34px rgba(155,107,255,0.3); }
+    .grid-bg { background-image: radial-gradient(700px 420px at 85% 0%, rgba(155,107,255,0.14), transparent 60%), radial-gradient(600px 400px at 10% 100%, rgba(34,211,255,0.10), transparent 60%), linear-gradient(rgba(34,211,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,255,0.05) 1px, transparent 1px); background-size: auto, auto, 48px 48px, 48px 48px; }
+    .neon-card { position: relative; }
+    .neon-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; border-radius: 8px 8px 0 0; background: linear-gradient(90deg, #22D3FF, #9B6BFF, #FF3DCB); box-shadow: 0 0 14px rgba(155,107,255,0.6); }
+    .neon-btn { background-image: linear-gradient(135deg, #22D3FF 0%, #3DB4FF 55%, #6B8CFF 100%); box-shadow: 0 0 0 1px rgba(34,211,255,0.5), 0 0 18px rgba(34,211,255,0.35); }
+    .neon-btn:hover { box-shadow: 0 0 0 1px rgba(34,211,255,0.8), 0 0 26px rgba(34,211,255,0.55); }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
-<body class="bg-background min-h-screen flex items-center justify-center" style="background: radial-gradient(ellipse at 40% 30%, #1a150a 0%, #16130b 60%, #0e0b06 100%);">
-
-  <!-- Decorative watermark -->
-  <div class="fixed top-0 right-0 p-10 opacity-[0.03] select-none pointer-events-none text-right">
-    <p class="text-[120px] font-['Playfair_Display'] font-bold text-on-surface leading-none">M</p>
-    <p class="text-xs uppercase tracking-[0.4em] text-on-surface">Meridian Platinum</p>
-  </div>
+<body class="grid-bg min-h-screen flex items-center justify-center text-on-surface">
 
   <div class="w-full max-w-sm px-4">
-    <!-- Logo mark -->
-    <div class="text-center mb-8">
-      <svg class="inline-block mb-4" width="52" height="52" viewBox="0 0 52 52" fill="none">
-        <circle cx="26" cy="26" r="23" stroke="#f2ca50" stroke-width="1.5"/>
-        <circle cx="26" cy="26" r="17" stroke="#f2ca50" stroke-width="1" opacity="0.5"/>
-        <line x1="26" y1="26" x2="26" y2="11" stroke="#f2ca50" stroke-width="2" stroke-linecap="round"/>
-        <line x1="26" y1="26" x2="35" y2="30" stroke="#f2ca50" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="26" cy="26" r="2.5" fill="#f2ca50"/>
-        <line x1="26" y1="5" x2="26" y2="8" stroke="#f2ca50" stroke-width="1.5"/>
-        <line x1="26" y1="44" x2="26" y2="47" stroke="#f2ca50" stroke-width="1.5"/>
-        <line x1="5" y1="26" x2="8" y2="26" stroke="#f2ca50" stroke-width="1.5"/>
-        <line x1="44" y1="26" x2="47" y2="26" stroke="#f2ca50" stroke-width="1.5"/>
-      </svg>
-      <h1 class="text-3xl font-['Playfair_Display'] font-semibold text-primary tracking-wide">Meridian</h1>
-      <p class="text-[10px] uppercase tracking-[0.3em] text-outline mt-1">Elite Horology Registry</p>
+    <!-- Brand -->
+    <div class="flex items-center gap-3 mb-8">
+      <div class="brand-mark">M</div>
+      <div class="leading-tight">
+        <h1 class="text-xl font-bold tracking-tight text-on-surface">Meridian</h1>
+        <p class="text-xs font-mono text-outline">Watch Registry</p>
+      </div>
     </div>
 
     <!-- Login card -->
-    <div class="glass-card rounded-xl p-8 shadow-2xl">
-      <p class="text-on-surface-variant text-sm mb-6 text-center">Sign in to access the vault</p>
+    <div class="neon-card bg-surface-container border border-outline-variant rounded-lg p-7 shadow-2xl shadow-black/40">
+      <h2 class="text-lg font-semibold text-on-surface">Sign in</h2>
+      <p class="text-on-surface-variant text-sm mt-1 mb-6">Use your registry account to continue.</p>
 
       <form id="loginForm" autocomplete="off">
         <div class="mb-4">
-          <label class="block text-xs text-outline uppercase tracking-widest mb-2">Username</label>
+          <label for="username" class="block text-sm font-medium text-on-surface-variant mb-1.5">Username</label>
           <input
             type="text"
             id="username"
             autocomplete="username"
             required
-            class="w-full bg-[#110e07] border border-[#4d4635]/60 rounded-lg px-4 py-3 text-on-surface text-sm placeholder-outline/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+            class="field w-full bg-[#070A0F] border border-outline-variant rounded-lg px-4 h-11 text-on-surface text-sm placeholder-outline/70 transition-all"
             placeholder="username"
           >
         </div>
         <div class="mb-5">
-          <label class="block text-xs text-outline uppercase tracking-widest mb-2">Password</label>
+          <label for="password" class="block text-sm font-medium text-on-surface-variant mb-1.5">Password</label>
           <div class="relative">
             <input
               type="password"
               id="password"
               autocomplete="current-password"
               required
-              class="w-full bg-[#110e07] border border-[#4d4635]/60 rounded-lg px-4 py-3 text-on-surface text-sm placeholder-outline/50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+              class="field w-full bg-[#070A0F] border border-outline-variant rounded-lg pl-4 pr-11 h-11 text-on-surface text-sm placeholder-outline/70 transition-all"
               placeholder="Enter password"
             >
-            <button type="button" id="togglePass" class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
-              <span class="material-symbols-outlined text-[18px]">visibility</span>
+            <button type="button" id="togglePass" aria-label="Show password" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-md text-outline hover:text-on-surface hover:bg-white/5 transition-colors">
+              <span class="material-symbols-outlined text-[20px]">visibility</span>
             </button>
           </div>
         </div>
 
-        <div id="loginError" class="hidden mb-4 px-4 py-3 rounded-lg bg-error-container/20 border border-error/20 text-error text-sm"></div>
+        <div id="loginError" role="alert" class="hidden mb-4 px-4 py-3 rounded-lg bg-error-container/40 border border-error/30 text-error text-sm"></div>
 
         <button
           type="submit"
           id="loginBtn"
-          class="w-full bg-primary text-on-primary font-semibold py-3 rounded-lg text-sm tracking-wide hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/10"
+          class="neon-btn w-full bg-primary text-on-primary font-semibold h-11 rounded-lg text-sm hover:brightness-110 active:brightness-95 disabled:opacity-60 transition-all"
         >
           Sign In
         </button>
       </form>
     </div>
 
-    <p class="text-center text-[11px] text-outline/40 mt-8 uppercase tracking-widest">Meridian Watch Registry © 2026</p>
+    <p class="text-center text-xs text-outline/60 mt-6 font-mono">Meridian Watch Registry © 2026</p>
   </div>
 
   <script>
@@ -123,8 +141,8 @@
     document.getElementById('togglePass').addEventListener('click', () => {
       const inp = document.getElementById('password');
       const ico = document.querySelector('#togglePass .material-symbols-outlined');
-      if (inp.type === 'password') { inp.type = 'text'; ico.textContent = 'visibility_off'; }
-      else { inp.type = 'password'; ico.textContent = 'visibility'; }
+      if (inp.type === 'password') { inp.type = 'text'; ico.textContent = 'visibility_off'; document.getElementById('togglePass').setAttribute('aria-label', 'Hide password'); }
+      else { inp.type = 'password'; ico.textContent = 'visibility'; document.getElementById('togglePass').setAttribute('aria-label', 'Show password'); }
     });
 
     document.getElementById('loginForm').addEventListener('submit', async e => {

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Patek Desk — pricing &amp; negotiation terminal</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* Pin the layout: html/body/#root each fill 100% with overflow hidden.
        The React app inside uses its own flex-column where the header is
@@ -11,9 +12,9 @@
        more reliable than position:sticky when embedded in an iframe whose
        parent has its own scroll context. */
     html, body, #root { height: 100%; margin: 0; padding: 0; overflow: hidden; }
-    body { background: #0c0c0e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #f4f1ea; }
-    #__boot { position: fixed; inset: 0; display: grid; place-items: center; background: #0c0c0e; }
-    #__boot .mark { width: 96px; height: 96px; border-radius: 22px; border: 3px solid #c9a96a; display: grid; place-items: center; color: #c9a96a; font-weight: 700; font-size: 38px; letter-spacing: 0.08em; font-family: "Inter Tight", sans-serif; }
+    body { background: #070A0F; font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif; font-feature-settings: 'tnum' 1; color: #E6EDF7; }
+    #__boot { position: fixed; inset: 0; display: grid; place-items: center; background: #070A0F; }
+    #__boot .mark { width: 96px; height: 96px; border-radius: 22px; border: 3px solid #22D3FF; display: grid; place-items: center; color: #22D3FF; font-weight: 700; font-size: 38px; letter-spacing: 0.08em; font-family: "IBM Plex Mono", monospace; }
   </style>
 </head>
 <body>
@@ -576,9 +577,9 @@
       };
 
       const C = {
-        bg: '#0c0c0e', panel: '#131316', panel2: '#0f0f12', line: '#26262c',
-        gold: '#c9a96a', cream: '#f4f1ea', mut: '#8a857c', dim: '#5f5b53',
-        teal: '#5dcaa5', amber: '#ef9f27', red: '#e24b4a', greenbg: '#0f2e22', redbg: '#2e1414',
+        bg: '#0A0E14', panel: '#131A24', panel2: '#0F141C', line: '#222C3C',
+        gold: '#22D3FF', cream: '#E6EDF7', mut: '#8392A8', dim: '#56637A',
+        teal: '#2CFFA8', amber: '#FFC233', red: '#FF4D6D', greenbg: '#0B2A22', redbg: '#2E1218',
       };
 
       if (!loaded) return <div style={{ background: C.bg, color: C.cream, height: '100%', display: 'grid', placeItems: 'center', fontFamily: 'ui-sans-serif, system-ui' }}>Loading…</div>;
@@ -590,12 +591,12 @@
       // when this document is embedded in an iframe whose ancestor has its
       // own scroll context.
       return (
-        <div style={{ background: C.bg, height: '100%', color: C.cream, fontFamily: 'ui-sans-serif, system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: C.bg, height: '100%', color: C.cream, fontFamily: '"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
           <style>{`
             * { box-sizing: border-box; }
-            .pk-in { background:#0c0c0e; border:1px solid ${C.line}; color:${C.cream}; border-radius:8px; padding:7px 10px; font-size:13px; outline:none; width:100%; }
+            .pk-in { background:#070A0F; border:1px solid ${C.line}; color:${C.cream}; border-radius:8px; padding:7px 10px; font-size:13px; outline:none; width:100%; }
             .pk-in:focus { border-color:${C.gold}; }
-            .pk-sel { background:#0c0c0e; border:1px solid ${C.line}; color:${C.cream}; border-radius:8px; padding:7px 8px; font-size:12px; outline:none; }
+            .pk-sel { background:#070A0F; border:1px solid ${C.line}; color:${C.cream}; border-radius:8px; padding:7px 8px; font-size:12px; outline:none; }
             .pk-tab { padding:9px 16px; border-radius:9px; font-size:13px; cursor:pointer; border:1px solid transparent; background:transparent; color:${C.mut}; display:flex; align-items:center; gap:7px; }
             .pk-tab.on { background:${C.panel}; border-color:${C.line}; color:${C.cream}; }
             .pk-btn { background:transparent; border:1px solid ${C.line}; color:${C.cream}; border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
@@ -608,7 +609,7 @@
             .pk-metric::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent, ${C.gold}); opacity:0.9; }
             .pk-metric::after  { content:''; position:absolute; right:-40px; top:-40px; width:120px; height:120px; border-radius:50%;
                                  background:radial-gradient(circle, var(--accent, ${C.gold}) 0%, transparent 70%); opacity:0.07; pointer-events:none; }
-            .pk-metric:hover { transform:translateY(-2px); border-color:rgba(201,169,106,0.35); box-shadow:0 10px 30px rgba(0,0,0,0.35); }
+            .pk-metric:hover { transform:translateY(-2px); border-color:rgba(34, 211, 255,0.35); box-shadow:0 10px 30px rgba(0,0,0,0.35); }
             .pk-metric .pk-metric-val { font-variant-numeric:tabular-nums; letter-spacing:-0.01em; line-height:1.05; }
             .pk-row { border-radius:14px; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
             .pk-row:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(0,0,0,0.30); }
@@ -658,8 +659,8 @@
                       <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 40, width: 360, maxWidth: '90vw', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 12, padding: 8, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', maxHeight: 360, overflowY: 'auto' }}>
                         {deals.length === 0 && <div style={{ padding: 14, fontSize: 13, color: C.dim, textAlign: 'center' }}>No saved deals yet.</div>}
                         {deals.map(d => (
-                          <div key={d.id} style={{ padding: '9px 10px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, background: d.id === currentDealId ? 'rgba(201,169,106,0.08)' : 'transparent' }}
-                               onMouseEnter={e => e.currentTarget.style.background = '#1a1a1f'} onMouseLeave={e => e.currentTarget.style.background = d.id === currentDealId ? 'rgba(201,169,106,0.08)' : 'transparent'}>
+                          <div key={d.id} style={{ padding: '9px 10px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, background: d.id === currentDealId ? 'rgba(34, 211, 255,0.08)' : 'transparent' }}
+                               onMouseEnter={e => e.currentTarget.style.background = '#1A2230'} onMouseLeave={e => e.currentTarget.style.background = d.id === currentDealId ? 'rgba(34, 211, 255,0.08)' : 'transparent'}>
                             <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => loadDeal(d)}>
                               <div style={{ fontSize: 13, fontWeight: 600, color: C.cream, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
                               <div style={{ fontSize: 10.5, color: C.dim, marginTop: 1 }}>
@@ -668,7 +669,7 @@
                             </div>
                             <button className="pk-btn" title="Load" onClick={() => loadDeal(d)} style={{ padding: '4px 8px', fontSize: 11 }}><Upload size={12}/></button>
                             <button className="pk-btn" title="Rename" onClick={() => renameDeal(d)} style={{ padding: '4px 7px', fontSize: 11 }}>✎</button>
-                            <button className="pk-btn" title="Delete" onClick={() => deleteDeal(d)} style={{ padding: '4px 7px', fontSize: 11, borderColor: '#5a2020', color: C.red }}><Trash2 size={12}/></button>
+                            <button className="pk-btn" title="Delete" onClick={() => deleteDeal(d)} style={{ padding: '4px 7px', fontSize: 11, borderColor: '#5A1E28', color: C.red }}><Trash2 size={12}/></button>
                           </div>
                         ))}
                       </div>
@@ -827,7 +828,7 @@
                     {q ? `${filtered.length} of ${watches.length} references` : `${watches.length} references`} · list prices in native currency · market price your choice
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0c0c0e', border: `1px solid ${C.line}`, borderRadius: 9, padding: '6px 11px', minWidth: 240 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#070A0F', border: `1px solid ${C.line}`, borderRadius: 9, padding: '6px 11px', minWidth: 240 }}>
                       <Search size={14} style={{ color: C.mut, flexShrink: 0 }} />
                       <input value={libSearch} onChange={e => setLibSearch(e.target.value)}
                              placeholder="Search reference or model…"
@@ -866,7 +867,7 @@
                           </div>
                           <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{(w.marketCur||'EUR') !== 'EUR' ? `= ${eur(mEur)}` : ''}</div>
                         </div>
-                        <button onClick={() => delWatch(w.id)} className="pk-btn" style={{ padding: '7px 9px', borderColor: '#5a2020' }}><Trash2 size={14}/></button>
+                        <button onClick={() => delWatch(w.id)} className="pk-btn" style={{ padding: '7px 9px', borderColor: '#5A1E28' }}><Trash2 size={14}/></button>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 8 }}>
                         {COUNTRIES.map(c => {
@@ -988,7 +989,7 @@
     }
 
     function modeBtn(on, C) {
-      return { background: on ? C.gold : 'transparent', color: on ? '#1a1208' : C.mut, border: `1px solid ${on ? C.gold : C.line}`, borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: on ? 600 : 400, cursor: 'pointer' };
+      return { background: on ? C.gold : 'transparent', color: on ? '#04101F' : C.mut, border: `1px solid ${on ? C.gold : C.line}`, borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: on ? 600 : 400, cursor: 'pointer' };
     }
 
     function Metric({ C, n, label, value, sub, color, big }) {
@@ -997,7 +998,7 @@
       return (
         <div className="pk-metric" style={{ '--accent': accent }}>
           <div style={{ fontSize: 10.5, color: C.mut, display: 'flex', alignItems: 'center', gap: 7, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>
-            {n && <span style={{ width: 17, height: 17, borderRadius: 6, background: accent, color: '#0c0c0e', fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{n}</span>}
+            {n && <span style={{ width: 17, height: 17, borderRadius: 6, background: accent, color: '#070A0F', fontSize: 10, fontWeight: 800, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{n}</span>}
             {label}
           </div>
           <div className="pk-metric-val" style={{ fontSize: big ? 30 : 25, fontWeight: 700, color, marginTop: 12 }}>{value}</div>
@@ -1020,7 +1021,7 @@
           <button className="pk-btn" onClick={() => setOpen(o => !o)} style={{ padding: '10px 16px' }}><Plus size={15}/> Add piece to deal <ChevronDown size={14}/></button>
           {open && (
             <div style={{ position: 'absolute', top: '110%', left: 0, zIndex: 30, width: 380, maxWidth: '90vw', background: C.panel, border: `1px solid ${C.line}`, borderRadius: 12, padding: 10, boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0c0c0e', border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 10px', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#070A0F', border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 10px', marginBottom: 8 }}>
                 <Search size={14} style={{ color: C.mut }} />
                 <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="search ref or model" style={{ background: 'transparent', border: 'none', outline: 'none', color: C.cream, fontSize: 13, flex: 1 }} />
               </div>
@@ -1030,7 +1031,7 @@
                   const b = bestListEur(w, fx);
                   return (
                     <div key={w.id} onClick={() => { onAdd(w.id); setOpen(false); setQ(''); }} style={{ padding: '9px 10px', borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                         onMouseEnter={e => e.currentTarget.style.background = '#1a1a1f'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                         onMouseEnter={e => e.currentTarget.style.background = '#1A2230'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600 }}>{w.ref || '—'}</div>
                         <div style={{ fontSize: 11, color: C.mut }}>{w.model}</div>

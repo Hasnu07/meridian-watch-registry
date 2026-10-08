@@ -1,92 +1,344 @@
-/* ── Meridian Quiet Luxury — custom overrides for Tailwind CDN ─────────── */
+/* ── Meridian Terminal — trading-desk theme for the Tailwind CDN pages ───
+   Design goals (ADHD-friendly):
+   • Neon cyan = "you can act here". Green = gain/sold, red = loss,
+     amber = waiting, violet = purchased / client side. Pink and violet are
+     decoration only (gradients, tile accents) and never carry meaning.
+   • Solid panels with crisp 1px borders; glow is kept to actions, the active
+     nav item and key figures so it guides the eye rather than shouting.
+   • Numbers in tabular figures so columns line up and scan fast.
+   • Zebra rows + strong hover so the eye never loses its place in a table.
+   • Always-visible keyboard focus, and motion cut to the essentials.
+   ──────────────────────────────────────────────────────────────────────── */
 
-/* Material Symbols font variation */
+:root {
+  --bg:        #0A0E14;
+  --panel:     #131A24;
+  --panel-2:   #0F141C;
+  --panel-hi:  #1A2230;
+  --line:      #222C3C;
+  --line-soft: rgba(255, 255, 255, 0.06);
+  --text:      #E6EDF7;
+  --text-2:    #AEBBCD;
+  --muted:     #8392A8;
+  --accent:    #22D3FF;
+  --accent-bg: rgba(34, 211, 255, 0.12);
+  --gain:      #2CFFA8;
+  --loss:      #FF4D6D;
+  --warn:      #FFC233;
+  --violet:    #9B6BFF;
+  --pink:      #FF3DCB;
+  --blue:      #4D6BFF;
+  --neon-line: linear-gradient(90deg, #22D3FF 0%, #9B6BFF 50%, #FF3DCB 100%);
+}
+
+html { color-scheme: dark; }
+body {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1, 'zero' 0;
+  -webkit-font-smoothing: antialiased;
+  background-color: var(--bg);
+  /* faint terminal grid + two soft neon washes in opposite corners */
+  background-image:
+    radial-gradient(900px 520px at 100% -8%, rgba(155, 107, 255, 0.09), transparent 62%),
+    radial-gradient(760px 460px at 12% 108%, rgba(34, 211, 255, 0.07), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: auto, auto, 40px 40px, 40px 40px;
+  background-attachment: fixed;
+}
+
+/* Numbers line up in every column */
+.font-mono, table td, [class*="font-playfair"] { font-variant-numeric: tabular-nums; }
+.font-mono { letter-spacing: -0.01em; }
+
+/* Material Symbols — slightly heavier strokes read better on dark */
 .material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   font-size: 20px;
   line-height: 1;
   vertical-align: middle;
   user-select: none;
 }
 
-/* Glass surfaces */
-.glass-surface {
-  background: rgba(22, 27, 34, 0.75);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* Former serif "display" class → crisp terminal headline / figure style */
+.font-playfair {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
+
+/* Panels: solid, bordered, no blur */
+.glass-surface,
 .glass-panel {
-  background: rgba(22, 27, 34, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
 }
+.glass-panel { background: var(--panel-2); }
 
-/* Dashed gold upload zone */
+/* Dashed upload zone in accent blue */
 .upload-zone {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='10' ry='10' stroke='%23f2ca50' stroke-width='1' stroke-dasharray='6%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
-  border-radius: 10px;
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%2322D3FF' stroke-width='1.5' stroke-dasharray='6%2c 6' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  border-radius: 8px;
 }
 
-/* Custom thin scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+/* Scrollbars: visible enough to find, quiet enough to ignore */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(242, 202, 80, 0.18); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(242, 202, 80, 0.35); }
+::-webkit-scrollbar-thumb { background: #2A3547; border-radius: 8px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: #3A475C; }
 
-/* Autofill override */
+/* Autofill keeps the dark field */
 input:-webkit-autofill,
 input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 100px #1f1b13 inset;
-  -webkit-text-fill-color: #eae1d4;
-  caret-color: #eae1d4;
+  -webkit-box-shadow: 0 0 0 100px #070A0F inset;
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
 }
 
-/* Sidebar active nav item */
+/* ── Focus: always obvious for keyboard users ─────────────────────────── */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+input:not(.bg-transparent):not([type="checkbox"]):not([type="radio"]):focus,
+select:focus, textarea:not(.bg-transparent):focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(34, 211, 255, 0.22) !important;
+}
+
+/* ── Sidebar navigation ───────────────────────────────────────────────── */
+#sidebar { background: #080B11; }
+#sidebar nav .nav-item { border-radius: 8px; margin: 1px 0; }
 .nav-active {
-  color: #f2ca50 !important;
-  background-color: rgba(242, 202, 80, 0.06);
-  border-left: 2px solid #f2ca50;
+  color: var(--text) !important;
+  background-color: var(--accent-bg) !important;
+  border-left: 3px solid var(--accent);
+  font-weight: 600;
 }
+.nav-active .material-symbols-outlined { color: var(--accent); font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
 .nav-inactive {
-  color: #bec7d2;
-  border-left: 2px solid transparent;
+  color: var(--text-2);
+  border-left: 3px solid transparent;
+}
+.nav-inactive:hover { color: var(--text) !important; background-color: rgba(255, 255, 255, 0.04) !important; }
+
+.nav-section {
+  padding: 14px 16px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-/* Playfair Display shorthand */
-.font-playfair { font-family: 'Playfair Display', serif; }
+/* Brand mark */
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 8px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #22D3FF 0%, #9B6BFF 100%);
+  color: #04101F; font-weight: 700; font-size: 16px;
+  font-family: 'IBM Plex Mono', monospace;
+}
 
-/* Table row hover */
-.tbl-row { transition: background-color 0.15s ease; }
-.tbl-row:hover { background-color: rgba(242, 202, 80, 0.04); }
+/* Live status pill in the top bar */
+.live-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--line);
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text-2);
+  white-space: nowrap;
+}
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gain); box-shadow: 0 0 0 3px rgba(44, 255, 168, 0.16), 0 0 10px rgba(44, 255, 168, 0.8); }
+.kbd {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 4px; border: 1px solid var(--line); background: var(--panel-hi);
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);
+}
+
+/* ── Tables: terminal grid ────────────────────────────────────────────── */
+table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--panel-2) !important;
+  color: var(--muted) !important;
+  font-weight: 600;
+}
+table tbody tr:nth-child(even) { background-color: rgba(255, 255, 255, 0.018); }
+.tbl-row { transition: background-color 0.12s ease, box-shadow 0.12s ease; }
+.tbl-row:hover,
+table tbody tr:hover {
+  background-color: rgba(34, 211, 255, 0.07);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 
 /* ID card hover reveal */
-.id-card-wrap .id-card-overlay { opacity: 0; transition: opacity 0.35s ease; }
+.id-card-wrap .id-card-overlay { opacity: 0; transition: opacity 0.2s ease; }
 .id-card-wrap:hover .id-card-overlay { opacity: 1; }
 .id-card-wrap:hover img { filter: grayscale(0) !important; opacity: 1 !important; }
 
-/* Fade-in animation for pages */
-.page-enter { animation: fadeUp 0.2s ease forwards; }
+/* Page change: quick, short, never bouncy */
+.page-enter { animation: fadeUp 0.16s ease-out forwards; }
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Select element custom arrow */
 select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2399907c' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238392A8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 2rem;
   appearance: none;
   -webkit-appearance: none;
 }
+select option { background: #131A24; color: #E6EDF7; }
 
-/* Modal backdrop */
-.modal-backdrop {
-  background: rgba(11, 14, 20, 0.82);
-  backdrop-filter: blur(8px);
-}
+/* Modal backdrop: dim, no blur (keeps it calm and fast) */
+.modal-backdrop { background: rgba(4, 6, 10, 0.78); }
+
+/* Buttons and clickable rows feel clickable */
+button, [role="button"], a, label[for], select { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
 
 /* Wide tables scroll inside their card instead of stretching the page */
 div:has(> table) { overflow-x: auto; }
 table { min-width: 100%; }
+
+/* Respect reduced-motion preferences everywhere */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Neon accents ─────────────────────────────────────────────────────── */
+
+/* Signature gradient hairline under the top bar and sidebar brand */
+#topbar::after,
+#sidebar > div:first-child::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: var(--neon-line); opacity: 0.55; pointer-events: none;
+}
+#sidebar > div:first-child { position: relative; }
+#topbar { background: rgba(10, 14, 20, 0.92) !important; }
+#sidebar { background: rgba(7, 10, 15, 0.94); }
+
+/* Brand mark glows */
+.brand-mark { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset, 0 0 18px rgba(34, 211, 255, 0.35), 0 0 32px rgba(155, 107, 255, 0.25); }
+
+/* Active nav item: cyan→violet wash, neon edge, glowing icon */
+.nav-active {
+  background: linear-gradient(90deg, rgba(34, 211, 255, 0.16), rgba(155, 107, 255, 0.07) 70%, transparent) !important;
+  border-left-color: var(--accent) !important;
+  box-shadow: -1px 0 12px rgba(34, 211, 255, 0.45);
+}
+.nav-active .material-symbols-outlined { filter: drop-shadow(0 0 6px rgba(34, 211, 255, 0.7)); }
+
+/* Primary actions glow (only real buttons/links, not dots or bars) */
+button.bg-primary, a.bg-primary {
+  background-image: linear-gradient(135deg, #22D3FF 0%, #3DB4FF 55%, #6B8CFF 100%);
+  box-shadow: 0 0 0 1px rgba(34, 211, 255, 0.5), 0 0 16px rgba(34, 211, 255, 0.32);
+}
+button.bg-primary:hover, a.bg-primary:hover {
+  box-shadow: 0 0 0 1px rgba(34, 211, 255, 0.8), 0 0 24px rgba(34, 211, 255, 0.5);
+}
+
+/* Stat tiles: each tile in a grid gets its own neon top edge + faint wash.
+   Colours rotate cyan → violet → pink → blue (decorative, not semantic). */
+.grid > .glass-surface { --tile: var(--accent); }
+.grid > .glass-surface:nth-child(4n+2) { --tile: var(--violet); }
+.grid > .glass-surface:nth-child(4n+3) { --tile: var(--pink); }
+.grid > .glass-surface:nth-child(4n+4) { --tile: var(--blue); }
+.grid > .glass-surface {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--tile) 9%, transparent), transparent 55%),
+    var(--panel);
+  box-shadow: inset 0 2px 0 var(--tile), 0 0 0 0 transparent;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.grid > .glass-surface:hover {
+  border-color: color-mix(in srgb, var(--tile) 45%, var(--line));
+  box-shadow: inset 0 2px 0 var(--tile), 0 0 22px color-mix(in srgb, var(--tile) 18%, transparent);
+}
+
+/* Key coloured figures get a soft glow in their own colour */
+.font-playfair:is(.text-primary, .text-emerald-400, .text-error, .text-red-400, .text-amber-400,
+                  .text-purple-300, .text-purple-400, .text-sky-400, .text-sky-300, .text-blue-400) {
+  text-shadow: 0 0 16px color-mix(in srgb, currentColor 45%, transparent);
+}
+
+/* Focus: neon cyan ring with glow */
+:focus-visible { box-shadow: 0 0 14px rgba(34, 211, 255, 0.45); }
+input:not(.bg-transparent):not([type="checkbox"]):not([type="radio"]):focus,
+select:focus, textarea:not(.bg-transparent):focus {
+  box-shadow: 0 0 0 3px rgba(34, 211, 255, 0.2), 0 0 16px rgba(34, 211, 255, 0.25) !important;
+}
+
+/* Table hover edge picks up the gradient */
+.tbl-row:hover, table tbody tr:hover {
+  background-color: rgba(34, 211, 255, 0.06);
+  box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px rgba(34, 211, 255, 0.06);
+}
+
+/* Section labels in the sidebar get a tiny neon tick */
+.nav-section { display: flex; align-items: center; gap: 8px; }
+.nav-section::before {
+  content: ''; width: 6px; height: 6px; border-radius: 2px;
+  background: var(--neon-line); box-shadow: 0 0 8px rgba(155, 107, 255, 0.6);
+}
+
+/* Scrollbar thumb with a touch of colour */
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #2A3547, #3A3060); }
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #22D3FF, #9B6BFF); }
+
+/* Selection */
+::selection { background: rgba(155, 107, 255, 0.45); color: #fff; }
+
+/* ── List / Cards toggle ──────────────────────────────────────────────── */
+.view-toggle {
+  display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.view-toggle button {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 12px; border-radius: 7px;
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.view-toggle button .material-symbols-outlined { font-size: 18px; }
+.view-toggle button:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+.view-toggle button.is-on {
+  color: #04101F; font-weight: 600;
+  background: linear-gradient(135deg, #22D3FF 0%, #3DB4FF 55%, #6B8CFF 100%);
+  box-shadow: 0 0 14px rgba(34, 211, 255, 0.35);
+}
+.view-toggle button.is-on .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
+
+/* ── Entity cards (card view) ─────────────────────────────────────────── */
+.view-card {
+  position: relative;
+  padding: 16px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%), var(--panel-hi);
+  border: 1px solid var(--line);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.view-card:hover {
+  border-color: rgba(34, 211, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(34, 211, 255, 0.15), 0 0 22px rgba(34, 211, 255, 0.14), inset 0 2px 0 var(--accent);
+  transform: translateY(-1px);
+}
+.view-card-stat {
+  padding: 8px 10px; border-radius: 8px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.view-card-label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 2px;
+}

@@ -5,48 +5,73 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meridian — Client</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+          },
           colors: {
-            background:                  '#16130b',
-            'surface-container-low':     '#1f1b13',
-            'surface-container':         '#231f17',
-            'surface-container-high':    '#2d2a21',
-            'surface-container-highest': '#38342b',
-            'surface-variant':           '#38342b',
-            'outline-variant':           '#4d4635',
-            outline:                     '#99907c',
-            primary:                     '#f2ca50',
-            'on-primary':                '#3c2f00',
-            'on-surface':                '#eae1d4',
-            'on-surface-variant':        '#d0c5af',
-            error:                       '#ffb4ab',
+            emerald: { 300: '#8CFFD0', 400: '#2CFFA8', 500: '#00E68A' },
+            amber:   { 200: '#FFE9A8', 300: '#FFD966', 400: '#FFC233', 500: '#FFAA00' },
+            sky:     { 300: '#9BEAFF', 400: '#3DD8FF', 500: '#00C2FF' },
+            blue:    { 400: '#6B8CFF', 500: '#4D6BFF' },
+            purple:  { 300: '#CDB4FF', 400: '#B18CFF', 500: '#9B6BFF' },
+            red:     { 400: '#FF4D6D', 500: '#FF2E55' },
+            green:   { 400: '#2CFFA8' },
+            'neon-cyan':   '#22D3FF',
+            'neon-violet': '#9B6BFF',
+            'neon-pink':   '#FF3DCB',
+            background:                  '#0A0E14',
+            'surface-container-low':     '#0F141C',
+            'surface-container':         '#131A24',
+            'surface-container-high':    '#1A2230',
+            'surface-container-highest': '#222C3C',
+            'surface-variant':           '#222C3C',
+            'outline-variant':           '#2A3547',
+            outline:                     '#8392A8',
+            primary:                     '#22D3FF',
+            'on-primary':                '#04101F',
+            'on-surface':                '#E6EDF7',
+            'on-surface-variant':        '#AEBBCD',
+            error:                       '#FF4D6D',
           }
         }
       }
     }
   </script>
   <style>
-    .font-playfair { font-family: 'Playfair Display', serif; }
-    .glass-surface { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+    .font-playfair { font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+    body { font-feature-settings: 'tnum' 1; }
+    .brand-mark { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: linear-gradient(135deg, #22D3FF 0%, #9B6BFF 100%); color: #04101F; font: 700 16px 'IBM Plex Mono', monospace; }
+    .brand-mark { box-shadow: 0 0 16px rgba(34,211,255,0.4), 0 0 30px rgba(155,107,255,0.28); }
+    header { position: relative; }
+    header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg,#22D3FF,#9B6BFF,#FF3DCB); opacity: .55; }
+    .glass-surface { box-shadow: inset 0 2px 0 rgba(34,211,255,0.55); }
+    table tbody tr:nth-child(even) { background-color: rgba(255,255,255,0.018); }
+    :focus-visible { outline: 2px solid #22D3FF; outline-offset: 2px; }
+    .glass-surface { background: #131A24; border: 1px solid #222C3C; }
     .tbl-row { transition: background .15s; }
-    .tbl-row:hover { background: rgba(255,255,255,0.03); }
+    .tbl-row:hover { background: rgba(34, 211, 255,0.07); box-shadow: inset 3px 0 0 #22D3FF; }
   </style>
 </head>
-<body class="bg-background text-on-surface font-['Inter'] antialiased min-h-screen">
+<body class="bg-background text-on-surface font-sans antialiased min-h-screen">
 
   <!-- Header -->
-  <header class="border-b border-outline-variant/15 px-8 py-5 flex items-center justify-between">
-    <div>
-      <h1 class="text-xl font-playfair font-semibold text-primary tracking-wide">Meridian</h1>
-      <p class="text-[9px] uppercase tracking-[0.3em] text-outline mt-0.5">Elite Horology</p>
+  <header class="border-b border-outline-variant px-6 sm:px-8 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="brand-mark">M</div>
+      <div class="leading-tight">
+        <h1 class="text-[15px] font-bold text-on-surface tracking-tight">Meridian</h1>
+        <p class="text-[11px] font-mono text-outline">Watch Registry</p>
+      </div>
     </div>
-    <span class="text-[10px] uppercase tracking-widest text-outline border border-outline-variant/30 px-3 py-1.5 rounded-full">Confidential</span>
+    <span class="text-[11px] uppercase tracking-wider text-outline border border-outline-variant/30 px-3 py-1.5 rounded-md font-mono">Confidential</span>
   </header>
 
   <!-- Loading -->
@@ -69,20 +94,20 @@
     <div class="mb-8 flex items-start gap-6">
       <div id="clientAvatar" class="w-20 h-20 rounded-full border border-outline-variant/30 flex items-center justify-center bg-surface-variant text-primary font-semibold text-2xl flex-shrink-0"></div>
       <div>
-        <p class="text-[10px] uppercase tracking-[0.25em] text-primary font-semibold mb-1">Master Identity</p>
-        <h2 id="clientName" class="font-playfair text-5xl font-semibold text-on-surface"></h2>
+        <p class="text-[11px] uppercase tracking-[0.06em] text-primary font-semibold mb-1">Master Identity</p>
+        <h2 id="clientName" class="font-playfair text-3xl font-semibold text-on-surface"></h2>
         <p id="clientMasterId" class="font-mono text-sm text-on-surface-variant mt-2"></p>
       </div>
     </div>
 
     <!-- Stats -->
     <div class="grid grid-cols-2 gap-4 max-w-xs mb-10">
-      <div class="glass-surface rounded-xl p-4 flex flex-col gap-1">
-        <span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">Memberships</span>
+      <div class="glass-surface rounded-lg p-4 flex flex-col gap-1">
+        <span class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold">Memberships</span>
         <span id="statMemberships" class="font-playfair text-2xl text-on-surface">—</span>
       </div>
-      <div class="glass-surface rounded-xl p-4 flex flex-col gap-1">
-        <span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">Watches</span>
+      <div class="glass-surface rounded-lg p-4 flex flex-col gap-1">
+        <span class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold">Watches</span>
         <span id="statWatches" class="font-playfair text-2xl text-on-surface">—</span>
       </div>
     </div>
@@ -94,7 +119,7 @@
 
   <!-- Lightbox -->
   <div id="lightbox" class="fixed inset-0 z-50 hidden items-center justify-center cursor-zoom-out" style="background:rgba(0,0,0,.88);backdrop-filter:blur(8px)" onclick="this.classList.add('hidden');this.classList.remove('flex')">
-    <img id="lightboxImg" src="" class="max-w-[92vw] max-h-[92vh] rounded-xl shadow-2xl">
+    <img id="lightboxImg" src="" class="max-w-[92vw] max-h-[92vh] rounded-lg shadow-2xl">
   </div>
 
 <script>
@@ -130,7 +155,7 @@ function statusBadge(status) {
     sold:      { cls: 'border-emerald-400/50 text-emerald-400', label: 'Sold'      },
   };
   const s = map[status] || { cls: 'border-outline-variant/40 text-on-surface-variant', label: status || '—' };
-  return `<span class="px-2.5 py-1 border text-[10px] font-semibold uppercase tracking-wider rounded-full ${s.cls}">${s.label}</span>`;
+  return `<span class="px-2.5 py-1 border text-[11px] font-semibold uppercase tracking-wider rounded-full ${s.cls}">${s.label}</span>`;
 }
 
 async function load() {
@@ -157,20 +182,20 @@ async function load() {
     document.getElementById('statWatches').textContent     = totalWatches;
 
     document.getElementById('membershipsList').innerHTML = memberships.length ? memberships.map(m => `
-      <div class="glass-surface rounded-2xl overflow-hidden">
+      <div class="glass-surface rounded-xl overflow-hidden">
         <!-- Membership header -->
         <div class="px-7 py-5 flex items-start gap-5 border-b border-outline-variant/10">
-          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
             <span class="material-symbols-outlined text-primary text-2xl">store</span>
           </div>
           <div class="flex-1">
-            <p class="text-[10px] uppercase tracking-[0.2em] text-primary font-semibold mb-0.5">${esc(m.shop_name || 'Shop')}</p>
+            <p class="text-[11px] uppercase tracking-[0.06em] text-primary font-semibold mb-0.5">${esc(m.shop_name || 'Shop')}</p>
             <h3 class="font-playfair text-xl text-on-surface">${esc(m.name)}</h3>
             <div class="flex flex-wrap gap-x-8 gap-y-2 mt-3">
-              ${m.email ? `<div><span class="text-[10px] uppercase tracking-widest text-outline">Email</span><p class="text-sm text-on-surface">${esc(m.email)}</p></div>` : ''}
-              ${m.subscriber_id ? `<div><span class="text-[10px] uppercase tracking-widest text-outline">Subscriber ID</span><p class="text-sm font-mono text-on-surface">${esc(m.subscriber_id)}</p></div>` : ''}
-              ${m.pp_urn ? `<div><span class="text-[10px] uppercase tracking-widest text-outline">PP URN</span><p class="text-sm font-mono text-on-surface">${esc(m.pp_urn)}</p></div>` : ''}
-              ${m.address ? `<div><span class="text-[10px] uppercase tracking-widest text-outline">Address</span><p class="text-sm text-on-surface">${esc(m.address)}</p></div>` : ''}
+              ${m.email ? `<div><span class="text-[11px] uppercase tracking-wider text-outline">Email</span><p class="text-sm text-on-surface">${esc(m.email)}</p></div>` : ''}
+              ${m.subscriber_id ? `<div><span class="text-[11px] uppercase tracking-wider text-outline">Subscriber ID</span><p class="text-sm font-mono text-on-surface">${esc(m.subscriber_id)}</p></div>` : ''}
+              ${m.pp_urn ? `<div><span class="text-[11px] uppercase tracking-wider text-outline">PP URN</span><p class="text-sm font-mono text-on-surface">${esc(m.pp_urn)}</p></div>` : ''}
+              ${m.address ? `<div><span class="text-[11px] uppercase tracking-wider text-outline">Address</span><p class="text-sm text-on-surface">${esc(m.address)}</p></div>` : ''}
             </div>
           </div>
         </div>
@@ -180,14 +205,14 @@ async function load() {
           <table class="w-full text-left">
             <thead>
               <tr class="border-b border-outline-variant/10" style="background:rgba(255,255,255,0.02)">
-                <th class="px-7 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Timepiece</th>
-                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status</th>
-                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Source</th>
-                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Stock #</th>
-                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Serial #</th>
-                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Ref #</th>
-                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Date</th>
-                <th class="px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Price</th>
+                <th class="px-7 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Timepiece</th>
+                <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Status</th>
+                <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Source</th>
+                <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Stock #</th>
+                <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Serial #</th>
+                <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Ref #</th>
+                <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Date</th>
+                <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Price</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-white/[0.04]">
@@ -208,8 +233,8 @@ async function load() {
                 <td class="px-6 py-5">${statusBadge(w.status)}</td>
                 <td class="px-6 py-5">
                   ${w.source === 'Company'
-                    ? `<span class="px-3 py-1 border border-primary/50 text-primary text-[10px] font-semibold uppercase tracking-wider rounded-full">Company</span>`
-                    : `<span class="px-3 py-1 border border-outline-variant/40 text-on-surface-variant text-[10px] font-semibold uppercase tracking-wider rounded-full">Dealer</span>`
+                    ? `<span class="px-3 py-1 border border-primary/50 text-primary text-[11px] font-semibold uppercase tracking-wider rounded-full">Company</span>`
+                    : `<span class="px-3 py-1 border border-outline-variant/40 text-on-surface-variant text-[11px] font-semibold uppercase tracking-wider rounded-full">Dealer</span>`
                   }
                 </td>
                 <td class="px-6 py-5 text-on-surface-variant text-sm font-mono whitespace-nowrap">${esc(w.stock_number || '—')}</td>
