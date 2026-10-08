@@ -59,7 +59,7 @@ function buildCss() {
 }
 
 function bustCaches() {
-  const assets = ['js/dashboard.js', 'js/patek-desk.js', 'css/app.css', 'style.css'];
+  const assets = ['js/dashboard.js', 'js/patek-desk.js', 'css/app.css', 'style.css', 'neon.css', 'cursor.js'];
   const hash = {};
   for (const a of assets) hash[a] = crypto.createHash('sha1').update(fs.readFileSync(r('public', a))).digest('hex').slice(0, 10);
   for (const page of fs.readdirSync(r('public')).filter(f => f.endsWith('.html'))) {
@@ -86,10 +86,11 @@ function buildAll() {
 buildAll();
 
 if (watch) {
-  console.log('watching src/, tailwind.config.js and public/style.css …');
+  console.log('watching src/, tailwind.config.js, public/style.css and public/neon.css …');
   let timer;
   const rebuild = () => { clearTimeout(timer); timer = setTimeout(() => { try { buildAll(); } catch (e) { console.error(e.message); } }, 150); };
   fs.watch(r('src'), { recursive: true }, rebuild);
   fs.watch(r('tailwind.config.js'), rebuild);
   fs.watch(r('public/style.css'), rebuild);
+  fs.watch(r('public/neon.css'), rebuild);
 }

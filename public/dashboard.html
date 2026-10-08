@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meridian Watch Registry</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Tilt+Neon&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=94cc2ad9d8">
-  <link rel="stylesheet" href="/css/app.css?v=f648d974e8">
+  <script src="/cursor.js?v=a8380fbe4f"></script>
+  <link rel="stylesheet" href="/neon.css?v=d2d1ae7517">
+  <link rel="stylesheet" href="/css/app.css?v=86c65329d6">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased">
 
@@ -19,11 +21,20 @@
   <aside id="sidebar" class="w-64 fixed left-0 top-0 h-screen flex flex-col bg-background border-r border-outline-variant/15 z-50">
     <!-- Logo -->
     <div class="px-5 h-16 flex items-center gap-3 border-b border-outline-variant/60">
-      <div class="brand-mark">M</div>
-      <div class="leading-tight">
-        <h1 class="text-[15px] font-bold text-on-surface tracking-tight">Meridian</h1>
-        <p class="text-[11px] font-mono text-outline">Watch Registry</p>
-      </div>
+      <button type="button" class="neon-sign" data-page="dashboard" aria-label="Meridian Watch Registry — go to Vault" title="Go to Vault">
+        <svg class="neon-icon" viewBox="0 0 34 34" aria-hidden="true">
+          <circle class="ring" cx="17" cy="17" r="14"/>
+          <line class="tick" x1="17" y1="5.5" x2="17" y2="8"/><line class="tick" x1="28.5" y1="17" x2="26" y2="17"/>
+          <line class="tick" x1="17" y1="28.5" x2="17" y2="26"/><line class="tick" x1="5.5" y1="17" x2="8" y2="17"/>
+          <line class="hand hand-h" x1="17" y1="17" x2="17" y2="10.5"/>
+          <line class="hand hand-m" x1="17" y1="17" x2="23" y2="20"/>
+          <circle class="hub" cx="17" cy="17" r="1.8"/>
+        </svg>
+        <span class="neon-text">
+          <span class="neon-word">MERI<span class="neon-loose">D</span>IAN</span>
+          <span class="neon-sub"><span style="--i:0">W</span><span style="--i:1">A</span><span style="--i:2">T</span><span style="--i:3">C</span><span style="--i:4">H</span><span style="--i:5">&nbsp;</span><span style="--i:6">R</span><span style="--i:7">E</span><span style="--i:8">G</span><span style="--i:9">I</span><span style="--i:10">S</span><span style="--i:11">T</span><span style="--i:12">R</span><span style="--i:13">Y</span></span>
+        </span>
+      </button>
     </div>
 
     <!-- Nav -->
@@ -631,6 +642,17 @@
           <p class="text-on-surface-variant text-sm mt-2">Manage your registry credentials and integrations.</p>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Display -->
+          <div class="glass-surface rounded-lg p-8 lg:col-span-2">
+            <h3 class="font-playfair text-xl text-on-surface mb-6 pb-5 border-b border-outline-variant/15">Display</h3>
+            <div class="flex items-center justify-between gap-6 flex-wrap">
+              <div>
+                <p class="text-sm font-semibold text-on-surface">Neon cursor</p>
+                <p class="text-xs text-on-surface-variant mt-1">Glowing pointer with a trailing ring that reacts to buttons and links. Saved for this browser.</p>
+              </div>
+              <button type="button" id="neonCursorToggle" role="switch" aria-checked="true" aria-label="Neon cursor" class="neon-switch"><span class="neon-switch-knob"></span></button>
+            </div>
+          </div>
           <!-- Change Admin Password -->
           <div class="glass-surface rounded-lg p-8">
             <h3 class="font-playfair text-xl text-on-surface mb-6 pb-5 border-b border-outline-variant/15">Change Admin Password</h3>
@@ -1918,6 +1940,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=4a5afcfceb"></script>
+<script src="/js/dashboard.js?v=f45dec31d2"></script>
 </body>
 </html>

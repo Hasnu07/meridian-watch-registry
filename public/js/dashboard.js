@@ -6397,6 +6397,27 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Display: neon cursor switch (cursor.js owns the behaviour) ────────────
+(function () {
+  const btn = document.getElementById('neonCursorToggle');
+  if (!btn) return;
+  const supported = typeof window.setNeonCursor === 'function';
+  const sync = () => btn.setAttribute('aria-checked', String(supported && window.neonCursorEnabled()));
+  if (!supported) {            // touch screen / no fine pointer: nothing to toggle
+    btn.disabled = true;
+    btn.title = 'Not available on touch screens';
+  }
+  btn.addEventListener('click', () => {
+    if (!supported) return;
+    const on = !window.neonCursorEnabled();
+    window.setNeonCursor(on);
+    // Patek Desk runs in an iframe with its own copy of the cursor
+    try { document.getElementById('patekDeskFrame')?.contentWindow?.setNeonCursor?.(on); } catch {}
+    sync();
+  });
+  sync();
+})();
+
 
 // ═══ 16-shops-portfolios.js ═══
 // 16-shops-portfolios.js — Shops, shop detail, portfolio detail + modal

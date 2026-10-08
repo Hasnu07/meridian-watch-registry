@@ -1,0 +1,222 @@
+/* ── Neon sign (brand) ────────────────────────────────────────────────────
+   Used in the dashboard sidebar, the login page (hero size) and the share
+   pages. Motion budget, kept ADHD-friendly:
+   • Power-on flicker plays once when the page loads.
+   • Idle: a very slow, low-amplitude hum — no flicker while you work.
+     (Only the login hero has an occasional "loose letter" flicker.)
+   • Hover / keyboard focus: buzz, cyan → pink colour sweep, letters of the
+     tagline light up one after another, clock hands spin.
+   • prefers-reduced-motion: everything static, glow kept.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.neon-sign {
+  --tube: #22D3FF;         /* main tube: neon cyan */
+  --tube2: #FF3DCB;        /* tagline tube: neon pink */
+  --core: #EAFDFF;         /* white-hot centre of the tube */
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 4px 6px; margin: 0 -6px;
+  border: 0; border-radius: 10px; background: none;
+  text-decoration: none; text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+div.neon-sign { cursor: default; }
+.neon-sign:focus-visible { outline-offset: 4px; }
+
+/* Clock icon drawn as neon tubes */
+.neon-icon { width: 34px; height: 34px; flex-shrink: 0; overflow: visible; }
+.neon-icon .ring {
+  fill: none; stroke: var(--tube); stroke-width: 2;
+  filter: drop-shadow(0 0 1.5px var(--tube)) drop-shadow(0 0 5px var(--tube));
+}
+.neon-icon .tick { stroke: var(--tube); stroke-width: 1.6; stroke-linecap: round; opacity: 0.85; }
+.neon-icon .hand {
+  stroke: var(--tube2); stroke-width: 2.2; stroke-linecap: round;
+  transform-box: view-box; transform-origin: 17px 17px;
+  filter: drop-shadow(0 0 2px var(--tube2)) drop-shadow(0 0 6px var(--tube2));
+  transition: transform 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.neon-icon .hub { fill: var(--core); filter: drop-shadow(0 0 3px var(--tube2)); }
+
+/* Lettering */
+.neon-text { display: flex; flex-direction: column; line-height: 1; }
+.neon-word {
+  font-family: 'Tilt Neon', 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 23px; font-weight: 400; letter-spacing: 0.09em;
+  color: var(--core);
+  text-shadow:
+    0 0 1px #fff,
+    0 0 4px var(--tube),
+    0 0 10px var(--tube),
+    0 0 22px var(--tube),
+    0 0 42px color-mix(in srgb, var(--tube) 55%, transparent);
+  animation: neon-hum 6s ease-in-out 2s infinite;
+}
+.neon-sub {
+  margin-top: 5px;
+  font-family: 'Tilt Neon', 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 10.5px; letter-spacing: 0.3em; text-transform: uppercase;
+  color: #FFE3F7;
+  text-shadow: 0 0 1px #fff, 0 0 5px var(--tube2), 0 0 12px var(--tube2);
+  white-space: nowrap;
+}
+.neon-sub > span { display: inline-block; }
+
+/* Power-on: the tubes stutter to life once, tagline a beat later */
+.neon-text, .neon-icon { animation: neon-power-on 1.5s linear both; }
+.neon-sub { animation: neon-power-on 1.3s linear 0.45s both; }
+
+/* Hover / focus: buzz, then a slow cyan ↔ pink sweep while the pointer stays */
+.neon-sign:is(:hover, :focus-visible) .neon-word {
+  animation: neon-buzz 0.45s linear 1, neon-sweep 3.2s ease-in-out 0.45s infinite alternate;
+  text-shadow:
+    0 0 1px #fff,
+    0 0 5px var(--tube),
+    0 0 14px var(--tube),
+    0 0 30px var(--tube),
+    0 0 60px color-mix(in srgb, var(--tube) 65%, transparent);
+}
+.neon-sign:is(:hover, :focus-visible) .neon-sub > span {
+  animation: neon-chase 1.6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 70ms);
+}
+.neon-sign:is(:hover, :focus-visible) .hand-m { transform: rotate(360deg); }
+.neon-sign:is(:hover, :focus-visible) .hand-h { transform: rotate(30deg); }
+.neon-sign:active .neon-word { filter: brightness(1.5); }
+
+/* Login hero: bigger lettering inside a glowing pink tube frame */
+.neon-sign--hero { gap: 16px; padding: 18px 26px; margin: 0; border-radius: 18px; position: relative; }
+.neon-sign--hero::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  border: 2px solid var(--tube2);
+  box-shadow: 0 0 6px var(--tube2), 0 0 18px color-mix(in srgb, var(--tube2) 60%, transparent), inset 0 0 12px color-mix(in srgb, var(--tube2) 45%, transparent);
+  animation: neon-power-on 1.8s linear 0.2s both;
+}
+.neon-sign--hero .neon-icon { width: 54px; height: 54px; }
+.neon-sign--hero .neon-word { font-size: 42px; }
+.neon-sign--hero .neon-sub  { font-size: 13px; margin-top: 8px; }
+/* One "loose" letter on the hero sign only (not in the working dashboard) */
+.neon-sign--hero .neon-loose { animation: neon-loose 9s linear 3s infinite; }
+
+/* Small (share pages header) */
+.neon-sign--sm .neon-icon { width: 28px; height: 28px; }
+.neon-sign--sm .neon-word { font-size: 19px; }
+.neon-sign--sm .neon-sub  { font-size: 9.5px; }
+
+@keyframes neon-power-on {
+  0%   { opacity: 0;    filter: brightness(0.4); }
+  8%   { opacity: 1;    filter: brightness(1.4); }
+  10%  { opacity: 0.15; filter: brightness(0.5); }
+  18%  { opacity: 1;    filter: brightness(1.2); }
+  20%  { opacity: 0.3;  filter: brightness(0.6); }
+  34%  { opacity: 1;    filter: brightness(1.3); }
+  36%  { opacity: 0.55; filter: brightness(0.8); }
+  50%, 100% { opacity: 1; filter: brightness(1); }
+}
+@keyframes neon-hum {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.12); }
+}
+@keyframes neon-buzz {
+  0%, 100% { opacity: 1; }
+  20% { opacity: 0.35; }
+  30% { opacity: 1; }
+  45% { opacity: 0.6; }
+  55% { opacity: 1; }
+}
+@keyframes neon-sweep {           /* cyan (≈190°) → violet → hot pink (≈315°) */
+  from { filter: hue-rotate(0deg) brightness(1.08); }
+  to   { filter: hue-rotate(118deg) brightness(1.15); }
+}
+@keyframes neon-chase {
+  0%, 100% { color: #FFE3F7; text-shadow: 0 0 1px #fff, 0 0 5px var(--tube2), 0 0 12px var(--tube2); transform: translateY(0); }
+  45%      { color: #fff;    text-shadow: 0 0 2px #fff, 0 0 8px #fff, 0 0 16px var(--tube2), 0 0 30px var(--tube2); transform: translateY(-1.5px); }
+}
+@keyframes neon-loose {
+  0%, 90%, 100% { opacity: 1; }
+  91% { opacity: 0.2; } 92% { opacity: 1; } 93.5% { opacity: 0.35; } 95% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-sign *, .neon-sign::before { animation: none !important; transition: none !important; }
+}
+
+/* ── Neon cursor (cursor.js) ──────────────────────────────────────────── */
+/* Native cursor hidden only while the neon cursor is active; text fields keep the I-beam */
+html.neon-cursor, html.neon-cursor * { cursor: none !important; }
+html.neon-cursor :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="range"]):not([type="color"]), textarea, [contenteditable=""], [contenteditable="true"]) { cursor: text !important; }
+
+.nc-dot, .nc-ring, .nc-ripple { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 2147483647; }
+.nc-dot, .nc-ring { opacity: 0; transition: opacity 0.2s ease; will-change: transform; }
+html.nc-visible .nc-dot, html.nc-visible .nc-ring { opacity: 1; }
+html.nc-text .nc-dot, html.nc-text .nc-ring { opacity: 0; }
+
+/* Precise core: sits exactly under the pointer */
+.nc-dot { width: 0; height: 0; }
+.nc-dot::before {
+  content: ''; position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%;
+  background: #EAFDFF;
+  box-shadow: 0 0 0 1px rgba(34, 211, 255, 0.9), 0 0 6px #22D3FF, 0 0 14px #22D3FF;
+  transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* Trailing ring */
+.nc-ring { width: 0; height: 0; }
+.nc-ring-shape {
+  position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 50%;
+  border: 1.5px solid rgba(34, 211, 255, 0.85);
+  box-shadow: 0 0 8px rgba(34, 211, 255, 0.55), inset 0 0 6px rgba(34, 211, 255, 0.3);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+/* Hover over something clickable: ring grows, turns pink, spins like a reticle */
+html.nc-hover .nc-ring-shape {
+  transform: scale(1.45);
+  border-color: #FF3DCB; border-style: dashed;
+  background-color: rgba(255, 61, 203, 0.07);
+  box-shadow: 0 0 10px rgba(255, 61, 203, 0.6), inset 0 0 8px rgba(255, 61, 203, 0.35);
+  animation: nc-spin 3.2s linear infinite;
+}
+html.nc-hover .nc-dot::before {
+  transform: scale(1.35); background: #FFE3F7;
+  box-shadow: 0 0 0 1px rgba(255, 61, 203, 0.9), 0 0 6px #FF3DCB, 0 0 16px #FF3DCB;
+}
+/* Disabled control: dim, no reticle */
+html.nc-disabled .nc-ring-shape { border-color: rgba(131, 146, 168, 0.6); box-shadow: none; transform: scale(0.85); }
+html.nc-disabled .nc-dot::before { background: #8392A8; box-shadow: none; }
+
+/* Pressed: squeeze */
+html.nc-down .nc-ring-shape { transform: scale(0.72); border-style: solid; }
+html.nc-down.nc-hover .nc-ring-shape { transform: scale(1.1); }
+html.nc-down .nc-dot::before { transform: scale(0.8); }
+
+/* Click ripple */
+.nc-ripple {
+  width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  border: 2px solid #22D3FF; box-shadow: 0 0 10px #22D3FF;
+  animation: nc-ripple 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.nc-ripple.is-hover { border-color: #FF3DCB; box-shadow: 0 0 12px #FF3DCB; }
+
+@keyframes nc-spin { to { rotate: 360deg; } }
+@keyframes nc-ripple {
+  from { transform: scale(1); opacity: 0.9; }
+  to   { transform: scale(5.5); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.nc-hover .nc-ring-shape { animation: none; }
+  .nc-ring-shape, .nc-dot::before { transition: none; }
+}
+
+/* Settings switch */
+.neon-switch {
+  position: relative; width: 52px; height: 30px; flex-shrink: 0; border-radius: 999px;
+  background: #0F141C; border: 1px solid #2A3547; transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.neon-switch-knob {
+  position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: #8392A8; transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.neon-switch[aria-checked="true"] { background: rgba(34, 211, 255, 0.15); border-color: #22D3FF; box-shadow: 0 0 12px rgba(34, 211, 255, 0.35); }
+.neon-switch[aria-checked="true"] .neon-switch-knob { transform: translateX(22px); background: #EAFDFF; box-shadow: 0 0 6px #22D3FF, 0 0 14px #22D3FF; }
+.neon-switch:disabled { opacity: 0.5; }
