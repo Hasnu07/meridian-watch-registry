@@ -594,3 +594,31 @@ table[data-dom-sort] thead th.dom-sorted::after { content: ' ' attr(data-sort-ar
 .vd-tip-extra { color: var(--muted); font-size: 11px; padding-left: 18px; }
 .vd-tip-extra b { font-size: 11px; color: var(--text-2); }
 .vc-pt.is-last { filter: drop-shadow(0 0 4px currentColor); }
+
+/* ── Wishlist group in watch lists (23-wishlist-group.js) ─────────────── */
+html.wl-hidden [data-wl-row] { display: none; }
+[data-wl-row] { background-color: rgba(255, 194, 51, 0.025); }
+tr.wl-group-row > td { padding: 8px 20px; background: rgba(255, 194, 51, 0.04); border-top: 1px solid rgba(255, 194, 51, 0.18); }
+tr.wl-group-row:hover { box-shadow: none !important; background: none !important; }
+.wl-toggle {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 4px; font-size: 13px; font-weight: 600; color: var(--text-2); text-align: left;
+}
+.wl-toggle:hover { color: var(--text); }
+.wl-star { font-size: 18px !important; color: var(--warn); }
+.wl-count {
+  min-width: 22px; height: 20px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #FFD966;
+  background: rgba(255, 194, 51, 0.12); border: 1px solid rgba(255, 194, 51, 0.3);
+}
+.wl-sub { font-weight: 400; font-size: 12px; color: var(--muted); }
+.wl-state {
+  margin-left: 6px; display: inline-flex; align-items: center; gap: 5px;   /* next to the label: visible even when the table scrolls sideways */
+  padding: 4px 10px; border-radius: 999px; font-size: 12px; color: var(--warn);
+  border: 1px solid rgba(255, 194, 51, 0.35); background: rgba(255, 194, 51, 0.06);
+}
+.wl-toggle:hover .wl-state { background: rgba(255, 194, 51, 0.14); }
+.wl-icon { font-size: 16px !important; }
+/* Compact version inside the Watches quick-filter bar */
+#quickFilterBar .wl-toggle { padding: 0 2px; }
+#quickFilterBar .wl-sub { display: none; }

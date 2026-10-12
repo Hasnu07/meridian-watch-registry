@@ -52,6 +52,8 @@ function renderQuickFilterBar() {
            <button type="button" class="qf-chip" data-qf-cancel>Cancel</button>
          </form>`
       : `<button type="button" class="qf-chip qf-add" data-qf-add title="Save the current tab, search and sort as a view"><span class="material-symbols-outlined">bookmark_add</span>Save view</button>`}
+    ${!watchStatusFilter && !activeId && allWatches.some(w => w.status === 'wishlist')
+      ? `<span class="qf-divider" aria-hidden="true"></span>${wishlistToggleHtml(allWatches.filter(w => w.status === 'wishlist').length)}` : ''}
     ${activeId ? '<button type="button" class="qf-clear" data-qf-clear>Clear filter</button>' : ''}`;
   if (_savingView) bar.querySelector('[data-qf-save-form] input')?.focus();
 }

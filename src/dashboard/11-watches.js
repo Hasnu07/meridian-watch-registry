@@ -49,7 +49,10 @@ function renderWatches() {
   // status tab → quick filter (saved filters) → sort → page
   let filtered = watchStatusFilter ? allWatches.filter(w => w.status === watchStatusFilter) : allWatches;
   filtered = applyQuickFilter(filtered);
+  if (!watchStatusFilter && !activeQuickFilter && _wlHidden) filtered = filtered.filter(w => w.status !== 'wishlist');
   filtered = sortWatchList(filtered);
+  // On 'All', owned pieces first and the wishlist at the end (sort order kept within each group)
+  if (!watchStatusFilter) filtered = [...filtered.filter(w => w.status !== 'wishlist'), ...filtered.filter(w => w.status === 'wishlist')];
   renderQuickFilterBar();
   const total = filtered.length;
   const slice = filtered.slice((watchPage - 1) * PER_PAGE, watchPage * PER_PAGE);

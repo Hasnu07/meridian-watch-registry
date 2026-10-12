@@ -1135,7 +1135,9 @@ function renderProfileWatches(watches, profile) {
     ? watches.filter(w => w.status === profileWatchStatusFilter)
     : watches;
   document.getElementById('profileWatchesBody').innerHTML = filtered.length
-    ? filtered.map(w => watchRow(w, true, opts)).join('')
+    ? (profileWatchStatusFilter
+        ? filtered.map(w => watchRow(w, true, opts)).join('')
+        : groupWishlistRows(filtered, w => watchRow(w, true, opts), 8))
     : `<tr><td colspan="8" class="px-6 py-16 text-center text-on-surface-variant text-sm">${profileWatchStatusFilter ? `No ${profileWatchStatusFilter} watches.` : 'No watches recorded yet.'}</td></tr>`;
 }
 

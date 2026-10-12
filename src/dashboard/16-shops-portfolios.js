@@ -439,7 +439,7 @@ async function toggleWatchExpand(profileId) {
             </tr>
           </thead>
           <tbody class="divide-y divide-white/[0.04]">
-            ${watches.map(w => `
+            ${groupWishlistRows(watches, w => `
             <tr>
               <td class="px-10 py-3">
                 <div class="flex items-center gap-3">
@@ -468,7 +468,7 @@ async function toggleWatchExpand(profileId) {
                   </button>
                 </div>
               </td>
-            </tr>`).join('')}
+            </tr>`, 7)}
           </tbody>
         </table>
       </div>`;

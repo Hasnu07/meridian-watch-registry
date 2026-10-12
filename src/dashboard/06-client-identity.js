@@ -294,7 +294,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
             </tr>
           </thead>
           <tbody class="divide-y divide-white/[0.04]">
-            ${watches.map(w => {
+            ${groupWishlistRows(watches, w => {
               const wc = w.currency || 'CHF';
               return `
             <tr class="tbl-row">
@@ -333,7 +333,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   </button>
                 </div>
               </td>
-            </tr>`;}).join('')}
+            </tr>`;}, 9)}
           </tbody>
         </table>
       </div>` : `
