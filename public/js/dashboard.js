@@ -58,7 +58,7 @@ const fmt = {
 let currentPage = 'dashboard';
 let currentProfileId = null;
 let currentShopId = null;
-const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watch-detail','watches','desk','messages','settings','admin'];
+const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watch-detail','watches','commissions','boutique-commission','desk','messages','settings','admin'];
 
 function showPage(name) {
   scrubAutofilledSearches();
@@ -80,7 +80,7 @@ function showPage(name) {
     }
   });
 
-  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', 'watch-detail':'Watch', watches:'Watches', desk:'Patek Desk', messages:'Messages', settings:'Settings', admin:'Admin' };
+  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', 'watch-detail':'Watch', watches:'Watches', commissions:'Commissions', 'boutique-commission':'Boutique Commission', desk:'Patek Desk', messages:'Messages', settings:'Settings', admin:'Admin' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
 
   const showAddProfile   = name === 'profiles';
@@ -100,6 +100,8 @@ function showPage(name) {
   if (name === 'portfolios') loadAllPortfolios();
   if (name === 'main-kpi')   loadMainKpi();
   if (name === 'watches')    loadWatches();
+  if (name === 'commissions' && typeof loadCommissions === 'function') loadCommissions();
+  if (name === 'boutique-commission' && typeof loadBoutiqueCommission === 'function') loadBoutiqueCommission();
   if (name === 'desk')       loadPatekDesk();
   if (name === 'settings')  resetPasswordForm();
   if (name === 'messages')  loadMsgClients();
@@ -140,6 +142,8 @@ async function refreshCurrentUser() {
     const navAdmin = document.getElementById('navAdmin');
     if (currentUser.role === 'master') navAdmin.classList.replace('hidden', 'flex');
     else                                navAdmin.classList.add('hidden');
+    // Role-specific chrome (boutique managers get a reduced, read-only dashboard — 24-boutique-manager.js)
+    if (typeof applyRoleUi === 'function') applyRoleUi(currentUser);
     // Impersonation banner — when visible, push topbar + main content down
     // so the amber bar doesn't overlap the page header buttons.
     const banner  = document.getElementById('impersonationBanner');
@@ -160,7 +164,9 @@ async function refreshCurrentUser() {
     window.location.href = '/';
   }
 }
-refreshCurrentUser();
+// The first page is shown once the role is known (99-boot.js), so a restricted
+// role never fires requests for pages it may not see.
+const _userReady = refreshCurrentUser();
 
 // Exit impersonation
 document.getElementById('impersonationExit')?.addEventListener('click', async () => {
@@ -210,6 +216,13 @@ async function loadAdminUsers() {
   body.innerHTML = users.map(u => {
     const isMe = u.id === me;
     const created = (u.created_at || '').split(' ')[0] || '—';
+    const isBm = u.role === 'boutique_manager';
+    const roleCls = u.role === 'master' ? 'text-primary border-primary/40 bg-primary/5'
+                  : isBm ? 'text-amber-300 border-amber-400/30 bg-amber-400/5'
+                  : 'text-purple-300 border-purple-300/30 bg-purple-300/5';
+    const roleLabel = isBm ? 'Boutique Manager' : u.role;
+    // A boutique manager has no workspace: show the shop (and whose registry) instead of counts
+    const roleSub = isBm ? `<p class="text-[11px] text-on-surface-variant mt-1.5">${esc(u.shop_name || 'no shop assigned')}${u.owner_username ? ` · ${esc(u.owner_username)}'s registry` : ''}</p>` : '';
     return `
       <tr class="hover:bg-white/[0.02]">
         <td class="px-5 py-3">
@@ -222,22 +235,26 @@ async function loadAdminUsers() {
           </div>
         </td>
         <td class="px-5 py-3">
-          <span class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${u.role === 'master' ? 'text-primary border-primary/40 bg-primary/5' : 'text-purple-300 border-purple-300/30 bg-purple-300/5'}">${u.role}</span>
+          <span class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${roleCls}">${roleLabel}</span>${roleSub}
         </td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.clients_count || 0}</td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.watches_count || 0}</td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.sold_count || 0}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.clients_count || 0)}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.watches_count || 0)}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.sold_count || 0)}</td>
         <td class="px-5 py-3 text-xs text-outline">${created}</td>
         <td class="px-5 py-3">
           <div class="flex items-center justify-end gap-1.5">
-            ${!isMe ? `
+            ${!isMe && !isBm ? `
             <button onclick="adminViewAs(${u.id})" title="View their workspace" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
               <span class="material-symbols-outlined text-[16px]">visibility</span>
+            </button>` : ''}
+            ${isBm ? `
+            <button onclick="adminChangeShop(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}', ${u.owner_id || 'null'})" title="Change shop" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
+              <span class="material-symbols-outlined text-[16px]">store</span>
             </button>` : ''}
             <button onclick="adminResetPassword(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}' )" title="Reset password" class="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors">
               <span class="material-symbols-outlined text-[16px]">key</span>
             </button>
-            ${u.role === 'master' || isMe ? '' : `
+            ${u.role === 'master' || isBm || isMe ? '' : `
             <button onclick="adminPromote(${u.id})" title="Promote to master" class="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors">
               <span class="material-symbols-outlined text-[16px]">workspace_premium</span>
             </button>`}
@@ -249,6 +266,28 @@ async function loadAdminUsers() {
         </td>
       </tr>`;
   }).join('');
+}
+
+// Move a boutique manager to another shop of the registry they belong to.
+// The shop list comes from the current workspace, so switch to that owner's
+// workspace (View as) first when the manager belongs to someone else.
+async function adminChangeShop(userId, username, ownerId) {
+  const workspace = currentUser?.viewing_as?.id || currentUser?.id;
+  if (ownerId && ownerId !== workspace) {
+    alert(`${username} belongs to another registry. Use "View their workspace" on its owner first, then change the shop from there.`);
+    return;
+  }
+  let shops;
+  try { shops = await api('GET', '/api/shops'); } catch (e) { alert(e.message); return; }
+  if (!shops.length) { alert('This workspace has no shops yet.'); return; }
+  const choice = prompt(`Which shop should ${username} look after?\n\n` + shops.map((s, i) => `${i + 1}. ${s.name}`).join('\n') + '\n\nType the number:');
+  if (!choice) return;
+  const shop = shops[Number(choice) - 1];
+  if (!shop) { alert('No shop with that number.'); return; }
+  try {
+    await api('PUT', `/api/admin/users/${userId}`, { shop_id: shop.id });
+    await loadAdminUsers();
+  } catch (e) { alert(e.message); }
 }
 
 async function adminViewAs(userId) {
@@ -331,8 +370,10 @@ document.getElementById('newUserSubmit')?.addEventListener('click', async () => 
   const err      = document.getElementById('newUserError');
   err.classList.add('hidden');
   if (!username || !password) { err.textContent = 'Username and password are required.'; err.classList.remove('hidden'); return; }
+  const shop_id = role === 'boutique_manager' ? Number(document.getElementById('newUserShop').value) : undefined;
+  if (role === 'boutique_manager' && !shop_id) { err.textContent = 'Choose the shop this boutique manager looks after.'; err.classList.remove('hidden'); return; }
   try {
-    await api('POST', '/api/admin/users', { username, password, role });
+    await api('POST', '/api/admin/users', { username, password, role, shop_id });
     document.getElementById('newUserUsername').value = '';
     document.getElementById('newUserPassword').value = '';
     showAdminTab('users');
@@ -340,6 +381,36 @@ document.getElementById('newUserSubmit')?.addEventListener('click', async () => 
     err.textContent = e.message; err.classList.remove('hidden');
   }
 });
+
+// Role picker: explain each role and, for a boutique manager, ask which shop
+// of the current workspace they look after.
+const ROLE_HINTS = {
+  admin:            'Own workspace with the default shop catalogue. Cannot see other users.',
+  master:           'Full access: every workspace, user management and the audit log.',
+  boutique_manager: 'Read-only window onto ONE shop of this workspace: Vault, Shop, Watches and Wishlist. Sees commission per piece; never stock numbers, resale prices, costs, payouts, other users or settings.',
+};
+async function updateNewUserRoleUi() {
+  const role = document.getElementById('newUserRole')?.value;
+  const hint = document.getElementById('newUserRoleHint');
+  const wrap = document.getElementById('newUserShopWrap');
+  if (!role || !hint || !wrap) return;
+  hint.textContent = ROLE_HINTS[role] || '';
+  const isBm = role === 'boutique_manager';
+  wrap.classList.toggle('hidden', !isBm);
+  if (!isBm) return;
+  const sel = document.getElementById('newUserShop');
+  try {
+    const shops = await api('GET', '/api/shops');
+    sel.innerHTML = shops.length
+      ? shops.map(s => `<option value="${s.id}" style="background:#131A24;color:#E6EDF7">${esc(s.name)}</option>`).join('')
+      : `<option value="" style="background:#131A24;color:#E6EDF7">No shops in this workspace yet</option>`;
+  } catch (e) {
+    sel.innerHTML = `<option value="" style="background:#131A24;color:#E6EDF7">Could not load shops</option>`;
+  }
+}
+document.getElementById('newUserRole')?.addEventListener('change', updateNewUserRoleUi);
+document.querySelector('.admin-tab[data-admin-tab="addUser"]')?.addEventListener('click', updateNewUserRoleUi);
+updateNewUserRoleUi();
 
 async function loadDashboard() {
   // Attention strip, KPI trends, waiting + recent sales load alongside the tables
@@ -717,7 +788,9 @@ function watchTileHtml(w) {
       <p class="text-xs text-on-surface-variant truncate mt-0.5">${esc(w.client_name || '—')}${w.shop_name ? ` · <span class="text-outline">${esc(w.shop_name)}</span>` : ''}</p>
       <div class="mt-3">${priceLine}</div>
       <p class="text-xs font-mono text-outline mt-2 mb-3 truncate">
-        ${w.stock_number ? `<span class="text-on-surface-variant">${esc(w.stock_number)}</span>` : 'No stock #'}
+        ${w.commission != null
+          ? `<span class="text-amber-300 font-semibold">Commission ${fmt.price(w.commission, w.commission_currency || cur)}</span>`   /* boutique managers: commission instead of the stock number */
+          : w.stock_number ? `<span class="text-on-surface-variant">${esc(w.stock_number)}</span>` : 'No stock #'}
         ${w.purchase_date ? ` · ${fmt.date(w.purchase_date)}` : ''}
       </p>
       <div class="flex items-center justify-between gap-2 mt-auto pt-3 border-t border-outline-variant/40">
@@ -3553,6 +3626,7 @@ function renderWatchDetailPage(w) {
         <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${fmt.date(ex.date)}</span>
         <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 flex-shrink-0">${expenseCategoryLabel(ex.category)}</span>
         <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(ex.description || '')}</span>
+        ${expenseBoutiqueControls(ex, 16)}
         <span class="font-mono text-sm text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void" class="p-1 hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[16px] text-on-surface-variant">close</span>
@@ -4055,6 +4129,8 @@ function watchCard(w) {
     w.list_price != null ? `<span class="text-on-surface font-semibold">${fmt.price(w.list_price, cur)}</span>` : null,
     w.status === 'sold' && w.sale_price != null ? `<span class="text-emerald-400 font-semibold">Sold ${fmt.price(w.sale_price, cur)}</span>` : null,
     w.reference_number ? `<span><span class="text-outline">Ref</span> ${esc(w.reference_number)}</span>` : null,
+    // Commission recorded on the piece (only sent to boutique managers)
+    w.commission != null ? `<span class="text-amber-300 font-semibold"><span class="text-outline font-normal">Commission</span> ${fmt.price(w.commission, w.commission_currency || cur)}</span>` : null,
   ].filter(Boolean).join('<span class="text-outline/40 mx-1.5">·</span>');
   return `
   <div class="tbl-row flex items-center gap-4 px-5 py-3 transition-colors group">
@@ -4152,6 +4228,8 @@ function avatarHtml(name, photoPath, size = 'sm') {
 }
 
 function statusBadge(status) {
+  // Boutique managers only ever see 'wishlist' or 'handed_over' (routes/boutique.js)
+  if (status === 'handed_over') return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30"><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block shadow-[0_0_6px_#22D3FF]"></span>Handed over</span>`;
   if (status === 'sold')      return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shadow-[0_0_6px_#2CFFA8]"></span>Sold</span>`;
   if (status === 'purchased') return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-purple-400/10 text-purple-300 border border-purple-400/30"><span class="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block shadow-[0_0_6px_#B18CFF]"></span>Purchased</span>`;
   return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/25"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_#FFC233]"></span>Wishlist</span>`;
@@ -4196,6 +4274,7 @@ function watchDetailBanner(w) {
         <span class="text-[11px] font-mono text-on-surface-variant w-16 flex-shrink-0">${ex.date || '—'}</span>
         <span class="text-[11px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 flex-shrink-0">${expenseCategoryLabel(ex.category)}</span>
         <span class="flex-1 text-[11px] text-on-surface-variant truncate">${esc(ex.description || '')}</span>
+        ${expenseBoutiqueControls(ex, 13)}
         <span class="font-mono text-[11px] text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void expense" class="hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[13px] text-on-surface-variant">close</span>
@@ -4969,10 +5048,46 @@ function openAddExpenseModal(watchId) {
   document.getElementById('expDate').value        = new Date().toISOString().split('T')[0];
   document.getElementById('expAmount').value      = '';
   document.getElementById('expDescription').value = '';
+  document.getElementById('expBoutique').checked  = false;
   document.getElementById('expError').classList.add('hidden');
+  document.querySelector('#addExpenseModal h2').textContent = 'Add Expense';
+  document.getElementById('expDescription').placeholder = 'e.g. DHL Express, Geneva flight…';
+  syncExpenseBoutiqueOption();
 
   document.getElementById('addExpenseModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('expAmount').focus(), 50);
+}
+
+// "Show to the boutique manager" only applies to commissions
+function syncExpenseBoutiqueOption() {
+  const wrap = document.getElementById('expBoutiqueWrap');
+  const isCommission = document.getElementById('expCategory').value === 'commission';
+  wrap.classList.toggle('hidden', !isCommission);
+  wrap.classList.toggle('flex', isCommission);
+}
+document.getElementById('expCategory').addEventListener('change', syncExpenseBoutiqueOption);
+
+// Share / hide a recorded commission for the shop's boutique manager
+async function toggleExpenseBoutique(expenseId, visible) {
+  try {
+    await api('PUT', `/api/expenses/${expenseId}/boutique`, { for_boutique: !!visible });
+    if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
+    else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
+    else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
+  } catch (e) {
+    alert(e.message || 'Failed to update commission');
+  }
+}
+
+// Badge + toggle shown next to a commission expense in the ledgers
+function expenseBoutiqueControls(ex, size = 16) {
+  if (ex.category !== 'commission' || ex.reversed) return '';
+  const on = !!ex.for_boutique;
+  return `${on ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Boutique</span>` : ''}
+    <button onclick="toggleExpenseBoutique(${ex.id}, ${on ? 'false' : 'true'})" title="${on ? 'Shown to the boutique manager — click to hide' : 'Show to the boutique manager'}" class="p-1 transition-colors flex-shrink-0 ${on ? 'text-amber-300 hover:text-on-surface-variant' : 'text-on-surface-variant hover:text-amber-300'}">
+      <span class="material-symbols-outlined text-[${size}px]">storefront</span>
+    </button>`;
 }
 
 function closeAddExpenseModal() {
@@ -4995,12 +5110,15 @@ async function submitExpense() {
   const amount = Number(rawAmount);
   if (isNaN(amount) || amount <= 0) { errEl.textContent = 'Enter a valid positive amount.'; errEl.classList.remove('hidden'); return; }
 
+  const for_boutique = category === 'commission' && document.getElementById('expBoutique').checked;
+
   try {
-    await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined });
+    await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined, for_boutique });
     closeAddExpenseModal();
     if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
     else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
     else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
   } catch (e) {
     errEl.textContent = e.message || 'Failed to save expense.';
     errEl.classList.remove('hidden');
@@ -5014,6 +5132,7 @@ async function reverseExpense(expenseId, watchId) {
     if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
     else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
     else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
   } catch (e) {
     alert(e.message || 'Failed to void expense');
   }
@@ -6118,11 +6237,12 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   }
 
   try {
+    let created = null;
     if (id) {
       await api('PUT', `/api/watches/${id}`, fd);
     } else {
       if (!profileId) { errEl.textContent = 'No client selected'; errEl.classList.remove('hidden'); return; }
-      await api('POST', `/api/profiles/${profileId}/watches`, fd);
+      created = await api('POST', `/api/profiles/${profileId}/watches`, fd);
     }
     closeWatchModal();
     if (currentPage === 'profile-detail')   openProfileDetail(currentProfileId);
@@ -6131,6 +6251,11 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
     else if (currentPage === 'shop-detail')      openShopDetail(currentShopId);
     else if (currentPage === 'watches')   loadWatches(document.getElementById('watchSearch').value, '');
     else if (currentPage === 'dashboard') loadDashboard();
+    else if (currentPage === 'boutique-commission') {
+      // Boutique Commission page: a new piece goes straight on to its commission
+      await loadBoutiqueCommissionShop();
+      if (created?.id) onBoutiqueWatchCreated(created);
+    }
   } catch (e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
 });
 
@@ -6874,11 +6999,11 @@ async function toggleWatchExpand(profileId) {
           <thead>
             <tr style="background:rgba(255,255,255,0.025); border-bottom:1px solid rgba(255,255,255,0.07)">
               <th class="px-10 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Timepiece</th>
-              <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Stock #</th>
+              <th class="col-stock px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Stock #</th>
               <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Serial #</th>
               <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Ref #</th>
               <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Date</th>
-              <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Price</th>
+              <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">${watches.some(w => w.commission !== undefined) ? 'List · Commission' : 'Price'}</th>
               <th class="px-5 py-2.5"></th>
             </tr>
           </thead>
@@ -6897,11 +7022,13 @@ async function toggleWatchExpand(profileId) {
                   </div>
                 </div>
               </td>
-              <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
+              <td class="col-stock px-5 py-3 text-on-surface-variant text-xs font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs">${fmt.date(w.purchase_date)}</td>
-              <td class="px-5 py-3 font-semibold text-primary text-sm">${fmt.money(w.price)}</td>
+              <td class="px-5 py-3 font-semibold text-primary text-sm">${w.commission !== undefined
+                ? `${fmt.price(w.list_price, w.currency || 'CHF')}${w.commission != null ? `<span class="block text-xs text-amber-300 font-normal mt-0.5">Commission ${fmt.price(w.commission, w.commission_currency || w.currency)}</span>` : ''}`
+                : fmt.money(w.price)}</td>
               <td class="px-5 py-3">
                 <div class="flex items-center justify-end gap-1">
                   <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
@@ -7758,6 +7885,7 @@ const GOTO_KEYS = {
   k: ['main-kpi',   'Main KPI'],
   c: ['profiles',   'Clients'],
   w: ['watches',    'Watches'],
+  b: ['boutique-commission', 'Boutique Commission'],
   d: ['desk',       'Patek Desk'],
   m: ['messages',   'Messages'],
   ',': ['settings', 'Settings'],
@@ -7889,7 +8017,7 @@ function vaultSeries(watches, n) {
   const sold = watches.filter(w => w.status === 'sold');
   const cur = dominantCurrency(sold.length ? sold : watches);
   const inCur = w => (w.currency || 'CHF') === cur;
-  const bought = watches.filter(w => w.status === 'purchased' || w.status === 'sold');
+  const bought = watches.filter(w => w.status === 'purchased' || w.status === 'sold' || w.status === 'handed_over');   // handed_over: boutique view
   const created = w => (w.created_at || '').slice(0, 10);
   const running = arr => { let t = 0; return arr.map(v => (t += v)); };
   const monthDate = k => new Date(k + '-01T00:00:00');
@@ -8289,6 +8417,709 @@ document.addEventListener('click', e => {
 applyWishlistVisibility();
 
 
+// ═══ 24-boutique-manager.js ═══
+// 24-boutique-manager.js — the Boutique Manager role
+// A boutique manager is a user created by a master for ONE shop of a registry.
+// They see four things — Vault, Shop, Watches, Wishlist — for that shop only,
+// read-only. The server (routes/boutique.js) already filters and strips the
+// data: no stock numbers, no resale prices, no costs, payouts, split rules,
+// other users or settings; it does send the commission recorded on each piece.
+// This file adapts the dashboard to that: trims navigation, guards pages,
+// swaps the Vault / Watches tiles for shop figures and renders a simple watch
+// page. public/style.css (`html.role-bm …`) hides the buttons that would only
+// lead to a 403. Nothing here runs for other roles.
+// Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
+// in filename order into public/js/dashboard.js (one classic script, so
+// functions and top-level variables stay shared exactly as before).
+
+const BM_PAGES = ['dashboard', 'shops', 'shop-detail', 'watches', 'watch-detail', 'commissions'];
+
+function isBoutiqueManager() { return currentUser?.role === 'boutique_manager'; }
+function bmShopName() { return currentUser?.shop?.name || 'your shop'; }
+
+// For a boutique manager a piece is either on the wishlist or handed over to
+// the client (the server maps purchased/sold → 'handed_over'; they never learn
+// whether it was resold). Quick filters that only make sense for them:
+const BM_QUICK_FILTERS = [
+  { id: 'handedMonth',    label: 'Handed over this month', icon: 'handshake', test: w => w.status === 'handed_over' && isThisMonth(w.purchase_date) },
+  { id: 'withCommission', label: 'With commission',        icon: 'payments',  test: w => w.commission != null },
+];
+// …and the ones about reselling that must go (they would show nothing anyway)
+const BM_DROP_QUICK_FILTERS = ['soldMonth', 'held60'];
+
+// Called from refreshCurrentUser() every time the session user is (re)loaded
+function applyRoleUi(user) {
+  const bm = user?.role === 'boutique_manager';
+  document.documentElement.classList.toggle('role-bm', bm);
+
+  const roleLabel = document.getElementById('currentUserRoleLabel');
+  if (roleLabel) roleLabel.textContent = bm ? `Boutique Manager · ${user.shop?.name || 'no shop'}` : 'Signed in as';
+
+  for (const id of ['navWishlist', 'navCommissions']) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.toggle('hidden', !bm); el.classList.toggle('flex', bm); }
+  }
+
+  if (!bm) return;
+
+  // Copy that talks about "the book" / "all clients" → this shop
+  const vaultSub = document.querySelector('#page-dashboard h2 + p');
+  if (vaultSub) vaultSub.textContent = `Pieces, wishlist and commission at ${bmShopName()}.`;
+  const watchesSub = document.getElementById('watchesSubtitle');
+  if (watchesSub) watchesSub.textContent = `Every piece registered at ${bmShopName()}.`;
+
+  // Keyboard shortcuts: only the pages a boutique manager has
+  ['p', 'k', 'c', 'b', 'd', 'm', ','].forEach(k => delete GOTO_KEYS[k]);
+  newItemForPage = function () {};   // "n" creates nothing
+
+  if (!QUICK_FILTERS.some(f => f.id === 'handedMonth')) {
+    for (let i = QUICK_FILTERS.length - 1; i >= 0; i--) if (BM_DROP_QUICK_FILTERS.includes(QUICK_FILTERS[i].id)) QUICK_FILTERS.splice(i, 1);
+    QUICK_FILTERS.push(...BM_QUICK_FILTERS);
+  }
+
+  // Watches status tabs: All · Wishlist · Handed over (Purchased / Sold are
+  // hidden by style.css, since setWatchStatusTab rewrites the tabs' classes)
+  const tabs = document.getElementById('watchStatusTabs');
+  if (tabs && !tabs.querySelector('[data-status="handed_over"]')) {
+    const t = document.createElement('button');
+    t.dataset.status = 'handed_over';
+    t.className = 'watch-status-tab text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30';
+    t.textContent = 'Handed over';
+    tabs.appendChild(t);
+  }
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+
+// Pages a boutique manager cannot open fall back to the Vault
+const _bmShowPage = showPage;
+showPage = function (name) {
+  if (isBoutiqueManager() && !BM_PAGES.includes(name)) name = 'dashboard';
+  _bmShowPage(name);
+  if (isBoutiqueManager()) syncBmNav(name);
+};
+
+// Watches vs Wishlist: both are the Watches page, the nav shows which tab is on
+function syncBmNav(page) {
+  const wishlistOn = page === 'watches' && watchStatusFilter === 'wishlist';
+  const set = (el, on) => { if (!el) return; el.classList.toggle('nav-active', on); el.classList.toggle('nav-inactive', !on); };
+  set(document.getElementById('navWishlist'), wishlistOn);
+  set(document.querySelector('.nav-item[data-page="watches"]'), page === 'watches' && !wishlistOn);
+}
+const _bmSetWatchStatusTab = setWatchStatusTab;
+setWatchStatusTab = function (status) {
+  _bmSetWatchStatusTab(status);
+  if (isBoutiqueManager() && currentPage === 'watches') syncBmNav('watches');
+};
+
+function openBoutiqueWishlist() {
+  activeQuickFilter = null;
+  setWatchStatusTab('wishlist');
+  const search = document.getElementById('watchSearch');
+  search.value = ''; search.dataset.typed = '';
+  showPage('watches');
+}
+document.getElementById('navWishlist')?.addEventListener('click', openBoutiqueWishlist);
+// The Watches nav item always opens the "All" tab for a boutique manager
+document.addEventListener('click', e => {
+  if (!isBoutiqueManager()) return;
+  if (e.target.closest('.nav-item[data-page="watches"]')) { activeQuickFilter = null; _bmSetWatchStatusTab(''); }
+}, true);
+
+// Watches filtered to one client (the Vault's client list links here)
+function openWatchesForClient(name) {
+  activeQuickFilter = null;
+  setWatchStatusTab('');
+  const search = document.getElementById('watchSearch');
+  search.value = name; search.dataset.typed = name;
+  showPage('watches');
+}
+
+// ── Series helpers ─────────────────────────────────────────────────────────
+
+// Commission per month in the currency most commission was paid in
+function bmCommissionSeries(watches, n = 12) {
+  const entries = watches.flatMap(w => w.expenses || []);
+  const byCur = {};
+  for (const e of entries) byCur[e.currency || 'CHF'] = (byCur[e.currency || 'CHF'] || 0) + Number(e.amount || 0);
+  const cur = Object.entries(byCur).sort((a, b) => b[1] - a[1])[0]?.[0] || 'CHF';
+  return { cur, values: monthlySeries(entries.filter(e => (e.currency || 'CHF') === cur), e => e.date, e => e.amount, n) };
+}
+function bmCommissionThisMonth(watches) {
+  const m = {};
+  for (const w of watches) for (const e of (w.expenses || [])) {
+    if (isThisMonth(e.date)) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0);
+  }
+  return m;
+}
+const bmThumb = w => `<div class="w-9 h-9 rounded-md bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">
+  ${w.image_path ? `<img src="${w.image_path}" alt="" class="w-full h-full object-cover">` : '<span class="material-symbols-outlined text-outline text-[18px]">watch</span>'}</div>`;
+const bmCommissionHtml = (w, cls = 'text-xs') => w.commission != null
+  ? `<span class="font-mono ${cls} bm-commission">${fmt.price(w.commission, w.commission_currency || w.currency || 'CHF')}</span>`
+  : `<span class="${cls} text-outline">—</span>`;
+
+// ── Vault ──────────────────────────────────────────────────────────────────
+
+const _bmLoadDashboard = loadDashboard;
+loadDashboard = async function () {
+  if (!isBoutiqueManager()) return _bmLoadDashboard();
+
+  const shop = currentUser.shop;
+  const [stats, watches, shops, profiles] = await Promise.all([
+    api('GET', '/api/stats'),
+    api('GET', '/api/watches'),
+    api('GET', '/api/shops'),
+    api('GET', '/api/profiles'),
+  ]);
+  watches.forEach(w => { watchCache[w.id] = w; });
+  const count = fn => watches.filter(fn).length;
+  const quick = id => QUICK_FILTERS.find(f => f.id === id).test;
+
+  // ── Needs attention ──
+  const commMonth = bmCommissionThisMonth(watches);
+  const items = [
+    { n: count(quick('waiting30')),   tone: 'amber',  icon: 'hourglass_top', title: 'Wishlist waiting 30+ days', cta: 'Review list',     go: "openWatchesWithQuickFilter('waiting30')" },
+    { n: count(quick('handedMonth')), tone: 'cyan',   icon: 'handshake',     title: 'Handed over this month',    cta: 'See pieces',      go: "openWatchesWithQuickFilter('handedMonth')" },
+    { money: commMonth,               tone: 'green',  icon: 'payments',      title: 'Commission this month',     cta: 'See commissions', go: "showPage('commissions')" },
+  ].filter(it => it.money ? Object.keys(it.money).length : it.n > 0);
+  document.getElementById('vaultAttention').innerHTML = items.length
+    ? items.map(it => `
+      <button type="button" class="attention-card tone-${it.tone}" onclick="${it.go}">
+        <span class="attention-icon material-symbols-outlined">${it.icon}</span>
+        <span class="min-w-0 flex-1 text-left">
+          <span class="attention-title">${esc(it.title)}</span>
+          <span class="attention-value">${it.money ? fmt.byCurrency(it.money) : `${it.n}<span class="attention-unit">${it.n === 1 ? 'watch' : 'watches'}</span>`}</span>
+          <span class="attention-cta">${esc(it.cta)} →</span>
+        </span>
+      </button>`).join('')
+    : `<div class="attention-card tone-green col-span-full">
+        <span class="attention-icon material-symbols-outlined">task_alt</span>
+        <span><span class="attention-title">All clear</span><span class="attention-value text-base">Nothing needs your attention right now.</span></span>
+      </div>`;
+
+  // ── At a glance (shop figures — no P&L, no sale proceeds) ──
+  const vs   = vaultSeries(watches, 12);
+  const comm = bmCommissionSeries(watches, 12);
+  const longest = watches.filter(w => w.status === 'wishlist').reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
+  const tile = (label, value, sub, spark) => `
+    <article class="glass-surface rounded-lg p-5">
+      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-2">${label}</p>
+      <div class="font-playfair text-2xl text-on-surface leading-tight">${value}</div>
+      <p class="text-xs text-on-surface-variant mt-1">${sub}</p>
+      ${spark}
+    </article>`;
+  const pcs = n => `<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${n === 1 ? 'piece' : 'pieces'}</span>`;
+  document.getElementById('vaultTiles').innerHTML = [
+    tile(`Pieces at ${esc(shop?.name || 'the shop')}`, `${stats.total_watches}${pcs(stats.total_watches)}`, `${stats.handed_over_count} handed over · ${stats.wishlist_count} on the wishlist`,
+         sparkBlock(vs.boughtCount, { color: SPARK.cyan, caption: 'pieces handed over / month', label: 'Pieces handed over per month' })),
+    tile('Wishlist', `${stats.wishlist_count}${pcs(stats.wishlist_count)}`, stats.wishlist_count ? `longest wait ${longest} day${longest !== 1 ? 's' : ''}` : 'nothing waiting',
+         sparkBlock(vs.wishAdds, { color: SPARK.amber, caption: 'wishlist adds / month', label: 'Wishlist adds per month' })),
+    tile('Handed over', fmt.byCurrency(stats.handed_over_list_value), `${stats.handed_over_count} piece${stats.handed_over_count !== 1 ? 's' : ''} at list price`,
+         sparkBlock(vs.boughtValue, { color: SPARK.violet, caption: `value handed over / month · ${vs.cur}`, label: 'Value handed over per month' })),
+    tile('Commission', fmt.byCurrency(stats.commission_total), `${stats.commission_pieces} piece${stats.commission_pieces !== 1 ? 's' : ''} with commission`,
+         sparkBlock(comm.values, { color: SPARK.green, caption: `commission / month · ${comm.cur}`, label: 'Commission per month' })),
+  ].join('');
+
+  // ── Longest waiting ──
+  const waiting = watches.filter(w => w.status === 'wishlist')
+    .sort((a, b) => (wishlistDays(b) ?? -1) - (wishlistDays(a) ?? -1)).slice(0, 6);
+  document.getElementById('vaultWaiting').innerHTML = waiting.length ? waiting.map(w => {
+    const d = wishlistDays(w) ?? 0;
+    const urgency = d >= 30 ? 'text-error' : d >= 14 ? 'text-amber-400' : 'text-on-surface-variant';
+    return `
+    <button type="button" class="tbl-row w-full px-5 py-2.5 flex items-center gap-3 text-left" onclick="openWatchDetail(${w.id})">
+      ${bmThumb(w)}
+      <span class="flex-1 min-w-0">
+        <span class="block text-sm font-medium text-on-surface truncate">${esc(w.model)}</span>
+        <span class="block text-xs text-on-surface-variant truncate">${esc(w.client_name || '—')}${w.reference_number ? ` · <span class="font-mono">${esc(w.reference_number)}</span>` : ''}</span>
+      </span>
+      <span class="font-mono text-lg font-semibold leading-none ${urgency}">${d}<span class="text-xs font-sans font-medium text-outline ml-1">${d === 1 ? 'day' : 'days'}</span></span>
+    </button>`;
+  }).join('') : `<p class="px-5 py-10 text-center text-sm text-on-surface-variant">Nothing on the wishlist.</p>`;
+
+  // ── Recently handed over (replaces "Recent sales") ──
+  const salesPanel = document.getElementById('vaultSales');
+  const header = salesPanel.previousElementSibling;
+  const h3 = header?.querySelector('h3');
+  if (h3) h3.innerHTML = `<span class="material-symbols-outlined text-primary text-[18px]">handshake</span>Recently handed over`;
+  const link = header?.querySelector('button');
+  if (link) { link.textContent = 'Handed over this month →'; link.setAttribute('onclick', "openWatchesWithQuickFilter('handedMonth')"); }
+  const bought = sortByKey(watches.filter(w => w.status === 'handed_over'), w => w.purchase_date || (w.created_at || '').slice(0, 10), 'desc').slice(0, 6);
+  salesPanel.innerHTML = bought.length ? bought.map(w => `
+    <button type="button" class="tbl-row w-full px-5 py-2.5 flex items-center gap-3 text-left" onclick="openWatchDetail(${w.id})">
+      ${bmThumb(w)}
+      <span class="flex-1 min-w-0">
+        <span class="block text-sm font-medium text-on-surface truncate">${esc(w.model)}</span>
+        <span class="block text-xs text-on-surface-variant truncate">${esc(w.client_name || '—')} · <span class="font-mono">${fmt.date(w.purchase_date)}</span></span>
+      </span>
+      <span class="text-right flex-shrink-0">
+        <span class="block font-mono text-sm font-semibold text-on-surface">${w.list_price != null ? fmt.price(w.list_price, w.currency || 'CHF') : '—'}</span>
+        <span class="block text-[11px] text-outline">commission ${bmCommissionHtml(w, 'text-[11px]')}</span>
+      </span>
+    </button>`).join('') : `<p class="px-5 py-10 text-center text-sm text-on-surface-variant">Nothing handed over yet.</p>`;
+
+  document.getElementById('vaultUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+  // ── Registry line + tables ──
+  document.getElementById('s-shops').textContent   = shops.length.toLocaleString();
+  document.getElementById('s-clients').textContent = profiles.length.toLocaleString();
+  document.getElementById('s-clients-sub').textContent = `${watches.length.toLocaleString()} piece${watches.length !== 1 ? 's' : ''} at ${shop?.name || 'the shop'}`;
+
+  const portfoliosPerShop = await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)));
+  document.getElementById('recentShops').innerHTML = shops.length ? shops.map((s, i) => `
+    <tr class="tbl-row cursor-pointer" onclick="openShopDetail(${s.id})">
+      <td class="px-5 py-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-primary text-[18px]">store</span>
+          </div>
+          <span class="text-on-surface font-medium text-sm">${esc(s.name)}</span>
+        </div>
+      </td>
+      <td class="px-5 py-3 text-on-surface-variant text-xs whitespace-pre-line leading-relaxed">${esc(s.address || '—')}</td>
+      <td class="px-5 py-3 text-on-surface-variant text-sm">${portfoliosPerShop[i].length} portfolio${portfoliosPerShop[i].length !== 1 ? 's' : ''}</td>
+      <td class="px-5 py-3 text-right">
+        <button onclick="event.stopPropagation(); openShopDetail(${s.id})" class="text-[11px] font-semibold uppercase tracking-wider text-primary hover:underline px-3 py-1 border border-transparent hover:border-primary/20 rounded transition-all">View</button>
+      </td>
+    </tr>`).join('') : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No shop assigned to this account yet — ask the registry owner.</td></tr>`;
+
+  // Clients of this shop (the column headers are reused: Client / Patek ID / Portfolio / Watches)
+  const clientsTable = document.getElementById('recentClients').closest('table');
+  const ths = clientsTable.querySelectorAll('thead th');
+  if (ths[1]) ths[1].textContent = 'Patek ID';
+  if (ths[2]) ths[2].textContent = 'Portfolio';
+  const sorted = [...profiles].sort((a, b) => (b.watch_count || 0) - (a.watch_count || 0));
+  document.getElementById('recentClients').innerHTML = sorted.length ? sorted.map(p => `
+    <tr class="tbl-row cursor-pointer" onclick="openWatchesForClient('${esc(p.name).replace(/'/g, "\\'")}')">
+      <td class="px-5 py-3">
+        <div class="flex items-center gap-3">
+          ${avatarHtml(p.name, p.photo_path, 'sm')}
+          <span class="text-on-surface font-medium text-sm">${esc(p.name)}</span>
+        </div>
+      </td>
+      <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(p.pp_urn || p.subscriber_id || '—')}</td>
+      <td class="px-5 py-3 text-on-surface-variant text-sm">${esc(p.portfolio_name || 'Individual')}</td>
+      <td class="px-5 py-3 text-on-surface-variant text-sm">${p.watch_count || 0} watch${(p.watch_count || 0) !== 1 ? 'es' : ''}</td>
+      <td class="px-5 py-3 text-right">
+        <span class="text-[11px] font-semibold uppercase tracking-wider text-primary px-3 py-1">Pieces →</span>
+      </td>
+    </tr>`).join('') : `<tr><td colspan="5" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients at this shop yet.</td></tr>`;
+  reapplyDomSort(document.getElementById('recentShops').closest('table'));
+  reapplyDomSort(clientsTable);
+};
+
+// ── Commissions page (Tools → Commissions) ─────────────────────────────────
+// Every commission the owner chose to share, newest first, grouped by month.
+// The data is the same `expenses` list the watches already carry.
+
+async function loadCommissions() {
+  const body = document.getElementById('commissionsBody');
+  if (!isBoutiqueManager()) {
+    document.getElementById('commissionTiles').innerHTML = '';
+    body.innerHTML = `<tr><td colspan="6" class="px-6 py-16 text-center text-on-surface-variant text-sm">This page is for boutique manager accounts.</td></tr>`;
+    return;
+  }
+  document.getElementById('commissionsSubtitle').textContent = `Commission set for you on pieces at ${bmShopName()}. Your registry owner chooses which commissions appear here.`;
+  const watches = await api('GET', '/api/watches');
+  watches.forEach(w => { watchCache[w.id] = w; });
+  const entries = watches.flatMap(w => (w.expenses || []).map(e => ({ ...e, watch: w })))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+
+  // Tiles: all time, this month, pieces
+  const sum = list => { const m = {}; for (const e of list) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; };
+  const total = sum(entries), month = sum(entries.filter(e => isThisMonth(e.date)));
+  const pieces = new Set(entries.map(e => e.watch.id)).size;
+  const monthName = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const tile = (label, value, sub) => `
+    <div class="glass-surface rounded-lg p-5">
+      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-3">${label}</p>
+      <p class="font-playfair text-2xl bm-commission">${value}</p>
+      <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
+    </div>`;
+  document.getElementById('commissionTiles').innerHTML = [
+    tile('Total commission', fmt.byCurrency(total), `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} shared with you`),
+    tile(`This month`, fmt.byCurrency(month), monthName),
+    tile('Pieces with commission', `<span class="text-on-surface">${pieces}</span>`, `of ${watches.length} piece${watches.length !== 1 ? 's' : ''} at ${bmShopName()}`),
+  ].join('');
+  document.getElementById('commissionsCount').textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
+  document.getElementById('commissionsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+  if (!entries.length) {
+    body.innerHTML = `<tr><td colspan="6" class="px-6 py-16 text-center text-on-surface-variant text-sm">
+      <span class="material-symbols-outlined text-outline text-3xl block mb-2">payments</span>
+      No commissions shared with you yet. Your registry owner marks a commission as visible to the boutique when recording it on a watch.</td></tr>`;
+    return;
+  }
+
+  // Month group header rows with the month's total, then the entries
+  let lastMonth = null, html = '';
+  for (const e of entries) {
+    const key = (e.date || '').slice(0, 7);
+    if (key !== lastMonth) {
+      lastMonth = key;
+      const inMonth = entries.filter(x => (x.date || '').slice(0, 7) === key);
+      const label = key ? new Date(key + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'Undated';
+      html += `<tr class="wl-group-row"><td colspan="6" class="!py-2 !px-5"><span class="text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">${label}</span>
+        <span class="font-mono text-xs bm-commission ml-3">${fmt.byCurrency(sum(inMonth))}</span></td></tr>`;
+    }
+    const w = e.watch;
+    html += `
+      <tr class="tbl-row cursor-pointer" onclick="openWatchDetail(${w.id})">
+        <td class="px-5 py-3 text-xs font-mono text-on-surface-variant whitespace-nowrap">${fmt.date(e.date)}</td>
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-3 min-w-0">
+            ${bmThumb(w)}
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+              <p class="text-xs font-mono text-outline truncate">${esc(w.reference_number || '')}${w.serial_number ? ` · ${esc(w.serial_number)}` : ''}</p>
+            </div>
+          </div>
+        </td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${esc(w.client_name || '—')}</td>
+        <td class="px-5 py-3">${statusBadge(w.status)}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant max-w-[320px] truncate">${esc(e.description || '—')}</td>
+        <td class="px-5 py-3 text-right font-mono text-sm font-semibold bm-commission whitespace-nowrap">${fmt.price(e.amount, e.currency || w.currency || 'CHF')}</td>
+      </tr>`;
+  }
+  body.innerHTML = html;
+}
+
+// ── Watches page ───────────────────────────────────────────────────────────
+
+const _bmLoadWatches = loadWatches;
+loadWatches = async function (q, source) {
+  if (!isBoutiqueManager()) return _bmLoadWatches(q, source);
+
+  const stats = await api('GET', '/api/stats');
+  const label = (id, text) => { const p = document.getElementById(id)?.parentElement?.querySelector('p'); if (p) p.textContent = text; };
+  label('wv-value',    'Pieces');
+  label('wv-active',   'Handed over');
+  label('wv-proceeds', 'Wishlist');
+  label('wv-pnl',      'Commission');
+  document.getElementById('wv-value').innerHTML    = `${stats.total_watches}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${stats.total_watches === 1 ? 'piece' : 'pieces'}</span>`;
+  document.getElementById('wv-active').innerHTML   = fmt.byCurrency(stats.handed_over_list_value);
+  document.getElementById('wv-proceeds').innerHTML = `${stats.wishlist_count}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${stats.wishlist_count === 1 ? 'piece' : 'pieces'}</span>`;
+  document.getElementById('wv-pnl').innerHTML      = `<span class="bm-commission">${fmt.byCurrency(stats.commission_total)}</span>`;
+  document.getElementById('wv-value-sub').textContent    = `at ${bmShopName()}`;
+  document.getElementById('wv-active-sub').textContent   = `${stats.handed_over_count} piece${stats.handed_over_count !== 1 ? 's' : ''} · list price`;
+  document.getElementById('wv-proceeds-sub').textContent = `${stats.wishlist_count} waiting`;
+  document.getElementById('wv-pnl-sub').textContent      = `${stats.commission_pieces} piece${stats.commission_pieces !== 1 ? 's' : ''} with commission`;
+  document.getElementById('wv-total').textContent = stats.total_watches.toLocaleString();
+
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  allWatches = await api('GET', `/api/watches?${params}`);
+  allWatches.forEach(w => { watchCache[w.id] = w; });
+  if (!q) renderWatchSparklines(allWatches);
+  watchPage = 1;
+  renderWatches();
+  renderWishlistWaiting();
+};
+
+const _bmRenderWatchSparklines = renderWatchSparklines;
+renderWatchSparklines = function (watches) {
+  if (!isBoutiqueManager()) return _bmRenderWatchSparklines(watches);
+  const vs = vaultSeries(watches, 12);
+  const comm = bmCommissionSeries(watches, 12);
+  document.getElementById('wv-value-spark').innerHTML    = sparkBlock(vs.boughtCount, { color: SPARK.cyan,   caption: 'pieces handed over / month', label: 'Pieces handed over per month' });
+  document.getElementById('wv-active-spark').innerHTML   = sparkBlock(vs.boughtValue, { color: SPARK.violet, caption: `value handed over / month · ${vs.cur}`, label: 'Value handed over per month' });
+  document.getElementById('wv-proceeds-spark').innerHTML = sparkBlock(vs.wishAdds,    { color: SPARK.amber,  caption: 'wishlist adds / month', label: 'Wishlist adds per month' });
+  document.getElementById('wv-pnl-spark').innerHTML      = sparkBlock(comm.values,    { color: SPARK.green,  caption: `commission / month · ${comm.cur}`, label: 'Commission per month' });
+};
+
+// ── Watch page ─────────────────────────────────────────────────────────────
+// A plain page: the piece, its identity, the commission on it and the client.
+
+const _bmRenderWatchDetailPage = renderWatchDetailPage;
+renderWatchDetailPage = function (w) {
+  if (!isBoutiqueManager()) return _bmRenderWatchDetailPage(w);
+
+  const cur = w.currency || 'CHF';
+  const pr  = w.profile || {};
+  const stCls = { wishlist:    'text-amber-400 border-amber-400/30 bg-amber-400/5',
+                  handed_over: 'text-primary border-primary/30 bg-primary/5' };
+  const stLabel = { wishlist: 'Wishlist', handed_over: 'Handed over' };
+  const field = (label, val, mono) => val != null && val !== '' && val !== '—' ? `<div>
+      <p class="text-[11px] uppercase tracking-wider text-on-surface-variant mb-0.5">${label}</p>
+      <p class="text-sm text-on-surface ${mono ? 'font-mono' : ''}">${esc(String(val))}</p>
+    </div>` : '';
+  const card = (title, body) => `
+    <div class="glass-surface rounded-xl p-6 border border-outline-variant/10">
+      <p class="text-[11px] uppercase tracking-[0.06em] font-semibold text-on-surface-variant mb-4">${title}</p>
+      ${body}
+    </div>`;
+  const waiting = w.status === 'wishlist' ? wishlistDays(w) : null;
+  const entries = (w.expenses || []);
+  const commissionRows = entries.length
+    ? entries.map(e => `
+      <div class="flex items-center gap-3 py-2.5 border-b border-outline-variant/10 last:border-0">
+        <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${fmt.date(e.date)}</span>
+        <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(e.description || 'Commission')}</span>
+        <span class="font-mono text-sm bm-commission flex-shrink-0">${fmt.price(e.amount, e.currency || cur)}</span>
+      </div>`).join('')
+    : `<p class="text-sm text-on-surface-variant/50 italic py-2">No commission recorded on this piece yet.</p>`;
+
+  document.getElementById('watchDetailContent').innerHTML = `
+    <div class="glass-surface rounded-xl overflow-hidden">
+      <div class="flex items-start gap-6 p-6">
+        <div class="w-32 h-32 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden ${w.image_path ? 'cursor-zoom-in' : ''}"
+             ${w.image_path ? `onclick="openLightbox('${w.image_path}')"` : ''}>
+          ${w.image_path ? `<img src="${w.image_path}" class="w-full h-full object-cover" alt="${esc(w.model)}">`
+                         : `<span class="material-symbols-outlined text-outline text-4xl">watch</span>`}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${stCls[w.status] || stCls.handed_over} inline-block">${stLabel[w.status] || 'Handed over'}</span>
+            ${waiting != null ? `<span class="text-[11px] font-mono ${waiting >= 30 ? 'text-error' : waiting >= 14 ? 'text-amber-400' : 'text-on-surface-variant'}">${waiting} day${waiting !== 1 ? 's' : ''} waiting</span>` : ''}
+            <span class="bm-badge ml-auto"><span class="material-symbols-outlined text-[14px]">visibility</span> Boutique view</span>
+          </div>
+          <h1 class="font-playfair text-3xl font-semibold text-on-surface leading-tight">${esc(w.model)}</h1>
+          <p class="text-on-surface-variant text-sm mt-1.5">
+            ${w.shop_name ? `${esc(w.shop_name)} · ` : ''}${esc(w.client_name || pr.name || '—')}${w.reference_number ? ` · <span class="font-mono">${esc(w.reference_number)}</span>` : ''}
+          </p>
+          <div class="grid grid-cols-3 gap-4 text-sm mt-5 max-w-xl">
+            <div class="bg-white/[0.02] rounded-lg p-3.5">
+              <p class="text-[11px] uppercase tracking-wider text-on-surface-variant mb-1">List Price</p>
+              <p class="font-playfair text-lg text-on-surface font-mono">${w.list_price != null ? fmt.price(w.list_price, cur) : '<span class="text-outline">—</span>'}</p>
+            </div>
+            <div class="bg-white/[0.02] rounded-lg p-3.5">
+              <p class="text-[11px] uppercase tracking-wider text-on-surface-variant mb-1">${w.status === 'wishlist' ? 'On wishlist since' : 'Handed over'}</p>
+              <p class="font-playfair text-lg text-on-surface font-mono">${w.status === 'wishlist' ? fmt.date((w.created_at || '').slice(0, 10)) : fmt.date(w.purchase_date)}</p>
+            </div>
+            <div class="bg-white/[0.02] rounded-lg p-3.5">
+              <p class="text-[11px] uppercase tracking-wider text-on-surface-variant mb-1">Commission</p>
+              <p class="font-playfair text-lg font-mono">${bmCommissionHtml(w, 'text-lg')}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 space-y-6">
+        ${card('Commission on this piece', commissionRows)}
+        ${w.notes ? card('Notes', `<p class="text-sm text-on-surface leading-relaxed">${esc(w.notes)}</p>`) : ''}
+      </div>
+      <div class="space-y-6">
+        ${card('Watch Identity', `<div class="grid grid-cols-2 gap-x-6 gap-y-4">${[
+          field('Reference No.', w.reference_number, true),
+          field('Serial No.',    w.serial_number,    true),
+          field('Movement No.',  w.movement_number,  true),
+          field('Case No.',      w.case_number,      true),
+          field('Source',        w.source),
+          field('Currency',      w.currency),
+        ].filter(Boolean).join('')}</div>`)}
+        ${pr.name ? card('Client', `
+          <div class="flex items-center gap-4">
+            ${avatarHtml(pr.name, pr.photo_path, 'md')}
+            <div class="min-w-0">
+              <p class="font-semibold text-on-surface truncate">${esc(pr.name)}</p>
+              ${pr.email ? `<p class="text-xs text-on-surface-variant mt-0.5 truncate">${esc(pr.email)}</p>` : ''}
+              ${pr.pp_urn ? `<p class="text-xs font-mono text-on-surface-variant mt-0.5">${esc(pr.pp_urn)}</p>` : ''}
+              ${pr.portfolio_name ? `<p class="text-xs text-outline mt-0.5">${esc(pr.portfolio_name)}</p>` : ''}
+            </div>
+          </div>`) : ''}
+      </div>
+    </div>`;
+};
+
+
+// ═══ 25-boutique-commission.js ═══
+// 25-boutique-commission.js — Tools → Boutique Commission (master + admin)
+// The owner's side of the boutique-manager feature. Pick one of your boutique
+// managers: you see every piece at their shop with the commission currently
+// shown to them, set a commission on an existing piece (recorded as a
+// 'commission' expense flagged for_boutique, so it lands in their Commissions
+// tab), share or hide commissions already recorded, or add a brand-new piece
+// to the shop and set its commission in one go. Boutique managers never see
+// this page (style.css hides the nav item; the API refuses them anyway).
+// Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
+// in filename order into public/js/dashboard.js (one classic script, so
+// functions and top-level variables stay shared exactly as before).
+
+let _bcManagers = [];
+let _bcManagerId = (() => { try { return Number(localStorage.getItem('meridian.bcManager')) || null; } catch { return null; } })();
+let _bcShop = null;            // { id, name, profiles }
+let _bcWatches = [];
+
+function bcSelectedManager() { return _bcManagers.find(m => m.id === _bcManagerId) || _bcManagers[0] || null; }
+
+async function loadBoutiqueCommission() {
+  const sel = document.getElementById('bcManagerSelect');
+  const empty = document.getElementById('bcEmpty');
+  const content = document.getElementById('bcContent');
+  try { _bcManagers = await api('GET', '/api/boutique-managers'); } catch (e) { _bcManagers = []; }
+
+  if (!_bcManagers.length) {
+    sel.innerHTML = `<option value="" style="background:#131A24;color:#E6EDF7">No boutique manager yet</option>`;
+    content.classList.add('hidden');
+    empty.classList.remove('hidden');
+    empty.innerHTML = `
+      <span class="material-symbols-outlined text-outline text-4xl block mb-3">storefront</span>
+      <p class="text-on-surface font-semibold mb-1">No boutique manager in this workspace yet</p>
+      <p>${currentUser?.role === 'master'
+        ? `Create one under <button class="text-primary underline" onclick="showPage('admin'); setTimeout(() => showAdminTab('addUser'), 50)">Admin → Add User</button> with the role <strong class="text-on-surface">Boutique Manager</strong>, then come back here to decide what they see.`
+        : 'Ask the master to create a boutique manager for one of your shops (Admin → Add User → Boutique Manager). Then you can decide here what they see.'}</p>`;
+    return;
+  }
+  empty.classList.add('hidden');
+  content.classList.remove('hidden');
+  const chosen = bcSelectedManager();
+  _bcManagerId = chosen.id;
+  sel.innerHTML = _bcManagers.map(m =>
+    `<option value="${m.id}" style="background:#131A24;color:#E6EDF7" ${m.id === _bcManagerId ? 'selected' : ''}>${esc(m.username)} · ${esc(m.shop_name || 'no shop assigned')}</option>`).join('');
+  await loadBoutiqueCommissionShop();
+}
+
+document.getElementById('bcManagerSelect')?.addEventListener('change', e => {
+  _bcManagerId = Number(e.target.value) || null;
+  try { localStorage.setItem('meridian.bcManager', String(_bcManagerId || '')); } catch {}
+  loadBoutiqueCommissionShop();
+});
+
+// Commission entries of a watch, newest first (voided ones are left out)
+function bcCommissions(w) {
+  return (w.expenses || []).filter(e => e.category === 'commission' && !e.reversed)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+}
+function bcSum(list, pick = () => true) {
+  const m = {};
+  for (const e of list) if (pick(e)) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0);
+  return m;
+}
+
+async function loadBoutiqueCommissionShop() {
+  const m = bcSelectedManager();
+  const body = document.getElementById('bcBody');
+  if (!m) return;
+  if (!m.shop_id) {
+    _bcShop = null; _bcWatches = [];
+    document.getElementById('bcTiles').innerHTML = '';
+    document.getElementById('bcShopTitle').textContent = 'No shop assigned';
+    document.getElementById('bcShopSub').textContent = `${m.username} is not linked to a shop yet — assign one under Admin → Users (store icon).`;
+    document.getElementById('bcNewClient').innerHTML = '';
+    body.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
+    return;
+  }
+  const [shop, watches] = await Promise.all([
+    api('GET', `/api/shops/${m.shop_id}`),
+    api('GET', `/api/watches?shop_id=${m.shop_id}`),
+  ]);
+  _bcShop = shop; _bcWatches = watches;
+  watches.forEach(w => { watchCache[w.id] = w; });
+
+  // ── Tiles: what the boutique currently sees ──
+  const all = watches.flatMap(bcCommissions);
+  const shared = all.filter(e => e.for_boutique);
+  const tile = (label, value, sub, cls = 'bm-commission') => `
+    <div class="glass-surface rounded-lg p-5">
+      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-3">${label}</p>
+      <p class="font-playfair text-2xl ${cls}">${value}</p>
+      <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
+    </div>`;
+  document.getElementById('bcTiles').innerHTML = [
+    tile(`Shown to ${esc(m.username)}`, fmt.byCurrency(bcSum(shared)), `${shared.length} commission${shared.length !== 1 ? 's' : ''} shared · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''}`),
+    tile('Shared this month', fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date))), new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })),
+    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${all.length - shared.length} commission${all.length - shared.length !== 1 ? 's' : ''} recorded but not shown`, 'text-on-surface'),
+  ].join('');
+
+  document.getElementById('bcShopTitle').textContent = `Pieces at ${shop.name}`;
+  document.getElementById('bcShopSub').textContent = `${watches.length} piece${watches.length !== 1 ? 's' : ''} · ${(shop.profiles || []).length} client${(shop.profiles || []).length !== 1 ? 's' : ''} · seen by ${m.username}`;
+
+  // New piece: pick which client of the shop it belongs to
+  const clientSel = document.getElementById('bcNewClient');
+  const profiles = shop.profiles || [];
+  clientSel.innerHTML = profiles.length
+    ? profiles.map(p => `<option value="${p.id}" style="background:#131A24;color:#E6EDF7">${esc(p.name)}</option>`).join('')
+    : `<option value="" style="background:#131A24;color:#E6EDF7">No clients at this shop yet</option>`;
+  document.getElementById('bcNewPieceBtn').disabled = !profiles.length;
+  document.getElementById('bcNewPieceBtn').classList.toggle('opacity-50', !profiles.length);
+
+  // ── Pieces table: owned first, wishlist last ──
+  const ordered = [...watches.filter(w => w.status !== 'wishlist'), ...watches.filter(w => w.status === 'wishlist')];
+  body.innerHTML = ordered.length ? ordered.map(bcRowHtml).join('')
+    : `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant text-sm">No pieces at this shop yet — add one with "New piece for this shop".</td></tr>`;
+}
+
+function bcRowHtml(w) {
+  const cur = w.currency || 'CHF';
+  const comms = bcCommissions(w);
+  const shared = comms.filter(e => e.for_boutique);
+  const thumb = w.image_path
+    ? `<img src="${w.image_path}" class="w-full h-full object-cover" alt="">`
+    : `<span class="material-symbols-outlined text-outline text-[20px]">watch</span>`;
+  const canSet = w.status !== 'wishlist';
+  const entryRows = comms.map(e => `
+    <div class="flex items-center gap-3 py-1.5">
+      <span class="text-[11px] font-mono text-on-surface-variant w-20 flex-shrink-0">${fmt.date(e.date)}</span>
+      <span class="flex-1 text-xs text-on-surface-variant truncate">${esc(e.description || 'Commission')}</span>
+      ${e.for_boutique
+        ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Shown</span>`
+        : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-outline flex-shrink-0">Private</span>`}
+      <span class="font-mono text-xs ${e.for_boutique ? 'bm-commission' : 'text-on-surface-variant'} flex-shrink-0 w-24 text-right">${fmt.price(e.amount, e.currency || cur)}</span>
+      <button onclick="toggleExpenseBoutique(${e.id}, ${e.for_boutique ? 'false' : 'true'})" title="${e.for_boutique ? 'Hide from the boutique manager' : 'Show to the boutique manager'}" class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border transition-all flex-shrink-0 ${e.for_boutique ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-amber-400/30 text-amber-300 hover:bg-amber-400/10'}">${e.for_boutique ? 'Hide' : 'Show'}</button>
+      <button onclick="reverseExpense(${e.id}, ${w.id})" title="Void this commission" class="p-1 text-on-surface-variant hover:text-error transition-colors flex-shrink-0">
+        <span class="material-symbols-outlined text-[14px]">close</span>
+      </button>
+    </div>`).join('');
+  return `
+    <tr class="tbl-row">
+      <td class="px-5 py-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-11 h-11 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">${thumb}</div>
+          <div class="min-w-0">
+            <button onclick="openWatchDetail(${w.id})" class="text-sm font-medium text-on-surface hover:text-primary transition-colors text-left truncate block">${esc(w.model)}</button>
+            <p class="text-xs font-mono text-outline truncate">${esc(w.reference_number || '')}${w.stock_number ? ` · ${esc(w.stock_number)}` : ''}</p>
+          </div>
+        </div>
+      </td>
+      <td class="px-5 py-3 text-sm text-on-surface-variant">${esc(w.client_name || '—')}</td>
+      <td class="px-5 py-3">${statusBadge(w.status)}</td>
+      <td class="px-5 py-3 text-sm font-mono text-on-surface">${w.list_price != null ? fmt.price(w.list_price, cur) : '<span class="text-outline">—</span>'}</td>
+      <td class="px-5 py-3">
+        ${shared.length ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="text-xs text-outline">nothing shown</span>`}
+        ${comms.length > shared.length ? `<span class="block text-[11px] text-outline mt-0.5">${comms.length - shared.length} private</span>` : ''}
+      </td>
+      <td class="px-5 py-3 text-right">
+        ${canSet
+          ? `<button onclick="openBoutiqueCommissionModal(${w.id})" class="text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15 transition-all inline-flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px]">payments</span> Set commission
+            </button>`
+          : `<span class="text-[11px] text-outline" title="Commissions are recorded on bought pieces. Mark it purchased first.">wishlist · buy first</span>`}
+      </td>
+    </tr>
+    ${comms.length ? `<tr><td colspan="6" class="px-5 pb-3 pt-0"><div class="ml-14 pl-4 border-l border-amber-400/20">${entryRows}</div></td></tr>` : ''}`;
+}
+
+// Set commission = the Add Expense dialog, preset to a commission that the
+// boutique sees. Saving refreshes this page (submitExpense handles the page).
+function openBoutiqueCommissionModal(watchId) {
+  openAddExpenseModal(watchId);
+  const m = bcSelectedManager();
+  document.getElementById('expCategory').value = 'commission';
+  syncExpenseBoutiqueOption();
+  document.getElementById('expBoutique').checked = true;
+  document.querySelector('#addExpenseModal h2').textContent = 'Set boutique commission';
+  document.getElementById('expDescription').placeholder = `e.g. Allocation commission for ${m?.username || 'the boutique'}`;
+}
+
+// New piece for this shop: the standard Add Watch dialog for the chosen client,
+// preset to Purchased (commissions need a bought piece). When it is saved the
+// commission dialog opens for it right away (hook in 14-watch-modal.js).
+document.getElementById('bcNewPieceBtn')?.addEventListener('click', async () => {
+  const profileId = Number(document.getElementById('bcNewClient').value);
+  if (!profileId) return;
+  await openAddWatch(profileId);
+  setWatchStatus('purchased');
+  document.getElementById('wDate').value = new Date().toISOString().split('T')[0];
+});
+function onBoutiqueWatchCreated(w) {
+  if (w.status === 'wishlist') return;    // nothing to set on a wishlist piece yet
+  watchCache[w.id] = { ...w, client_name: _bcShop?.profiles?.find(p => p.id === w.profile_id)?.name };
+  openBoutiqueCommissionModal(w.id);
+}
+
+
 // ═══ 99-boot.js ═══
 // 99-boot.js — Boot
 // Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
@@ -8296,4 +9127,6 @@ applyWishlistVisibility();
 // functions and top-level variables stay shared exactly as before).
 
 // ── Boot ───────────────────────────────────────────────────────────────────
-showPage('dashboard');
+// Wait for /api/auth/me so role-specific chrome (and page guards) are in
+// place before the first page loads its data.
+_userReady.then(() => showPage('dashboard'));

@@ -6,7 +6,7 @@ const db      = require('../db');
 const audit   = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.viewing_as || req.session.user.id;
+const uid     = require('../lib/uid');
 
 // GET /api/portfolios?shop_id=X
 router.get('/', (req, res) => {

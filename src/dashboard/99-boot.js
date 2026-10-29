@@ -4,4 +4,6 @@
 // functions and top-level variables stay shared exactly as before).
 
 // ── Boot ───────────────────────────────────────────────────────────────────
-showPage('dashboard');
+// Wait for /api/auth/me so role-specific chrome (and page guards) are in
+// place before the first page loads its data.
+_userReady.then(() => showPage('dashboard'));

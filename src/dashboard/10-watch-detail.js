@@ -118,6 +118,7 @@ function renderWatchDetailPage(w) {
         <span class="text-xs font-mono text-on-surface-variant w-24 flex-shrink-0">${fmt.date(ex.date)}</span>
         <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 flex-shrink-0">${expenseCategoryLabel(ex.category)}</span>
         <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(ex.description || '')}</span>
+        ${expenseBoutiqueControls(ex, 16)}
         <span class="font-mono text-sm text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void" class="p-1 hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[16px] text-on-surface-variant">close</span>

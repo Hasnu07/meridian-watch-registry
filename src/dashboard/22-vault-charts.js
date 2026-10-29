@@ -17,7 +17,7 @@ function vaultSeries(watches, n) {
   const sold = watches.filter(w => w.status === 'sold');
   const cur = dominantCurrency(sold.length ? sold : watches);
   const inCur = w => (w.currency || 'CHF') === cur;
-  const bought = watches.filter(w => w.status === 'purchased' || w.status === 'sold');
+  const bought = watches.filter(w => w.status === 'purchased' || w.status === 'sold' || w.status === 'handed_over');   // handed_over: boutique view
   const created = w => (w.created_at || '').slice(0, 10);
   const running = arr => { let t = 0; return arr.map(v => (t += v)); };
   const monthDate = k => new Date(k + '-01T00:00:00');

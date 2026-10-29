@@ -37,6 +37,13 @@ async function loadAdminUsers() {
   body.innerHTML = users.map(u => {
     const isMe = u.id === me;
     const created = (u.created_at || '').split(' ')[0] || '—';
+    const isBm = u.role === 'boutique_manager';
+    const roleCls = u.role === 'master' ? 'text-primary border-primary/40 bg-primary/5'
+                  : isBm ? 'text-amber-300 border-amber-400/30 bg-amber-400/5'
+                  : 'text-purple-300 border-purple-300/30 bg-purple-300/5';
+    const roleLabel = isBm ? 'Boutique Manager' : u.role;
+    // A boutique manager has no workspace: show the shop (and whose registry) instead of counts
+    const roleSub = isBm ? `<p class="text-[11px] text-on-surface-variant mt-1.5">${esc(u.shop_name || 'no shop assigned')}${u.owner_username ? ` · ${esc(u.owner_username)}'s registry` : ''}</p>` : '';
     return `
       <tr class="hover:bg-white/[0.02]">
         <td class="px-5 py-3">
@@ -49,22 +56,26 @@ async function loadAdminUsers() {
           </div>
         </td>
         <td class="px-5 py-3">
-          <span class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${u.role === 'master' ? 'text-primary border-primary/40 bg-primary/5' : 'text-purple-300 border-purple-300/30 bg-purple-300/5'}">${u.role}</span>
+          <span class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${roleCls}">${roleLabel}</span>${roleSub}
         </td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.clients_count || 0}</td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.watches_count || 0}</td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.sold_count || 0}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.clients_count || 0)}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.watches_count || 0)}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.sold_count || 0)}</td>
         <td class="px-5 py-3 text-xs text-outline">${created}</td>
         <td class="px-5 py-3">
           <div class="flex items-center justify-end gap-1.5">
-            ${!isMe ? `
+            ${!isMe && !isBm ? `
             <button onclick="adminViewAs(${u.id})" title="View their workspace" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
               <span class="material-symbols-outlined text-[16px]">visibility</span>
+            </button>` : ''}
+            ${isBm ? `
+            <button onclick="adminChangeShop(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}', ${u.owner_id || 'null'})" title="Change shop" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
+              <span class="material-symbols-outlined text-[16px]">store</span>
             </button>` : ''}
             <button onclick="adminResetPassword(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}' )" title="Reset password" class="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors">
               <span class="material-symbols-outlined text-[16px]">key</span>
             </button>
-            ${u.role === 'master' || isMe ? '' : `
+            ${u.role === 'master' || isBm || isMe ? '' : `
             <button onclick="adminPromote(${u.id})" title="Promote to master" class="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors">
               <span class="material-symbols-outlined text-[16px]">workspace_premium</span>
             </button>`}
@@ -76,6 +87,28 @@ async function loadAdminUsers() {
         </td>
       </tr>`;
   }).join('');
+}
+
+// Move a boutique manager to another shop of the registry they belong to.
+// The shop list comes from the current workspace, so switch to that owner's
+// workspace (View as) first when the manager belongs to someone else.
+async function adminChangeShop(userId, username, ownerId) {
+  const workspace = currentUser?.viewing_as?.id || currentUser?.id;
+  if (ownerId && ownerId !== workspace) {
+    alert(`${username} belongs to another registry. Use "View their workspace" on its owner first, then change the shop from there.`);
+    return;
+  }
+  let shops;
+  try { shops = await api('GET', '/api/shops'); } catch (e) { alert(e.message); return; }
+  if (!shops.length) { alert('This workspace has no shops yet.'); return; }
+  const choice = prompt(`Which shop should ${username} look after?\n\n` + shops.map((s, i) => `${i + 1}. ${s.name}`).join('\n') + '\n\nType the number:');
+  if (!choice) return;
+  const shop = shops[Number(choice) - 1];
+  if (!shop) { alert('No shop with that number.'); return; }
+  try {
+    await api('PUT', `/api/admin/users/${userId}`, { shop_id: shop.id });
+    await loadAdminUsers();
+  } catch (e) { alert(e.message); }
 }
 
 async function adminViewAs(userId) {
@@ -158,8 +191,10 @@ document.getElementById('newUserSubmit')?.addEventListener('click', async () => 
   const err      = document.getElementById('newUserError');
   err.classList.add('hidden');
   if (!username || !password) { err.textContent = 'Username and password are required.'; err.classList.remove('hidden'); return; }
+  const shop_id = role === 'boutique_manager' ? Number(document.getElementById('newUserShop').value) : undefined;
+  if (role === 'boutique_manager' && !shop_id) { err.textContent = 'Choose the shop this boutique manager looks after.'; err.classList.remove('hidden'); return; }
   try {
-    await api('POST', '/api/admin/users', { username, password, role });
+    await api('POST', '/api/admin/users', { username, password, role, shop_id });
     document.getElementById('newUserUsername').value = '';
     document.getElementById('newUserPassword').value = '';
     showAdminTab('users');
@@ -167,6 +202,36 @@ document.getElementById('newUserSubmit')?.addEventListener('click', async () => 
     err.textContent = e.message; err.classList.remove('hidden');
   }
 });
+
+// Role picker: explain each role and, for a boutique manager, ask which shop
+// of the current workspace they look after.
+const ROLE_HINTS = {
+  admin:            'Own workspace with the default shop catalogue. Cannot see other users.',
+  master:           'Full access: every workspace, user management and the audit log.',
+  boutique_manager: 'Read-only window onto ONE shop of this workspace: Vault, Shop, Watches and Wishlist. Sees commission per piece; never stock numbers, resale prices, costs, payouts, other users or settings.',
+};
+async function updateNewUserRoleUi() {
+  const role = document.getElementById('newUserRole')?.value;
+  const hint = document.getElementById('newUserRoleHint');
+  const wrap = document.getElementById('newUserShopWrap');
+  if (!role || !hint || !wrap) return;
+  hint.textContent = ROLE_HINTS[role] || '';
+  const isBm = role === 'boutique_manager';
+  wrap.classList.toggle('hidden', !isBm);
+  if (!isBm) return;
+  const sel = document.getElementById('newUserShop');
+  try {
+    const shops = await api('GET', '/api/shops');
+    sel.innerHTML = shops.length
+      ? shops.map(s => `<option value="${s.id}" style="background:#131A24;color:#E6EDF7">${esc(s.name)}</option>`).join('')
+      : `<option value="" style="background:#131A24;color:#E6EDF7">No shops in this workspace yet</option>`;
+  } catch (e) {
+    sel.innerHTML = `<option value="" style="background:#131A24;color:#E6EDF7">Could not load shops</option>`;
+  }
+}
+document.getElementById('newUserRole')?.addEventListener('change', updateNewUserRoleUi);
+document.querySelector('.admin-tab[data-admin-tab="addUser"]')?.addEventListener('click', updateNewUserRoleUi);
+updateNewUserRoleUi();
 
 async function loadDashboard() {
   // Attention strip, KPI trends, waiting + recent sales load alongside the tables

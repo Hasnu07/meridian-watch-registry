@@ -112,7 +112,9 @@ function watchTileHtml(w) {
       <p class="text-xs text-on-surface-variant truncate mt-0.5">${esc(w.client_name || '—')}${w.shop_name ? ` · <span class="text-outline">${esc(w.shop_name)}</span>` : ''}</p>
       <div class="mt-3">${priceLine}</div>
       <p class="text-xs font-mono text-outline mt-2 mb-3 truncate">
-        ${w.stock_number ? `<span class="text-on-surface-variant">${esc(w.stock_number)}</span>` : 'No stock #'}
+        ${w.commission != null
+          ? `<span class="text-amber-300 font-semibold">Commission ${fmt.price(w.commission, w.commission_currency || cur)}</span>`   /* boutique managers: commission instead of the stock number */
+          : w.stock_number ? `<span class="text-on-surface-variant">${esc(w.stock_number)}</span>` : 'No stock #'}
         ${w.purchase_date ? ` · ${fmt.date(w.purchase_date)}` : ''}
       </p>
       <div class="flex items-center justify-between gap-2 mt-auto pt-3 border-t border-outline-variant/40">

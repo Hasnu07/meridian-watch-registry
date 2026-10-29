@@ -9,7 +9,7 @@ const notifier = require('../lib/event-notifier');
 const audit    = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.viewing_as || req.session.user.id;
+const uid     = require('../lib/uid');
 
 const ALLOWED = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
 

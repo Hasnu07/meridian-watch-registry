@@ -68,9 +68,10 @@ function requireAuth(req, res, next) {
   res.status(401).json({ error: 'Unauthorised' });
 }
 
-// uid() respects the "view-as" impersonation flag a master may have set.
+// uid() = whose workspace this request touches: the "view-as" target a master
+// picked, a boutique manager's owner, else the user themself (lib/uid.js).
 // Audit calls use req.session.user.id directly so actions stay attributable.
-const uid = req => req.session.viewing_as || req.session.user.id;
+const uid = require('./lib/uid');
 
 // ── Routes ────────────────────────────────────────────────────────────────
 // Rate-limit login attempts (per IP) to slow down brute-force attacks.
@@ -174,6 +175,10 @@ app.get('/api/share-client/:token', (req, res) => {
 });
 
 // ── Authenticated API mounts ──────────────────────────────────────────────
+// Boutique managers first: a read-only, one-shop view that answers the few
+// GETs their dashboard needs and refuses everything else. Other roles pass
+// straight through to the routers below.
+app.use('/api',                                   requireAuth, require('./routes/boutique'));
 app.use('/api/shops',                             requireAuth, require('./routes/shops'));
 app.use('/api/portfolios',                        requireAuth, require('./routes/portfolios'));
 app.use('/api/clients',                           requireAuth, require('./routes/clients'));
@@ -188,6 +193,11 @@ app.use('/api/admin',                             requireAuth, require('./routes
 // Stats — scoped to current user
 app.get('/api/stats', requireAuth, (req, res) => {
   res.json(db.getStats(uid(req)));
+});
+
+// Boutique managers of this workspace (Boutique Commission page; master + admin)
+app.get('/api/boutique-managers', requireAuth, (req, res) => {
+  res.json(db.listBoutiqueManagers(uid(req)));
 });
 
 // Change password — updates the CURRENT user (not the legacy admin row)

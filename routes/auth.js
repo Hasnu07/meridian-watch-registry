@@ -21,9 +21,21 @@ router.post('/login', async (req, res) => {
 
   req.session.authenticated = true;
   req.session.user = { id: user.id, username: user.username, role: user.role };
+  if (user.role === 'boutique_manager') {
+    // A boutique manager reads one shop of their owner's registry (see lib/uid.js)
+    req.session.user.owner_id = user.owner_id || null;
+    req.session.user.shop_id  = user.shop_id  || null;
+  }
   db.logAudit({ actorId: user.id, actorUsername: user.username, action: 'login', targetType: 'session', targetId: user.id });
   res.json({ ok: true, user: req.session.user });
 });
+
+// The shop a boutique manager is assigned to, as the dashboard shows it
+function shopFor(sessionUser) {
+  if (sessionUser.role !== 'boutique_manager' || !sessionUser.shop_id || !sessionUser.owner_id) return null;
+  const s = db.getShop(sessionUser.shop_id, sessionUser.owner_id);
+  return s ? { id: s.id, name: s.name } : null;
+}
 
 // GET /api/auth/me — who is the current session?
 router.get('/me', (req, res) => {
@@ -37,7 +49,7 @@ router.get('/me', (req, res) => {
     if (target) viewing_as = { id: target.id, username: target.username, role: target.role };
     else req.session.viewing_as = null; // target deleted → clear
   }
-  res.json({ ...req.session.user, viewing_as });
+  res.json({ ...req.session.user, viewing_as, shop: shopFor(req.session.user) });
 });
 
 router.post('/logout', (req, res) => {

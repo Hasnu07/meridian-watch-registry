@@ -78,6 +78,8 @@ function watchCard(w) {
     w.list_price != null ? `<span class="text-on-surface font-semibold">${fmt.price(w.list_price, cur)}</span>` : null,
     w.status === 'sold' && w.sale_price != null ? `<span class="text-emerald-400 font-semibold">Sold ${fmt.price(w.sale_price, cur)}</span>` : null,
     w.reference_number ? `<span><span class="text-outline">Ref</span> ${esc(w.reference_number)}</span>` : null,
+    // Commission recorded on the piece (only sent to boutique managers)
+    w.commission != null ? `<span class="text-amber-300 font-semibold"><span class="text-outline font-normal">Commission</span> ${fmt.price(w.commission, w.commission_currency || cur)}</span>` : null,
   ].filter(Boolean).join('<span class="text-outline/40 mx-1.5">·</span>');
   return `
   <div class="tbl-row flex items-center gap-4 px-5 py-3 transition-colors group">
@@ -175,6 +177,8 @@ function avatarHtml(name, photoPath, size = 'sm') {
 }
 
 function statusBadge(status) {
+  // Boutique managers only ever see 'wishlist' or 'handed_over' (routes/boutique.js)
+  if (status === 'handed_over') return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30"><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block shadow-[0_0_6px_#22D3FF]"></span>Handed over</span>`;
   if (status === 'sold')      return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shadow-[0_0_6px_#2CFFA8]"></span>Sold</span>`;
   if (status === 'purchased') return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-purple-400/10 text-purple-300 border border-purple-400/30"><span class="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block shadow-[0_0_6px_#B18CFF]"></span>Purchased</span>`;
   return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/25"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_#FFC233]"></span>Wishlist</span>`;
@@ -219,6 +223,7 @@ function watchDetailBanner(w) {
         <span class="text-[11px] font-mono text-on-surface-variant w-16 flex-shrink-0">${ex.date || '—'}</span>
         <span class="text-[11px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 flex-shrink-0">${expenseCategoryLabel(ex.category)}</span>
         <span class="flex-1 text-[11px] text-on-surface-variant truncate">${esc(ex.description || '')}</span>
+        ${expenseBoutiqueControls(ex, 13)}
         <span class="font-mono text-[11px] text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void expense" class="hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[13px] text-on-surface-variant">close</span>

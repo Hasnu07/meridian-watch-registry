@@ -55,7 +55,7 @@ const fmt = {
 let currentPage = 'dashboard';
 let currentProfileId = null;
 let currentShopId = null;
-const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watch-detail','watches','desk','messages','settings','admin'];
+const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfolio-detail','profiles','client-detail','profile-detail','watch-detail','watches','commissions','boutique-commission','desk','messages','settings','admin'];
 
 function showPage(name) {
   scrubAutofilledSearches();
@@ -77,7 +77,7 @@ function showPage(name) {
     }
   });
 
-  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', 'watch-detail':'Watch', watches:'Watches', desk:'Patek Desk', messages:'Messages', settings:'Settings', admin:'Admin' };
+  const titles = { dashboard:'Vault', shops:'Shops', portfolios:'Portfolios', 'main-kpi':'Main KPI', 'shop-detail':'Shop Detail', 'portfolio-detail':'Portfolio Detail', profiles:'Clients', 'client-detail':'Client', 'profile-detail':'Membership', 'watch-detail':'Watch', watches:'Watches', commissions:'Commissions', 'boutique-commission':'Boutique Commission', desk:'Patek Desk', messages:'Messages', settings:'Settings', admin:'Admin' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
 
   const showAddProfile   = name === 'profiles';
@@ -97,6 +97,8 @@ function showPage(name) {
   if (name === 'portfolios') loadAllPortfolios();
   if (name === 'main-kpi')   loadMainKpi();
   if (name === 'watches')    loadWatches();
+  if (name === 'commissions' && typeof loadCommissions === 'function') loadCommissions();
+  if (name === 'boutique-commission' && typeof loadBoutiqueCommission === 'function') loadBoutiqueCommission();
   if (name === 'desk')       loadPatekDesk();
   if (name === 'settings')  resetPasswordForm();
   if (name === 'messages')  loadMsgClients();
@@ -137,6 +139,8 @@ async function refreshCurrentUser() {
     const navAdmin = document.getElementById('navAdmin');
     if (currentUser.role === 'master') navAdmin.classList.replace('hidden', 'flex');
     else                                navAdmin.classList.add('hidden');
+    // Role-specific chrome (boutique managers get a reduced, read-only dashboard — 24-boutique-manager.js)
+    if (typeof applyRoleUi === 'function') applyRoleUi(currentUser);
     // Impersonation banner — when visible, push topbar + main content down
     // so the amber bar doesn't overlap the page header buttons.
     const banner  = document.getElementById('impersonationBanner');
@@ -157,7 +161,9 @@ async function refreshCurrentUser() {
     window.location.href = '/';
   }
 }
-refreshCurrentUser();
+// The first page is shown once the role is known (99-boot.js), so a restricted
+// role never fires requests for pages it may not see.
+const _userReady = refreshCurrentUser();
 
 // Exit impersonation
 document.getElementById('impersonationExit')?.addEventListener('click', async () => {
