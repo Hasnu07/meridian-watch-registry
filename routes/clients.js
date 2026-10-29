@@ -9,7 +9,7 @@ const storage = require('../lib/storage');
 const audit   = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.viewing_as || req.session.user.id;
+const uid     = require('../lib/uid');
 
 const upload = multer({
   storage: multer.memoryStorage(),

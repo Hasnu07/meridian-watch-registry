@@ -5,7 +5,7 @@ const db      = require('../db');
 const audit   = require('../lib/audit');
 
 const router = express.Router({ mergeParams: true });
-const uid    = req => req.session.viewing_as || req.session.user.id;
+const uid     = require('../lib/uid');
 
 // GET /api/watches/:watchId/expenses
 router.get('/watches/:watchId/expenses', (req, res) => {
@@ -20,7 +20,7 @@ router.post('/watches/:watchId/expenses', (req, res) => {
   if (!watch) return res.status(404).json({ error: 'Watch not found' });
   if (watch.status === 'wishlist') return res.status(400).json({ error: 'Cannot add expenses to a wishlist watch' });
 
-  const { category, date, amount, currency, description } = req.body;
+  const { category, date, amount, currency, description, for_boutique } = req.body;
   if (!date)   return res.status(400).json({ error: 'date is required' });
   if (!amount) return res.status(400).json({ error: 'amount is required' });
 
@@ -28,14 +28,31 @@ router.post('/watches/:watchId/expenses', (req, res) => {
   if (isNaN(parsed) || parsed <= 0) return res.status(400).json({ error: 'amount must be a positive number' });
 
   try {
-    const id      = db.createExpense({ watch_id: watch.id, category, date, amount: parsed, currency, description });
+    // for_boutique: show this commission in the shop's boutique-manager Commissions tab
+    const share   = category === 'commission' && (for_boutique === true || for_boutique === 1 || for_boutique === '1' || for_boutique === 'true');
+    const id      = db.createExpense({ watch_id: watch.id, category, date, amount: parsed, currency, description, for_boutique: share });
     const expense = db.getExpense(id);
     const updated = db.getWatch(watch.id, uid(req));
-    audit(req, { action: 'create', targetType: 'expense', targetId: id, details: { watch_id: watch.id, model: watch.model, amount: parsed, category, date } });
+    audit(req, { action: 'create', targetType: 'expense', targetId: id, details: { watch_id: watch.id, model: watch.model, amount: parsed, category, date, for_boutique: share } });
     res.status(201).json({ expense, watch: updated });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Database error' });
   }
+});
+
+// PUT /api/expenses/:id/boutique { for_boutique: true|false }
+// Share or hide a commission for the shop's boutique manager.
+router.put('/expenses/:id/boutique', (req, res) => {
+  const expense = db.getExpense(req.params.id);
+  if (!expense) return res.status(404).json({ error: 'Expense not found' });
+  if (db.getOwnerIdForWatch(expense.watch_id) !== uid(req)) return res.status(404).json({ error: 'Expense not found' });
+  if (expense.category !== 'commission') return res.status(400).json({ error: 'Only commissions can be shown to a boutique manager' });
+  if (expense.reversed) return res.status(409).json({ error: 'This expense has been voided' });
+
+  const visible = !!req.body?.for_boutique;
+  db.setExpenseBoutique(expense.id, visible);
+  audit(req, { action: 'update', targetType: 'expense', targetId: expense.id, details: { watch_id: expense.watch_id, for_boutique: visible } });
+  res.json({ ok: true, expense: db.getExpense(expense.id), watch: db.getWatch(expense.watch_id, uid(req)) });
 });
 
 // POST /api/expenses/:id/reverse

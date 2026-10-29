@@ -9,7 +9,7 @@ const notifier = require('../lib/event-notifier');
 const audit    = require('../lib/audit');
 
 const router = express.Router();
-const uid    = req => req.session.viewing_as || req.session.user.id;
+const uid     = require('../lib/uid');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -22,8 +22,8 @@ const upload = multer({
 
 // GET /api/watches
 router.get('/', (req, res) => {
-  const { q, source, profile_id } = req.query;
-  res.json(db.listAllWatches({ q, source, profile_id, ownerId: uid(req) }).map(w => ({
+  const { q, source, profile_id, shop_id } = req.query;
+  res.json(db.listAllWatches({ q, source, profile_id, shop_id, ownerId: uid(req) }).map(w => ({
     ...w,
     expenses:       db.listExpenses(w.id),
     client_payouts: db.listClientPayouts(w.id),

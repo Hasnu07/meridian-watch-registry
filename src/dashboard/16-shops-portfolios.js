@@ -430,11 +430,11 @@ async function toggleWatchExpand(profileId) {
           <thead>
             <tr style="background:rgba(255,255,255,0.025); border-bottom:1px solid rgba(255,255,255,0.07)">
               <th class="px-10 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Timepiece</th>
-              <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Stock #</th>
+              <th class="col-stock px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Stock #</th>
               <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Serial #</th>
               <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Ref #</th>
               <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Date</th>
-              <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Price</th>
+              <th class="px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">${watches.some(w => w.commission !== undefined) ? 'List · Commission' : 'Price'}</th>
               <th class="px-5 py-2.5"></th>
             </tr>
           </thead>
@@ -453,11 +453,13 @@ async function toggleWatchExpand(profileId) {
                   </div>
                 </div>
               </td>
-              <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
+              <td class="col-stock px-5 py-3 text-on-surface-variant text-xs font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-xs">${fmt.date(w.purchase_date)}</td>
-              <td class="px-5 py-3 font-semibold text-primary text-sm">${fmt.money(w.price)}</td>
+              <td class="px-5 py-3 font-semibold text-primary text-sm">${w.commission !== undefined
+                ? `${fmt.price(w.list_price, w.currency || 'CHF')}${w.commission != null ? `<span class="block text-xs text-amber-300 font-normal mt-0.5">Commission ${fmt.price(w.commission, w.commission_currency || w.currency)}</span>` : ''}`
+                : fmt.money(w.price)}</td>
               <td class="px-5 py-3">
                 <div class="flex items-center justify-end gap-1">
                   <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">

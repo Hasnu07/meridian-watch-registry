@@ -295,11 +295,12 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
   }
 
   try {
+    let created = null;
     if (id) {
       await api('PUT', `/api/watches/${id}`, fd);
     } else {
       if (!profileId) { errEl.textContent = 'No client selected'; errEl.classList.remove('hidden'); return; }
-      await api('POST', `/api/profiles/${profileId}/watches`, fd);
+      created = await api('POST', `/api/profiles/${profileId}/watches`, fd);
     }
     closeWatchModal();
     if (currentPage === 'profile-detail')   openProfileDetail(currentProfileId);
@@ -308,6 +309,11 @@ document.getElementById('saveWatchBtn').addEventListener('click', async () => {
     else if (currentPage === 'shop-detail')      openShopDetail(currentShopId);
     else if (currentPage === 'watches')   loadWatches(document.getElementById('watchSearch').value, '');
     else if (currentPage === 'dashboard') loadDashboard();
+    else if (currentPage === 'boutique-commission') {
+      // Boutique Commission page: a new piece goes straight on to its commission
+      await loadBoutiqueCommissionShop();
+      if (created?.id) onBoutiqueWatchCreated(created);
+    }
   } catch (e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
 });
 

@@ -339,6 +339,10 @@ function init() {
   if (!wcols.includes('rule_applied'))             db.exec("ALTER TABLE watches ADD COLUMN rule_applied TEXT");
   const lpcols = db.prepare("PRAGMA table_info(loss_payments)").all().map(r => r.name);
   if (!lpcols.includes('offset_from_watch_id'))    db.exec("ALTER TABLE loss_payments ADD COLUMN offset_from_watch_id INTEGER");
+  // Commission expenses the owner chose to show to the shop's boutique manager
+  // (their Commissions tab). Off by default: a commission is private until shared.
+  const ecols = db.prepare("PRAGMA table_info(watch_expenses)").all().map(r => r.name);
+  if (!ecols.includes('for_boutique'))             db.exec("ALTER TABLE watch_expenses ADD COLUMN for_boutique INTEGER NOT NULL DEFAULT 0");
 
   // One-time backfill: sold profitable watches on discount profiles were
   // recorded under v1 (income = sale price × rate). Treat their sale price as
@@ -419,6 +423,17 @@ function init() {
   addOwnerCol('portfolios', JHONNY_ID);
   addOwnerCol('profiles',   JHONNY_ID);
 
+  // ── Boutique managers ────────────────────────────────────────────────────
+  // A boutique_manager user has no workspace of their own: owner_id is the
+  // master/admin whose registry they look into and shop_id the one boutique
+  // they may see. Deleting the owner removes their managers; deleting the shop
+  // leaves the manager with nothing to see until reassigned.
+  {
+    const ucols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+    if (!ucols.includes('owner_id')) db.exec('ALTER TABLE users ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
+    if (!ucols.includes('shop_id'))  db.exec('ALTER TABLE users ADD COLUMN shop_id  INTEGER REFERENCES shops(id) ON DELETE SET NULL');
+  }
+
   // Per-owner email uniqueness — safe here because owner_id now exists on
   // profiles (fresh DBs: just added above; existing DBs: already present).
   // NULL emails are ignored (SQLite treats NULLs as distinct in indices).
@@ -467,11 +482,11 @@ function init() {
 // ── Users (multi-tenant accounts) ─────────────────────────────────────────
 
 function getUserByUsername(username) {
-  return db.prepare('SELECT id, username, password_hash, role, created_at FROM users WHERE username = ?').get(username);
+  return db.prepare('SELECT id, username, password_hash, role, owner_id, shop_id, created_at FROM users WHERE username = ?').get(username);
 }
 
 function getUserById(id) {
-  return db.prepare('SELECT id, username, role, created_at FROM users WHERE id = ?').get(id);
+  return db.prepare('SELECT id, username, role, owner_id, shop_id, created_at FROM users WHERE id = ?').get(id);
 }
 
 function setUserPassword(id, hash) {
@@ -479,19 +494,24 @@ function setUserPassword(id, hash) {
 }
 
 function listUsers() {
-  return db.prepare('SELECT id, username, role, created_at FROM users ORDER BY username ASC').all();
+  return db.prepare('SELECT id, username, role, owner_id, shop_id, created_at FROM users ORDER BY username ASC').all();
 }
 
 function listUsersWithStats() {
-  // Per-user counts of clients, profiles, watches, sold count
+  // Per-user counts of clients, profiles, watches, sold count. Boutique
+  // managers own nothing, so their counts are 0; the shop they manage (and
+  // whose registry it belongs to) is reported instead.
   return db.prepare(`
     SELECT
-      u.id, u.username, u.role, u.created_at,
+      u.id, u.username, u.role, u.created_at, u.owner_id, u.shop_id,
+      s.name AS shop_name, o.username AS owner_username,
       COUNT(DISTINCT c.id) AS clients_count,
       COUNT(DISTINCT p.id) AS profiles_count,
       COUNT(DISTINCT w.id) AS watches_count,
       COUNT(DISTINCT CASE WHEN w.status = 'sold' THEN w.id END) AS sold_count
     FROM users u
+    LEFT JOIN shops    s ON s.id = u.shop_id
+    LEFT JOIN users    o ON o.id = u.owner_id
     LEFT JOIN clients  c ON c.owner_id = u.id
     LEFT JOIN profiles p ON p.owner_id = u.id
     LEFT JOIN watches  w ON w.profile_id = p.id
@@ -500,7 +520,12 @@ function listUsersWithStats() {
   `).all();
 }
 
-function createUser({ username, passwordHash, role }) {
+function createUser({ username, passwordHash, role, ownerId, shopId }) {
+  if (role === 'boutique_manager') {
+    // No workspace, no shop catalogue — just a window onto one shop of the owner's registry
+    return db.prepare('INSERT INTO users (username, password_hash, role, owner_id, shop_id) VALUES (?, ?, ?, ?, ?)')
+      .run(username, passwordHash, role, ownerId, shopId).lastInsertRowid;
+  }
   const r = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(username, passwordHash, role || 'admin');
   const id = r.lastInsertRowid;
   // Seed the new user's shop catalogue
@@ -514,6 +539,23 @@ function createUser({ username, passwordHash, role }) {
 
 function updateUserRole(id, role) {
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+}
+
+// Move a boutique manager to another shop of the same owner
+function setUserShop(id, shopId) {
+  db.prepare('UPDATE users SET shop_id = ? WHERE id = ?').run(shopId, id);
+}
+
+// Boutique managers that look into this owner's registry (for the owner's
+// "Boutique Commission" page — admins see theirs too, not just masters)
+function listBoutiqueManagers(ownerId) {
+  return db.prepare(`
+    SELECT u.id, u.username, u.shop_id, s.name AS shop_name, u.created_at
+    FROM users u
+    LEFT JOIN shops s ON s.id = u.shop_id
+    WHERE u.role = 'boutique_manager' AND u.owner_id = ?
+    ORDER BY s.name ASC, u.username ASC
+  `).all(ownerId);
 }
 
 function deleteUser(id) {
@@ -860,7 +902,7 @@ function listWatchesForProfile(profileId, ownerId) {
   `).all(profileId, ownerId);
 }
 
-function listAllWatches({ q, source, profile_id, ownerId } = {}) {
+function listAllWatches({ q, source, profile_id, shop_id, ownerId } = {}) {
   let sql = `
     SELECT w.*, p.name AS client_name, p.email AS client_email,
            p.profit_split_me, p.loss_split_me, p.trading_rule, p.discount_split,
@@ -884,6 +926,10 @@ function listAllWatches({ q, source, profile_id, ownerId } = {}) {
   if (profile_id) {
     sql += ` AND w.profile_id = ?`;
     params.push(Number(profile_id));
+  }
+  if (shop_id) {
+    sql += ` AND p.shop_id = ?`;
+    params.push(Number(shop_id));
   }
 
   sql += ' ORDER BY w.created_at DESC';
@@ -1310,13 +1356,18 @@ function getExpense(id) {
   return db.prepare('SELECT * FROM watch_expenses WHERE id = ?').get(id);
 }
 
-function createExpense({ watch_id, category, date, amount, currency, description }) {
+function createExpense({ watch_id, category, date, amount, currency, description, for_boutique }) {
   const VALID_CATS = ['shipping','travel','pickup_meeting','insurance','restoration_service','storage','commission','other'];
   const cat = VALID_CATS.includes(category) ? category : 'other';
   const result = db.prepare(
-    'INSERT INTO watch_expenses (watch_id, category, date, amount, currency, description) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(watch_id, cat, date, Number(amount), currency || 'CHF', description || null);
+    'INSERT INTO watch_expenses (watch_id, category, date, amount, currency, description, for_boutique) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(watch_id, cat, date, Number(amount), currency || 'CHF', description || null, cat === 'commission' && for_boutique ? 1 : 0);
   return result.lastInsertRowid;
+}
+
+// Share / unshare a commission with the shop's boutique manager
+function setExpenseBoutique(id, visible) {
+  db.prepare("UPDATE watch_expenses SET for_boutique = ? WHERE id = ? AND category = 'commission'").run(visible ? 1 : 0, id);
 }
 
 function reverseExpense(expenseId) {
@@ -1487,7 +1538,7 @@ function deletePatekDeal(id, ownerId) {
 module.exports = {
   init,
   getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
-  createUser, updateUserRole, deleteUser,
+  createUser, updateUserRole, setUserShop, listBoutiqueManagers, deleteUser,
   logAudit, listAuditLog, countAuditLog,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
@@ -1501,7 +1552,7 @@ module.exports = {
   listWishlistWatchesWithDays, getOwnerIdForProfile, getOwnerIdForWatch,
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
   applyDiscountOffset, clearOffsetsFrom, listMarketPrices, recordMarketPrice, resyncWatchStatuses,
-  listExpenses, getExpense, createExpense, reverseExpense,
+  listExpenses, getExpense, createExpense, reverseExpense, setExpenseBoutique,
   listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
   listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,
   listPatekDeals, getPatekDeal, createPatekDeal, updatePatekDeal, deletePatekDeal,

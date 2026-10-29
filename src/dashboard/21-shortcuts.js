@@ -10,6 +10,7 @@ const GOTO_KEYS = {
   k: ['main-kpi',   'Main KPI'],
   c: ['profiles',   'Clients'],
   w: ['watches',    'Watches'],
+  b: ['boutique-commission', 'Boutique Commission'],
   d: ['desk',       'Patek Desk'],
   m: ['messages',   'Messages'],
   ',': ['settings', 'Settings'],

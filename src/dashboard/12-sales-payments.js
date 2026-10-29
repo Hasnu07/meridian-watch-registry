@@ -492,10 +492,46 @@ function openAddExpenseModal(watchId) {
   document.getElementById('expDate').value        = new Date().toISOString().split('T')[0];
   document.getElementById('expAmount').value      = '';
   document.getElementById('expDescription').value = '';
+  document.getElementById('expBoutique').checked  = false;
   document.getElementById('expError').classList.add('hidden');
+  document.querySelector('#addExpenseModal h2').textContent = 'Add Expense';
+  document.getElementById('expDescription').placeholder = 'e.g. DHL Express, Geneva flight…';
+  syncExpenseBoutiqueOption();
 
   document.getElementById('addExpenseModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('expAmount').focus(), 50);
+}
+
+// "Show to the boutique manager" only applies to commissions
+function syncExpenseBoutiqueOption() {
+  const wrap = document.getElementById('expBoutiqueWrap');
+  const isCommission = document.getElementById('expCategory').value === 'commission';
+  wrap.classList.toggle('hidden', !isCommission);
+  wrap.classList.toggle('flex', isCommission);
+}
+document.getElementById('expCategory').addEventListener('change', syncExpenseBoutiqueOption);
+
+// Share / hide a recorded commission for the shop's boutique manager
+async function toggleExpenseBoutique(expenseId, visible) {
+  try {
+    await api('PUT', `/api/expenses/${expenseId}/boutique`, { for_boutique: !!visible });
+    if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
+    else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
+    else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
+  } catch (e) {
+    alert(e.message || 'Failed to update commission');
+  }
+}
+
+// Badge + toggle shown next to a commission expense in the ledgers
+function expenseBoutiqueControls(ex, size = 16) {
+  if (ex.category !== 'commission' || ex.reversed) return '';
+  const on = !!ex.for_boutique;
+  return `${on ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Boutique</span>` : ''}
+    <button onclick="toggleExpenseBoutique(${ex.id}, ${on ? 'false' : 'true'})" title="${on ? 'Shown to the boutique manager — click to hide' : 'Show to the boutique manager'}" class="p-1 transition-colors flex-shrink-0 ${on ? 'text-amber-300 hover:text-on-surface-variant' : 'text-on-surface-variant hover:text-amber-300'}">
+      <span class="material-symbols-outlined text-[${size}px]">storefront</span>
+    </button>`;
 }
 
 function closeAddExpenseModal() {
@@ -518,12 +554,15 @@ async function submitExpense() {
   const amount = Number(rawAmount);
   if (isNaN(amount) || amount <= 0) { errEl.textContent = 'Enter a valid positive amount.'; errEl.classList.remove('hidden'); return; }
 
+  const for_boutique = category === 'commission' && document.getElementById('expBoutique').checked;
+
   try {
-    await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined });
+    await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined, for_boutique });
     closeAddExpenseModal();
     if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
     else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
     else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
   } catch (e) {
     errEl.textContent = e.message || 'Failed to save expense.';
     errEl.classList.remove('hidden');
@@ -537,6 +576,7 @@ async function reverseExpense(expenseId, watchId) {
     if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
     else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
     else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
   } catch (e) {
     alert(e.message || 'Failed to void expense');
   }
