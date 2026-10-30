@@ -7,10 +7,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Tilt+Neon&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=39b3d7b1cd">
+  <link rel="stylesheet" href="style.css?v=1d7b60faa2">
   <script src="/cursor.js?v=1d36b475b2"></script>
   <link rel="stylesheet" href="/neon.css?v=83ffa28203">
-  <link rel="stylesheet" href="/css/app.css?v=a7adcd09b5">
+  <link rel="stylesheet" href="/css/app.css?v=ca7d636e91">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased">
 
@@ -314,6 +314,26 @@
           </div>
         </div>
         <div id="shopsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+        <!-- Boutique Manager Shops: ours with a manager, and the ones shared with us (16-shops-portfolios.js) -->
+        <section id="bmShopsSection" class="mt-10">
+          <button id="bmShopsToggle" type="button" aria-expanded="true" aria-controls="bmShopsBody" class="w-full flex items-center justify-between gap-4 text-left py-3 border-b border-outline-variant/15 hover:border-amber-400/30 transition-colors">
+            <span class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-amber-300">storefront</span>
+              <span>
+                <span class="block font-playfair text-xl text-on-surface">Boutique Manager Shops</span>
+                <span class="block text-xs text-on-surface-variant mt-0.5">Shops with a boutique manager — yours, and the ones colleagues share with you.</span>
+              </span>
+            </span>
+            <span class="flex items-center gap-3">
+              <span id="bmShopsCount" class="text-xs font-mono text-outline"></span>
+              <span id="bmShopsChevron" class="material-symbols-outlined text-on-surface-variant transition-transform duration-200">expand_more</span>
+            </span>
+          </button>
+          <div id="bmShopsBody" class="pt-4">
+            <div id="bmShopsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          </div>
+        </section>
       </div>
 
       <!-- ── Portfolios ────────────────────────────────────────────── -->
@@ -2057,6 +2077,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=e62babc832"></script>
+<script src="/js/dashboard.js?v=1d6d70c3fa"></script>
 </body>
 </html>

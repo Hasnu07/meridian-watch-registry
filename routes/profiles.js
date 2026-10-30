@@ -55,6 +55,10 @@ router.post('/', (req, res) => {
     }
     if (!resolvedName) return res.status(400).json({ error: 'name required' });
 
+    // A collaborator (routes/collab.js) adds clients to the shared shop only
+    if (req.collab && Number(shop_id) !== req.collab.shopId) {
+      return res.status(403).json({ error: 'Collaborators can add clients to the shop shared with them only.' });
+    }
     // Verify shop / portfolio belong to this user when provided
     if (shop_id && !db.getShop(Number(shop_id), uid(req))) {
       return res.status(400).json({ error: 'Shop not found' });

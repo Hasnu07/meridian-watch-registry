@@ -114,7 +114,7 @@ async function loadBoutiqueCommissionShop() {
   if (inCollab) ctx.innerHTML = `
     <span class="material-symbols-outlined text-primary text-[20px]">group</span>
     <span class="flex-1 min-w-0"><strong class="font-semibold">${esc(c.shop_name)}</strong> is ${esc(c.owner_username)}'s shop, shared with you.
-      You can view its pieces, add or edit a piece and set commissions here — nothing else changes in ${esc(c.owner_username)}'s registry.</span>`;
+      You can see its clients and pieces, add a client or a piece, edit or remove a piece and set commissions — ${esc(c.owner_username)} and the boutique manager see it at once.</span>`;
 
   const managerNames = c.managers || '';
   if (!c.shop_id) {
@@ -207,8 +207,8 @@ function renderBcCollaborators(c) {
       <div class="min-w-0">
         <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold">Collaborators</p>
         <p class="text-xs text-on-surface-variant mt-0.5">${list.length
-          ? `Working on <strong class="text-on-surface">${esc(c.shop_name)}</strong> with you: they can view its pieces, add or edit a piece and set commissions from their own sign-in.`
-          : `Nobody else works on <strong class="text-on-surface">${esc(c.shop_name)}</strong> yet. Add a colleague by username — they can then view its pieces, add or edit a piece and set commissions from their own sign-in.`}</p>
+          ? `Working on <strong class="text-on-surface">${esc(c.shop_name)}</strong> with you: they can see its clients and pieces, add, edit or remove a piece and set commissions from their own sign-in.`
+          : `Nobody else works on <strong class="text-on-surface">${esc(c.shop_name)}</strong> yet. Add a colleague by username — they can then see its clients and pieces, add, edit or remove a piece and set commissions from their own sign-in.`}</p>
         ${list.length ? `<div class="flex items-center gap-2 flex-wrap mt-3">${list.map(chip).join('')}</div>` : ''}
       </div>
       <form id="bcCollabForm" class="flex items-center gap-2" onsubmit="addBcCollaborator(event)">
@@ -301,12 +301,18 @@ function bcRowHtml(w) {
         ${shared.length ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="text-xs text-outline">nothing shown</span>`}
         ${comms.length > shared.length ? `<span class="block text-[11px] text-outline mt-0.5">${comms.length - shared.length} private</span>` : ''}
       </td>
-      <td class="px-5 py-3 text-right">
+      <td class="px-5 py-3 text-right whitespace-nowrap">
         ${canSet
           ? `<button onclick="openBoutiqueCommissionModal(${w.id})" class="text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15 transition-all inline-flex items-center gap-1.5">
               <span class="material-symbols-outlined text-[14px]">payments</span> Set commission
             </button>`
           : `<span class="text-[11px] text-outline" title="Commissions are recorded on bought pieces. Mark it purchased first.">wishlist · buy first</span>`}
+        <button onclick="openEditWatch(${w.id})" title="Edit piece" aria-label="Edit piece" class="p-1.5 ml-1 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors align-middle">
+          <span class="material-symbols-outlined text-[16px]">edit</span>
+        </button>
+        <button onclick="confirmDeleteWatch(${w.id}, '${esc(w.model).replace(/'/g, "\\'")}')" title="Remove piece" aria-label="Remove piece" class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors align-middle">
+          <span class="material-symbols-outlined text-[16px]">delete</span>
+        </button>
       </td>
     </tr>
     ${comms.length ? `<tr><td colspan="6" class="px-5 pb-3 pt-0"><div class="ml-14 pl-4 border-l border-amber-400/20">${entryRows}</div></td></tr>` : ''}`;

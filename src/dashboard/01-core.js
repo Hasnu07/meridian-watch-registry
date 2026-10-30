@@ -11,7 +11,10 @@
 // While a shop another registry shared with us is chosen on Boutique
 // Commission, every request carries X-Collab-Shop and the server scopes it to
 // that shop (routes/collab.js). `html.collab` hides the controls it refuses.
-// Cleared on leaving for any page but the watch detail (25-boutique-commission.js).
+// Set on Boutique Commission (25-boutique-commission.js) or from the Shops
+// page's "Boutique Manager Shops" (16-shops-portfolios.js); kept on the pages
+// inside that shop (shop, membership, watch) and cleared on leaving them.
+const COLLAB_PAGES = ['boutique-commission', 'shop-detail', 'profile-detail', 'watch-detail'];
 let collabShop = null;   // { id, name, owner_username } or null
 function setCollabShop(shop) {
   collabShop = shop || null;
@@ -71,7 +74,7 @@ const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfo
 
 function showPage(name) {
   scrubAutofilledSearches();
-  if (collabShop && !['boutique-commission', 'watch-detail'].includes(name)) setCollabShop(null);
+  if (collabShop && !COLLAB_PAGES.includes(name)) setCollabShop(null);
   PAGES.forEach(p => {
     const el = document.getElementById(`page-${p}`);
     if (el) {

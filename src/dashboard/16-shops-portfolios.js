@@ -12,6 +12,89 @@ async function loadShops() {
   const portfoliosPerShop = await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)));
   _shopsCache = { shops, portfolioCounts: portfoliosPerShop.map(p => p.length) };
   renderShops();
+  loadBoutiqueManagerShops(shops).catch(err => console.error('Boutique manager shops failed', err));
+}
+
+// ── Boutique Manager Shops ─────────────────────────────────────────────────
+// Below the shop list, the shops that have a boutique manager — our own
+// (with their manager and the collaborators working them with us) and the
+// ones other registries shared with us as a collaborator. A shared one opens
+// as the shop page itself, scoped to that shop (setCollabShop, 01-core.js).
+let _bmShopsOpen = (() => { try { return localStorage.getItem('meridian.bmShopsOpen') !== '0'; } catch { return true; } })();
+let _sharedShops = [];
+
+async function loadBoutiqueManagerShops(shops) {
+  const section = document.getElementById('bmShopsSection');
+  if (!section) return;
+  const [managers, shared] = await Promise.all([
+    api('GET', '/api/boutique-managers').catch(() => []),
+    api('GET', '/api/collab/shops').catch(() => []),
+  ]);
+  _sharedShops = shared;
+  const own = shops.filter(s => managers.some(m => m.shop_id === s.id));
+  const collaborators = await Promise.all(own.map(s => api('GET', `/api/shops/${s.id}/collaborators`).catch(() => [])));
+  const ownCards = own.map((s, i) => ({
+    key: `own:${s.id}`, name: s.name, address: s.address, clients: s.client_count,
+    managers: managers.filter(m => m.shop_id === s.id).map(m => m.username),
+    with: collaborators[i].map(u => u.username),
+    sub: 'Your shop', go: `openShopDetail(${s.id})`,
+  }));
+  const sharedCards = shared.map(c => ({
+    key: `shared:${c.shop_id}`, name: c.shop_name, address: null, clients: null,
+    managers: (c.managers || '').split(', ').filter(Boolean), with: [],
+    sub: `${c.owner_username}'s registry · shared with you`, go: `openSharedShop(${c.shop_id})`,
+  }));
+  const cards = [...ownCards, ...sharedCards];
+  const count = document.getElementById('bmShopsCount');
+  count.textContent = cards.length ? `${cards.length} shop${cards.length !== 1 ? 's' : ''}` : '';
+  const grid = document.getElementById('bmShopsGrid');
+  grid.innerHTML = cards.length ? cards.map(c => `
+    <div class="glass-surface rounded-lg p-5 hover:border-amber-400/30 border border-transparent transition-all cursor-pointer" onclick="${c.go}">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 rounded-lg bg-amber-400/10 flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-amber-300">storefront</span>
+        </div>
+        <div class="min-w-0 flex-1">
+          <h3 class="font-playfair text-lg font-semibold text-on-surface leading-tight truncate">${esc(c.name)}</h3>
+          <p class="text-[11px] uppercase tracking-[0.06em] ${c.key.startsWith('shared') ? 'text-primary' : 'text-on-surface-variant'} font-semibold mt-1">${esc(c.sub)}</p>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-outline-variant/10 space-y-1.5 text-sm">
+        <p class="flex items-center gap-2 text-on-surface-variant"><span class="material-symbols-outlined text-amber-300 text-[16px]">badge</span>
+          <span>Boutique manager: <span class="text-on-surface">${c.managers.length ? esc(c.managers.join(', ')) : 'none yet'}</span></span></p>
+        ${c.with.length ? `<p class="flex items-center gap-2 text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[16px]">group</span>
+          <span>With <span class="text-on-surface">${esc(c.with.join(', '))}</span></span></p>` : ''}
+        ${c.clients != null ? `<p class="flex items-center gap-2 text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[16px]">person</span>
+          <span>${c.clients} client${c.clients !== 1 ? 's' : ''}</span></p>` : ''}
+      </div>
+    </div>`).join('')
+    : `<div class="col-span-full glass-surface rounded-lg p-8 text-center text-on-surface-variant text-sm border border-dashed border-outline-variant/20">
+         No boutique manager shops yet. A shop appears here once it has a boutique manager${currentUser?.role === 'master' ? ' (Admin → Add User → Boutique Manager)' : ' (ask the master)'}, or once a colleague shares one of theirs with you on Boutique Commission.
+       </div>`;
+  syncBmShopsOpen();
+}
+
+function syncBmShopsOpen() {
+  const body = document.getElementById('bmShopsBody');
+  const icon = document.getElementById('bmShopsChevron');
+  const btn  = document.getElementById('bmShopsToggle');
+  if (!body) return;
+  body.classList.toggle('hidden', !_bmShopsOpen);
+  if (icon) icon.style.transform = _bmShopsOpen ? 'rotate(180deg)' : '';
+  if (btn)  btn.setAttribute('aria-expanded', String(_bmShopsOpen));
+}
+document.getElementById('bmShopsToggle')?.addEventListener('click', () => {
+  _bmShopsOpen = !_bmShopsOpen;
+  try { localStorage.setItem('meridian.bmShopsOpen', _bmShopsOpen ? '1' : '0'); } catch {}
+  syncBmShopsOpen();
+});
+
+// A shop shared with us: the shop page, every request scoped to it
+function openSharedShop(shopId) {
+  const c = _sharedShops.find(x => x.shop_id === shopId);
+  if (!c) return;
+  setCollabShop({ id: c.shop_id, name: c.shop_name, owner_username: c.owner_username });
+  openShopDetail(shopId);
 }
 
 function shopRowHtml(shop, i) {
@@ -184,7 +267,7 @@ async function openShopDetail(id) {
   document.getElementById('shopDetailHeader').innerHTML = `
     <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.06em] text-primary font-semibold mb-1">Authorised Retailer</p>
+        <p class="text-[11px] uppercase tracking-[0.06em] text-primary font-semibold mb-1">${collabShop ? `${esc(collabShop.owner_username)}'s registry · shared with you` : 'Authorised Retailer'}</p>
         <h2 class="font-playfair text-3xl font-semibold text-on-surface">${esc(shop.name)}</h2>
         ${shop.address ? `<p class="text-on-surface-variant text-sm mt-2 whitespace-pre-line">${esc(shop.address)}</p>` : ''}
       </div>

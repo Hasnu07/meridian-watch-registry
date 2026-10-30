@@ -654,13 +654,17 @@ html.role-bm .bm-badge {
 }
 
 /* A collaborator working a shop another registry shared with them (html.collab,
-   set while that shop is chosen on Boutique Commission — 25-boutique-commission.js):
-   hide the controls routes/collab.js refuses. They view, add or edit a piece
-   and set commissions; they never sell, delete, pay out or settle. */
-html.collab [onclick*="openMarkSoldModal"], html.collab [onclick*="confirmDeleteWatch"],
+   set while that shop is chosen on Boutique Commission or opened from the Shops
+   page's Boutique Manager Shops): hide the controls routes/collab.js refuses.
+   They see the shop, add clients and pieces, edit or remove a piece and set
+   commissions; they never sell, pay out, settle, or change the shop, its
+   portfolios or its clients' records. */
+html.collab [onclick*="openMarkSoldModal"],
 html.collab [onclick*="openRecordPayoutModal"], html.collab [onclick*="openRecordPaymentModal"],
-html.collab [onclick*="openEditProfile"], html.collab [onclick*="openEditShop"], html.collab [onclick*="confirmDeleteShop"],
-html.collab [onclick*="downloadShopPdf"], html.collab [onclick*="generateShareLink"] { display: none !important; }
+html.collab [onclick*="openEditProfile"], html.collab [onclick*="confirmDeleteProfile"], html.collab [onclick*="switchTradingRule"],
+html.collab [onclick*="openAddCompanyDoc"], html.collab [onclick*="openEditShop"], html.collab [onclick*="confirmDeleteShop"],
+html.collab [onclick*="downloadShopPdf"], html.collab [onclick*="generateShareLink"],
+html.collab [onclick*="openAddPortfolio"], html.collab [onclick*="openEditPortfolio"], html.collab [onclick*="confirmDeletePortfolio"],
+html.collab #addExistingClientForShopBtn, html.collab #addPortfolioBtn { display: none !important; }
 /* Pages outside the shared shop: keep the text, drop the link */
-html.collab [onclick*="openProfileDetail"], html.collab [onclick*="openClientDetail"],
-html.collab [onclick*="openShopDetail"], html.collab [onclick*="openPortfolioDetail"] { pointer-events: none; cursor: default; }
+html.collab [onclick*="openPortfolioDetail"], html.collab [onclick*="openClientDetail"] { pointer-events: none; cursor: default; }
