@@ -43,7 +43,9 @@ async function loadAdminUsers() {
                   : 'text-purple-300 border-purple-300/30 bg-purple-300/5';
     const roleLabel = isBm ? 'Boutique Manager' : u.role;
     // A boutique manager has no workspace: show the shop (and whose registry) instead of counts
-    const roleSub = isBm ? `<p class="text-[11px] text-on-surface-variant mt-1.5">${esc(u.shop_name || 'no shop assigned')}${u.owner_username ? ` · ${esc(u.owner_username)}'s registry` : ''}</p>` : '';
+    const roleSub = isBm ? `<p class="text-[11px] text-on-surface-variant mt-1.5">${esc(u.shop_name || 'no shop assigned')}${u.owner_username ? ` · ${esc(u.owner_username)}'s registry` : ''}</p>`
+                  // …and an admin/master invited to work a shop of another registry (Boutique Commission → Collaborators)
+                  : u.collab_shops ? `<p class="text-[11px] text-on-surface-variant mt-1.5"><span class="material-symbols-outlined text-[12px] align-[-2px] mr-0.5">group</span>Collaborates on ${esc(u.collab_shops)}</p>` : '';
     return `
       <tr class="hover:bg-white/[0.02]">
         <td class="px-5 py-3">

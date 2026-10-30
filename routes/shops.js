@@ -87,4 +87,48 @@ router.delete('/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Collaborators ──────────────────────────────────────────────────────────
+// Who works this shop with its owner. A collaborator is another admin/master
+// account; from their own sign-in they can view this shop, add or edit its
+// pieces and set commissions — routes/collab.js enforces exactly that. Only
+// the owner (or a master viewing as them) manages the list: under the
+// collaborator header the guard lets GET through and refuses POST / DELETE.
+
+// GET /api/shops/:id/collaborators
+router.get('/:id/collaborators', (req, res) => {
+  const shop = db.getShop(req.params.id, uid(req));
+  if (!shop) return res.status(404).json({ error: 'Not found' });
+  res.json(db.listShopCollaborators(shop.id, uid(req)));
+});
+
+// POST /api/shops/:id/collaborators { username }
+router.post('/:id/collaborators', (req, res) => {
+  const shop = db.getShop(req.params.id, uid(req));
+  if (!shop) return res.status(404).json({ error: 'Not found' });
+  const username = String(req.body?.username || '').trim();
+  if (!username) return res.status(400).json({ error: 'Type the username of the colleague to add' });
+  const user = db.getUserByUsername(username);
+  if (!user) return res.status(404).json({ error: `No user called "${username}"` });
+  if (user.role === 'boutique_manager') {
+    return res.status(400).json({ error: `${user.username} is a boutique manager — they already see their shop. Collaborators are admin or master accounts.` });
+  }
+  if (user.id === uid(req)) return res.status(400).json({ error: `${user.username} owns this registry already` });
+
+  const added = db.addShopCollaborator({ shopId: shop.id, ownerId: uid(req), userId: user.id, addedBy: req.session.user.id });
+  if (!added) return res.status(409).json({ error: `${user.username} already works on this shop` });
+  audit(req, { action: 'create', targetType: 'shop_collaborator', targetId: shop.id, details: { shop: shop.name, user_id: user.id, username: user.username } });
+  res.status(201).json(db.listShopCollaborators(shop.id, uid(req)));
+});
+
+// DELETE /api/shops/:id/collaborators/:userId
+router.delete('/:id/collaborators/:userId', (req, res) => {
+  const shop = db.getShop(req.params.id, uid(req));
+  if (!shop) return res.status(404).json({ error: 'Not found' });
+  const userId = Number(req.params.userId);
+  const removed = db.removeShopCollaborator(shop.id, userId, uid(req));
+  if (!removed) return res.status(404).json({ error: 'Not a collaborator on this shop' });
+  audit(req, { action: 'delete', targetType: 'shop_collaborator', targetId: shop.id, details: { shop: shop.name, user_id: userId } });
+  res.json(db.listShopCollaborators(shop.id, uid(req)));
+});
+
 module.exports = router;

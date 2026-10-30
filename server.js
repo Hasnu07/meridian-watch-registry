@@ -178,6 +178,9 @@ app.get('/api/share-client/:token', (req, res) => {
 // Boutique managers first: a read-only, one-shop view that answers the few
 // GETs their dashboard needs and refuses everything else. Other roles pass
 // straight through to the routers below.
+// Collaborators next: a request carrying X-Collab-Shop is scoped to that
+// shop of another registry and limited to what a collaborator may do.
+app.use('/api',                                   requireAuth, require('./routes/collab'));
 app.use('/api',                                   requireAuth, require('./routes/boutique'));
 app.use('/api/shops',                             requireAuth, require('./routes/shops'));
 app.use('/api/portfolios',                        requireAuth, require('./routes/portfolios'));
@@ -198,6 +201,13 @@ app.get('/api/stats', requireAuth, (req, res) => {
 // Boutique managers of this workspace (Boutique Commission page; master + admin)
 app.get('/api/boutique-managers', requireAuth, (req, res) => {
   res.json(db.listBoutiqueManagers(uid(req)));
+});
+
+// Shops of OTHER registries shared with me as a collaborator (Boutique
+// Commission picker). Tied to the signed-in account itself, not to "view as".
+app.get('/api/collab/shops', requireAuth, (req, res) => {
+  if (req.session.user.role === 'boutique_manager') return res.json([]);
+  res.json(db.listCollaborationsForUser(req.session.user.id));
 });
 
 // Change password — updates the CURRENT user (not the legacy admin row)

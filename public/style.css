@@ -652,3 +652,15 @@ html.role-bm .bm-badge {
   font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--warn);
   border: 1px solid rgba(255, 194, 51, 0.35); background: rgba(255, 194, 51, 0.06);
 }
+
+/* A collaborator working a shop another registry shared with them (html.collab,
+   set while that shop is chosen on Boutique Commission — 25-boutique-commission.js):
+   hide the controls routes/collab.js refuses. They view, add or edit a piece
+   and set commissions; they never sell, delete, pay out or settle. */
+html.collab [onclick*="openMarkSoldModal"], html.collab [onclick*="confirmDeleteWatch"],
+html.collab [onclick*="openRecordPayoutModal"], html.collab [onclick*="openRecordPaymentModal"],
+html.collab [onclick*="openEditProfile"], html.collab [onclick*="openEditShop"], html.collab [onclick*="confirmDeleteShop"],
+html.collab [onclick*="downloadShopPdf"], html.collab [onclick*="generateShareLink"] { display: none !important; }
+/* Pages outside the shared shop: keep the text, drop the link */
+html.collab [onclick*="openProfileDetail"], html.collab [onclick*="openClientDetail"],
+html.collab [onclick*="openShopDetail"], html.collab [onclick*="openPortfolioDetail"] { pointer-events: none; cursor: default; }

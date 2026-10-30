@@ -434,6 +434,26 @@ function init() {
     if (!ucols.includes('shop_id'))  db.exec('ALTER TABLE users ADD COLUMN shop_id  INTEGER REFERENCES shops(id) ON DELETE SET NULL');
   }
 
+  // ── Shop collaborators ───────────────────────────────────────────────────
+  // A collaborator is another admin/master the registry owner invites to work
+  // ONE shop of their registry alongside them: see its pieces, add or edit a
+  // piece, set and share commissions (routes/collab.js says exactly what).
+  // owner_id is the registry the shop belongs to, kept here so a request can
+  // be scoped without a second lookup. Deleting the shop, the collaborator or
+  // the owner removes the collaboration.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shop_collaborators (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      shop_id    INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      owner_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      added_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME DEFAULT (datetime('now')),
+      UNIQUE (shop_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_shop_collaborators_user ON shop_collaborators(user_id);
+  `);
+
   // Per-owner email uniqueness — safe here because owner_id now exists on
   // profiles (fresh DBs: just added above; existing DBs: already present).
   // NULL emails are ignored (SQLite treats NULLs as distinct in indices).
@@ -505,6 +525,11 @@ function listUsersWithStats() {
     SELECT
       u.id, u.username, u.role, u.created_at, u.owner_id, u.shop_id,
       s.name AS shop_name, o.username AS owner_username,
+      (SELECT group_concat(cs.name || ' (' || co.username || ')', ' · ')
+         FROM shop_collaborators sc
+         JOIN shops cs ON cs.id = sc.shop_id
+         JOIN users co ON co.id = sc.owner_id
+        WHERE sc.user_id = u.id) AS collab_shops,
       COUNT(DISTINCT c.id) AS clients_count,
       COUNT(DISTINCT p.id) AS profiles_count,
       COUNT(DISTINCT w.id) AS watches_count,
@@ -556,6 +581,50 @@ function listBoutiqueManagers(ownerId) {
     WHERE u.role = 'boutique_manager' AND u.owner_id = ?
     ORDER BY s.name ASC, u.username ASC
   `).all(ownerId);
+}
+
+// ── Shop collaborators ─────────────────────────────────────────────────────
+
+// Who works on this shop with its owner (owner's Boutique Commission page)
+function listShopCollaborators(shopId, ownerId) {
+  return db.prepare(`
+    SELECT sc.id, sc.user_id, u.username, u.role, sc.created_at
+    FROM shop_collaborators sc
+    JOIN users u ON u.id = sc.user_id
+    WHERE sc.shop_id = ? AND sc.owner_id = ?
+    ORDER BY u.username ASC
+  `).all(shopId, ownerId);
+}
+
+function addShopCollaborator({ shopId, ownerId, userId, addedBy }) {
+  return db.prepare(
+    'INSERT OR IGNORE INTO shop_collaborators (shop_id, owner_id, user_id, added_by) VALUES (?, ?, ?, ?)'
+  ).run(shopId, ownerId, userId, addedBy ?? null).changes > 0;
+}
+
+function removeShopCollaborator(shopId, userId, ownerId) {
+  return db.prepare('DELETE FROM shop_collaborators WHERE shop_id = ? AND user_id = ? AND owner_id = ?')
+    .run(shopId, userId, ownerId).changes > 0;
+}
+
+// Is this user a collaborator on this shop? → { shop_id, owner_id } or undefined
+function getCollaboration(shopId, userId) {
+  return db.prepare('SELECT shop_id, owner_id FROM shop_collaborators WHERE shop_id = ? AND user_id = ?').get(shopId, userId);
+}
+
+// The shops shared with this user, with whose registry they belong to and
+// the boutique managers looking at each (for the Boutique Commission picker)
+function listCollaborationsForUser(userId) {
+  return db.prepare(`
+    SELECT sc.shop_id, s.name AS shop_name, sc.owner_id, o.username AS owner_username, sc.created_at,
+           (SELECT group_concat(bm.username, ', ') FROM users bm
+             WHERE bm.role = 'boutique_manager' AND bm.shop_id = s.id AND bm.owner_id = sc.owner_id) AS managers
+    FROM shop_collaborators sc
+    JOIN shops s ON s.id = sc.shop_id
+    JOIN users o ON o.id = sc.owner_id
+    WHERE sc.user_id = ?
+    ORDER BY o.username ASC, s.name ASC
+  `).all(userId);
 }
 
 function deleteUser(id) {
@@ -1539,6 +1608,7 @@ module.exports = {
   init,
   getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
   createUser, updateUserRole, setUserShop, listBoutiqueManagers, deleteUser,
+  listShopCollaborators, addShopCollaborator, removeShopCollaborator, getCollaboration, listCollaborationsForUser,
   logAudit, listAuditLog, countAuditLog,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
