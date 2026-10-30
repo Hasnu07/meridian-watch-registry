@@ -74,7 +74,7 @@ router.put('/users/:id', (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   // Boutique managers: only their shop can change (within the same registry).
-  // They have no workspace, so they can never become admin/master and vice versa.
+  // The role itself never changes — the shop assignment would be lost.
   if (user.role === 'boutique_manager' || req.body.role === 'boutique_manager') {
     if (req.body.role && req.body.role !== user.role) {
       return res.status(400).json({ error: 'A boutique manager account cannot change role — create a new user instead' });
@@ -143,9 +143,6 @@ router.post('/view-as', (req, res) => {
   if (!target_id) return res.status(400).json({ error: 'user_id required' });
   const target = db.getUserById(target_id);
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (target.role === 'boutique_manager') {
-    return res.status(400).json({ error: 'Boutique managers have no workspace of their own — they see one shop of their registry' });
-  }
   req.session.viewing_as = target_id;
   audit(req, { action: 'view_as_start', targetType: 'user', targetId: target_id, details: { username: target.username } });
   res.json({ ok: true, viewing_as: { id: target.id, username: target.username, role: target.role } });

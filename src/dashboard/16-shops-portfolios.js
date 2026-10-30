@@ -44,9 +44,21 @@ async function loadBoutiqueManagerShops(shops) {
     managers: (c.managers || '').split(', ').filter(Boolean), with: [],
     sub: `${c.owner_username}'s registry · shared with you`, go: `openSharedShop(${c.shop_id})`,
   }));
-  const cards = [...ownCards, ...sharedCards];
+  // A boutique manager: the shop they manage, view-only (24-boutique-manager.js).
+  // For them the area is "Shared profiles" — the shops others let them see.
+  const bm = isBoutiqueManager();
+  const managedCards = bm && currentUser?.shop ? [{
+    key: `managed:${currentUser.shop.id}`, name: currentUser.shop.name, address: currentUser.shop.address, clients: null,
+    managers: [currentUser.username], with: [],
+    sub: `${currentUser.shop.owner_username || 'another'}'s registry · shared with you · view only`, go: 'openBoutiqueShop()',
+  }] : [];
+  document.getElementById('bmShopsTitle').textContent = bm ? 'Shared profiles' : 'Boutique Manager Shops';
+  document.getElementById('bmShopsSub').textContent = bm
+    ? 'Shops their owners share with you as their boutique manager — view only. Your own shops are above.'
+    : 'Shops with a boutique manager — yours, and the ones colleagues share with you.';
+  const cards = [...ownCards, ...sharedCards, ...managedCards];
   const count = document.getElementById('bmShopsCount');
-  count.textContent = cards.length ? `${cards.length} shop${cards.length !== 1 ? 's' : ''}` : '';
+  count.textContent = cards.length ? `${cards.length} ${bm ? 'profile' : 'shop'}${cards.length !== 1 ? 's' : ''}` : '';
   const grid = document.getElementById('bmShopsGrid');
   grid.innerHTML = cards.length ? cards.map(c => `
     <div class="glass-surface rounded-lg p-5 hover:border-amber-400/30 border border-transparent transition-all cursor-pointer" onclick="${c.go}">
@@ -56,7 +68,7 @@ async function loadBoutiqueManagerShops(shops) {
         </div>
         <div class="min-w-0 flex-1">
           <h3 class="font-playfair text-lg font-semibold text-on-surface leading-tight truncate">${esc(c.name)}</h3>
-          <p class="text-[11px] uppercase tracking-[0.06em] ${c.key.startsWith('shared') ? 'text-primary' : 'text-on-surface-variant'} font-semibold mt-1">${esc(c.sub)}</p>
+          <p class="text-[11px] uppercase tracking-[0.06em] ${c.key.startsWith('shared') ? 'text-primary' : c.key.startsWith('managed') ? 'text-amber-300' : 'text-on-surface-variant'} font-semibold mt-1">${esc(c.sub)}</p>
         </div>
       </div>
       <div class="mt-4 pt-4 border-t border-outline-variant/10 space-y-1.5 text-sm">
@@ -69,7 +81,8 @@ async function loadBoutiqueManagerShops(shops) {
       </div>
     </div>`).join('')
     : `<div class="col-span-full glass-surface rounded-lg p-8 text-center text-on-surface-variant text-sm border border-dashed border-outline-variant/20">
-         No boutique manager shops yet. A shop appears here once it has a boutique manager${currentUser?.role === 'master' ? ' (Admin → Add User → Boutique Manager)' : ' (ask the master)'}, or once a colleague shares one of theirs with you on Boutique Commission.
+         ${bm ? 'No shared profiles yet. A shop appears here once its owner makes you its boutique manager.'
+              : `No boutique manager shops yet. A shop appears here once it has a boutique manager${currentUser?.role === 'master' ? ' (Admin → Add User → Boutique Manager)' : ' (ask the master)'}, or once a colleague shares one of theirs with you on Boutique Commission.`}
        </div>`;
   syncBmShopsOpen();
 }
@@ -267,7 +280,10 @@ async function openShopDetail(id) {
   document.getElementById('shopDetailHeader').innerHTML = `
     <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.06em] text-primary font-semibold mb-1">${collabShop ? `${esc(collabShop.owner_username)}'s registry · shared with you` : 'Authorised Retailer'}</p>
+        <p class="text-[11px] uppercase tracking-[0.06em] ${bmShopView ? 'text-amber-300' : 'text-primary'} font-semibold mb-1">${
+          bmShopView ? `${esc(currentUser.shop.owner_username || 'another')}'s registry · shared with you · view only`
+          : collabShop ? `${esc(collabShop.owner_username)}'s registry · shared with you`
+          : 'Authorised Retailer'}</p>
         <h2 class="font-playfair text-3xl font-semibold text-on-surface">${esc(shop.name)}</h2>
         ${shop.address ? `<p class="text-on-surface-variant text-sm mt-2 whitespace-pre-line">${esc(shop.address)}</p>` : ''}
       </div>

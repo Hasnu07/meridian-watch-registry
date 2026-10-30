@@ -21,10 +21,23 @@ function setCollabShop(shop) {
   document.documentElement.classList.toggle('collab', !!collabShop);
 }
 
+// ── Boutique view context ──────────────────────────────────────────────────
+// A boutique manager looking at the shop they manage (view-only, in someone
+// else's registry): every request carries X-Boutique-Shop and routes/boutique.js
+// answers it stripped down; `html.role-bm` hides every control. Kept on the
+// shop, watch and Commissions pages, cleared on leaving them (24-boutique-manager.js).
+const BM_VIEW_PAGES = ['shop-detail', 'watch-detail', 'commissions'];
+let bmShopView = false;
+function setBmView(on) {
+  bmShopView = !!on && !!currentUser?.shop;
+  document.documentElement.classList.toggle('role-bm', bmShopView);
+}
+
 // ── API ────────────────────────────────────────────────────────────────────
 async function api(method, url, data) {
   const opts = { method, headers: {} };
-  if (collabShop) opts.headers['X-Collab-Shop'] = String(collabShop.id);
+  if (collabShop)  opts.headers['X-Collab-Shop']    = String(collabShop.id);
+  if (bmShopView)  opts.headers['X-Boutique-Shop']  = String(currentUser.shop.id);
   if (data instanceof FormData) {
     opts.body = data;
   } else if (data) {
@@ -75,6 +88,7 @@ const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfo
 function showPage(name) {
   scrubAutofilledSearches();
   if (collabShop && !COLLAB_PAGES.includes(name)) setCollabShop(null);
+  if (bmShopView && !BM_VIEW_PAGES.includes(name)) setBmView(false);
   PAGES.forEach(p => {
     const el = document.getElementById(`page-${p}`);
     if (el) {
