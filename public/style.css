@@ -623,13 +623,15 @@ tr.wl-group-row:hover { box-shadow: none !important; background: none !important
 #quickFilterBar .wl-toggle { padding: 0 2px; }
 #quickFilterBar .wl-sub { display: none; }
 
-/* ── Boutique manager: read-only view of one shop (24-boutique-manager.js) ─
-   The server already withholds the data (stock numbers, resale prices, costs,
-   payouts…); these rules remove the pages and buttons that would only lead
-   to a 403. `html.role-bm` is set once /api/auth/me reports the role. */
-html.role-bm [data-page="portfolios"], html.role-bm [data-page="main-kpi"], html.role-bm [data-page="profiles"],
-html.role-bm [data-page="desk"], html.role-bm [data-page="messages"], html.role-bm [data-page="settings"],
-html.role-bm [data-page="admin"], html.role-bm [data-page="boutique-commission"],
+/* ── Boutique manager (24-boutique-manager.js) ──────────────────────────────
+   `html.is-bm` is on for the whole session of a boutique manager: they have
+   their own workspace (shops, clients, watches), so the navigation stays —
+   only the owner-side Boutique Commission page is not theirs.
+   `html.role-bm` is on only while they look at the shop they MANAGE in
+   someone else's registry (Shops → Boutique Manager Shops, the Commissions
+   tab): the server withholds the data (stock numbers, resale prices, costs,
+   payouts…) and these rules remove every control, since it is view-only. */
+html.is-bm [data-page="boutique-commission"], html.is-bm #navWishlist { display: none !important; }
 html.role-bm #addProfileBtn, html.role-bm #addShopBtn, html.role-bm #addPortfolioBtn, html.role-bm #addWatchTopBtn,
 html.role-bm #addClientForShopBtn, html.role-bm #addExistingClientForShopBtn,
 html.role-bm .col-stock,
@@ -641,13 +643,12 @@ html.role-bm [onclick*="toggleExpenseBoutique"],
 html.role-bm [onclick*="downloadShopPdf"], html.role-bm [onclick*="generateShareLink"], html.role-bm [onclick*="openEditPortfolio"],
 html.role-bm [onclick*="confirmDeletePortfolio"], html.role-bm [onclick*="openAddPortfolio"],
 html.role-bm button[title="View Membership"], html.role-bm button[title="Full Profile"],
-html.role-bm .watch-status-tab[data-status="purchased"], html.role-bm .watch-status-tab[data-status="sold"],   /* they see Wishlist / Handed over only */
 html.role-bm .qf-add { display: none !important; }
-/* Pages a boutique manager cannot open: keep the text, drop the link */
+/* Pages outside the managed shop: keep the text, drop the link */
 html.role-bm [onclick*="openPortfolioDetail"], html.role-bm [onclick*="openProfileDetail"],
 html.role-bm [onclick*="openClientDetail"] { pointer-events: none; cursor: default; }
-html.role-bm .bm-commission { color: #FFD966; }
-html.role-bm .bm-badge {
+.bm-commission { color: #FFD966; }
+.bm-badge {
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
   font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--warn);
   border: 1px solid rgba(255, 194, 51, 0.35); background: rgba(255, 194, 51, 0.06);

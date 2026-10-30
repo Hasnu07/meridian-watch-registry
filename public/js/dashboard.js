@@ -24,10 +24,23 @@ function setCollabShop(shop) {
   document.documentElement.classList.toggle('collab', !!collabShop);
 }
 
+// ── Boutique view context ──────────────────────────────────────────────────
+// A boutique manager looking at the shop they manage (view-only, in someone
+// else's registry): every request carries X-Boutique-Shop and routes/boutique.js
+// answers it stripped down; `html.role-bm` hides every control. Kept on the
+// shop, watch and Commissions pages, cleared on leaving them (24-boutique-manager.js).
+const BM_VIEW_PAGES = ['shop-detail', 'watch-detail', 'commissions'];
+let bmShopView = false;
+function setBmView(on) {
+  bmShopView = !!on && !!currentUser?.shop;
+  document.documentElement.classList.toggle('role-bm', bmShopView);
+}
+
 // ── API ────────────────────────────────────────────────────────────────────
 async function api(method, url, data) {
   const opts = { method, headers: {} };
-  if (collabShop) opts.headers['X-Collab-Shop'] = String(collabShop.id);
+  if (collabShop)  opts.headers['X-Collab-Shop']    = String(collabShop.id);
+  if (bmShopView)  opts.headers['X-Boutique-Shop']  = String(currentUser.shop.id);
   if (data instanceof FormData) {
     opts.body = data;
   } else if (data) {
@@ -78,6 +91,7 @@ const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfo
 function showPage(name) {
   scrubAutofilledSearches();
   if (collabShop && !COLLAB_PAGES.includes(name)) setCollabShop(null);
+  if (bmShopView && !BM_VIEW_PAGES.includes(name)) setBmView(false);
   PAGES.forEach(p => {
     const el = document.getElementById(`page-${p}`);
     if (el) {
@@ -237,8 +251,8 @@ async function loadAdminUsers() {
                   : isBm ? 'text-amber-300 border-amber-400/30 bg-amber-400/5'
                   : 'text-purple-300 border-purple-300/30 bg-purple-300/5';
     const roleLabel = isBm ? 'Boutique Manager' : u.role;
-    // A boutique manager has no workspace: show the shop (and whose registry) instead of counts
-    const roleSub = isBm ? `<p class="text-[11px] text-on-surface-variant mt-1.5">${esc(u.shop_name || 'no shop assigned')}${u.owner_username ? ` · ${esc(u.owner_username)}'s registry` : ''}</p>`
+    // A boutique manager: the shop they manage (view-only) and whose registry it is; the counts are their own workspace
+    const roleSub = isBm ? `<p class="text-[11px] text-on-surface-variant mt-1.5">Manages ${esc(u.shop_name || 'no shop yet')}${u.owner_username ? ` · ${esc(u.owner_username)}'s registry` : ''}</p>`
                   // …and an admin/master invited to work a shop of another registry (Boutique Commission → Collaborators)
                   : u.collab_shops ? `<p class="text-[11px] text-on-surface-variant mt-1.5"><span class="material-symbols-outlined text-[12px] align-[-2px] mr-0.5">group</span>Collaborates on ${esc(u.collab_shops)}</p>` : '';
     return `
@@ -255,13 +269,13 @@ async function loadAdminUsers() {
         <td class="px-5 py-3">
           <span class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${roleCls}">${roleLabel}</span>${roleSub}
         </td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.clients_count || 0)}</td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.watches_count || 0)}</td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.sold_count || 0)}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.clients_count || 0}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.watches_count || 0}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.sold_count || 0}</td>
         <td class="px-5 py-3 text-xs text-outline">${created}</td>
         <td class="px-5 py-3">
           <div class="flex items-center justify-end gap-1.5">
-            ${!isMe && !isBm ? `
+            ${!isMe ? `
             <button onclick="adminViewAs(${u.id})" title="View their workspace" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
               <span class="material-symbols-outlined text-[16px]">visibility</span>
             </button>` : ''}
@@ -405,7 +419,7 @@ document.getElementById('newUserSubmit')?.addEventListener('click', async () => 
 const ROLE_HINTS = {
   admin:            'Own workspace with the default shop catalogue. Cannot see other users.',
   master:           'Full access: every workspace, user management and the audit log.',
-  boutique_manager: 'Read-only window onto ONE shop of this workspace: Vault, Shop, Watches and Wishlist. Sees commission per piece; never stock numbers, resale prices, costs, payouts, other users or settings.',
+  boutique_manager: 'Their own workspace (shops, clients, watches, as an admin) plus a view-only window onto ONE shop of this workspace: its clients and pieces, and the commissions you share. Never that shop\'s stock numbers, resale prices, costs or payouts.',
 };
 async function updateNewUserRoleUi() {
   const role = document.getElementById('newUserRole')?.value;
@@ -6633,7 +6647,13 @@ async function loadBoutiqueManagerShops(shops) {
     managers: (c.managers || '').split(', ').filter(Boolean), with: [],
     sub: `${c.owner_username}'s registry · shared with you`, go: `openSharedShop(${c.shop_id})`,
   }));
-  const cards = [...ownCards, ...sharedCards];
+  // A boutique manager: the shop they manage, view-only (24-boutique-manager.js)
+  const managedCards = isBoutiqueManager() && currentUser?.shop ? [{
+    key: `managed:${currentUser.shop.id}`, name: currentUser.shop.name, address: currentUser.shop.address, clients: null,
+    managers: [currentUser.username], with: [],
+    sub: `${currentUser.shop.owner_username || 'another'}'s registry · you manage it · view only`, go: 'openBoutiqueShop()',
+  }] : [];
+  const cards = [...ownCards, ...sharedCards, ...managedCards];
   const count = document.getElementById('bmShopsCount');
   count.textContent = cards.length ? `${cards.length} shop${cards.length !== 1 ? 's' : ''}` : '';
   const grid = document.getElementById('bmShopsGrid');
@@ -6645,7 +6665,7 @@ async function loadBoutiqueManagerShops(shops) {
         </div>
         <div class="min-w-0 flex-1">
           <h3 class="font-playfair text-lg font-semibold text-on-surface leading-tight truncate">${esc(c.name)}</h3>
-          <p class="text-[11px] uppercase tracking-[0.06em] ${c.key.startsWith('shared') ? 'text-primary' : 'text-on-surface-variant'} font-semibold mt-1">${esc(c.sub)}</p>
+          <p class="text-[11px] uppercase tracking-[0.06em] ${c.key.startsWith('shared') ? 'text-primary' : c.key.startsWith('managed') ? 'text-amber-300' : 'text-on-surface-variant'} font-semibold mt-1">${esc(c.sub)}</p>
         </div>
       </div>
       <div class="mt-4 pt-4 border-t border-outline-variant/10 space-y-1.5 text-sm">
@@ -6658,7 +6678,7 @@ async function loadBoutiqueManagerShops(shops) {
       </div>
     </div>`).join('')
     : `<div class="col-span-full glass-surface rounded-lg p-8 text-center text-on-surface-variant text-sm border border-dashed border-outline-variant/20">
-         No boutique manager shops yet. A shop appears here once it has a boutique manager${currentUser?.role === 'master' ? ' (Admin → Add User → Boutique Manager)' : ' (ask the master)'}, or once a colleague shares one of theirs with you on Boutique Commission.
+         No boutique manager shops yet. A shop appears here once it has a boutique manager${currentUser?.role === 'master' ? ' (Admin → Add User → Boutique Manager)' : ' (ask the master)'}, once a colleague shares one of theirs with you on Boutique Commission, or when you are the boutique manager of someone's shop.
        </div>`;
   syncBmShopsOpen();
 }
@@ -6856,7 +6876,10 @@ async function openShopDetail(id) {
   document.getElementById('shopDetailHeader').innerHTML = `
     <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.06em] text-primary font-semibold mb-1">${collabShop ? `${esc(collabShop.owner_username)}'s registry · shared with you` : 'Authorised Retailer'}</p>
+        <p class="text-[11px] uppercase tracking-[0.06em] ${bmShopView ? 'text-amber-300' : 'text-primary'} font-semibold mb-1">${
+          bmShopView ? `${esc(currentUser.shop.owner_username || 'another')}'s registry · you are its boutique manager · view only`
+          : collabShop ? `${esc(collabShop.owner_username)}'s registry · shared with you`
+          : 'Authorised Retailer'}</p>
         <h2 class="font-playfair text-3xl font-semibold text-on-surface">${esc(shop.name)}</h2>
         ${shop.address ? `<p class="text-on-surface-variant text-sm mt-2 whitespace-pre-line">${esc(shop.address)}</p>` : ''}
       </div>
@@ -8522,132 +8545,48 @@ applyWishlistVisibility();
 
 // ═══ 24-boutique-manager.js ═══
 // 24-boutique-manager.js — the Boutique Manager role
-// A boutique manager is a user created by a master for ONE shop of a registry.
-// They see four things — Vault, Shop, Watches, Wishlist — for that shop only,
-// read-only. The server (routes/boutique.js) already filters and strips the
-// data: no stock numbers, no resale prices, no costs, payouts, split rules,
-// other users or settings; it does send the commission recorded on each piece.
-// This file adapts the dashboard to that: trims navigation, guards pages,
-// swaps the Vault / Watches tiles for shop figures and renders a simple watch
-// page. public/style.css (`html.role-bm …`) hides the buttons that would only
-// lead to a 403. Nothing here runs for other roles.
+// A boutique manager is a user a master creates for ONE shop of a registry.
+// They have a workspace of their own — shops, clients, watches, exactly as an
+// admin — and, on top, a VIEW-ONLY window onto the shop they manage in their
+// owner's registry: opened from the Shops page's "Boutique Manager Shops"
+// (the shop page with its clients and pieces, every control hidden) or the
+// Commissions tab (the commissions the owner shares with them). While that
+// window is open (bmShopView, 01-core.js) every request carries
+// X-Boutique-Shop and routes/boutique.js answers it stripped down: no stock
+// numbers, resale prices, costs, payouts, split rules; a piece is "wishlist"
+// or "handed over". public/style.css: `html.is-bm` all session (hides the
+// owner-side Boutique Commission page), `html.role-bm` while in the window
+// (hides every control). Nothing here runs for other roles.
 // Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
 // in filename order into public/js/dashboard.js (one classic script, so
 // functions and top-level variables stay shared exactly as before).
 
-const BM_PAGES = ['dashboard', 'shops', 'shop-detail', 'watches', 'watch-detail', 'commissions'];
-
 function isBoutiqueManager() { return currentUser?.role === 'boutique_manager'; }
-function bmShopName() { return currentUser?.shop?.name || 'your shop'; }
-
-// For a boutique manager a piece is either on the wishlist or handed over to
-// the client (the server maps purchased/sold → 'handed_over'; they never learn
-// whether it was resold). Quick filters that only make sense for them:
-const BM_QUICK_FILTERS = [
-  { id: 'handedMonth',    label: 'Handed over this month', icon: 'handshake', test: w => w.status === 'handed_over' && isThisMonth(w.purchase_date) },
-  { id: 'withCommission', label: 'With commission',        icon: 'payments',  test: w => w.commission != null },
-];
-// …and the ones about reselling that must go (they would show nothing anyway)
-const BM_DROP_QUICK_FILTERS = ['soldMonth', 'held60'];
+function bmShopName() { return currentUser?.shop?.name || 'the shop you manage'; }
 
 // Called from refreshCurrentUser() every time the session user is (re)loaded
 function applyRoleUi(user) {
   const bm = user?.role === 'boutique_manager';
-  document.documentElement.classList.toggle('role-bm', bm);
+  document.documentElement.classList.toggle('is-bm', bm);
+  if (!bm) setBmView(false);
 
   const roleLabel = document.getElementById('currentUserRoleLabel');
-  if (roleLabel) roleLabel.textContent = bm ? `Boutique Manager · ${user.shop?.name || 'no shop'}` : 'Signed in as';
+  if (roleLabel) roleLabel.textContent = bm ? `Boutique Manager · ${user.shop?.name || 'no shop yet'}` : 'Signed in as';
 
-  for (const id of ['navWishlist', 'navCommissions']) {
-    const el = document.getElementById(id);
-    if (el) { el.classList.toggle('hidden', !bm); el.classList.toggle('flex', bm); }
-  }
-
-  if (!bm) return;
-
-  // Copy that talks about "the book" / "all clients" → this shop
-  const vaultSub = document.querySelector('#page-dashboard h2 + p');
-  if (vaultSub) vaultSub.textContent = `Pieces, wishlist and commission at ${bmShopName()}.`;
-  const watchesSub = document.getElementById('watchesSubtitle');
-  if (watchesSub) watchesSub.textContent = `Every piece registered at ${bmShopName()}.`;
-
-  // Keyboard shortcuts: only the pages a boutique manager has
-  ['p', 'k', 'c', 'b', 'd', 'm', ','].forEach(k => delete GOTO_KEYS[k]);
-  newItemForPage = function () {};   // "n" creates nothing
-
-  if (!QUICK_FILTERS.some(f => f.id === 'handedMonth')) {
-    for (let i = QUICK_FILTERS.length - 1; i >= 0; i--) if (BM_DROP_QUICK_FILTERS.includes(QUICK_FILTERS[i].id)) QUICK_FILTERS.splice(i, 1);
-    QUICK_FILTERS.push(...BM_QUICK_FILTERS);
-  }
-
-  // Watches status tabs: All · Wishlist · Handed over (Purchased / Sold are
-  // hidden by style.css, since setWatchStatusTab rewrites the tabs' classes)
-  const tabs = document.getElementById('watchStatusTabs');
-  if (tabs && !tabs.querySelector('[data-status="handed_over"]')) {
-    const t = document.createElement('button');
-    t.dataset.status = 'handed_over';
-    t.className = 'watch-status-tab text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg border transition-all border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant/30';
-    t.textContent = 'Handed over';
-    tabs.appendChild(t);
-  }
+  // Tools → Commissions: the commissions shared with them on the managed shop
+  const nav = document.getElementById('navCommissions');
+  if (nav) { nav.classList.toggle('hidden', !bm); nav.classList.toggle('flex', bm); }
 }
 
-// ── Navigation ─────────────────────────────────────────────────────────────
-
-// Pages a boutique manager cannot open fall back to the Vault
-const _bmShowPage = showPage;
-showPage = function (name) {
-  if (isBoutiqueManager() && !BM_PAGES.includes(name)) name = 'dashboard';
-  _bmShowPage(name);
-  if (isBoutiqueManager()) syncBmNav(name);
-};
-
-// Watches vs Wishlist: both are the Watches page, the nav shows which tab is on
-function syncBmNav(page) {
-  const wishlistOn = page === 'watches' && watchStatusFilter === 'wishlist';
-  const set = (el, on) => { if (!el) return; el.classList.toggle('nav-active', on); el.classList.toggle('nav-inactive', !on); };
-  set(document.getElementById('navWishlist'), wishlistOn);
-  set(document.querySelector('.nav-item[data-page="watches"]'), page === 'watches' && !wishlistOn);
-}
-const _bmSetWatchStatusTab = setWatchStatusTab;
-setWatchStatusTab = function (status) {
-  _bmSetWatchStatusTab(status);
-  if (isBoutiqueManager() && currentPage === 'watches') syncBmNav('watches');
-};
-
-function openBoutiqueWishlist() {
-  activeQuickFilter = null;
-  setWatchStatusTab('wishlist');
-  const search = document.getElementById('watchSearch');
-  search.value = ''; search.dataset.typed = '';
-  showPage('watches');
-}
-document.getElementById('navWishlist')?.addEventListener('click', openBoutiqueWishlist);
-// The Watches nav item always opens the "All" tab for a boutique manager
-document.addEventListener('click', e => {
-  if (!isBoutiqueManager()) return;
-  if (e.target.closest('.nav-item[data-page="watches"]')) { activeQuickFilter = null; _bmSetWatchStatusTab(''); }
-}, true);
-
-// Watches filtered to one client (the Vault's client list links here)
-function openWatchesForClient(name) {
-  activeQuickFilter = null;
-  setWatchStatusTab('');
-  const search = document.getElementById('watchSearch');
-  search.value = name; search.dataset.typed = name;
-  showPage('watches');
+// The shop they manage, view-only: the shop page under the boutique view
+function openBoutiqueShop() {
+  if (!isBoutiqueManager() || !currentUser?.shop) return;
+  setBmView(true);
+  openShopDetail(currentUser.shop.id);
 }
 
 // ── Series helpers ─────────────────────────────────────────────────────────
 
-// Commission per month in the currency most commission was paid in
-function bmCommissionSeries(watches, n = 12) {
-  const entries = watches.flatMap(w => w.expenses || []);
-  const byCur = {};
-  for (const e of entries) byCur[e.currency || 'CHF'] = (byCur[e.currency || 'CHF'] || 0) + Number(e.amount || 0);
-  const cur = Object.entries(byCur).sort((a, b) => b[1] - a[1])[0]?.[0] || 'CHF';
-  return { cur, values: monthlySeries(entries.filter(e => (e.currency || 'CHF') === cur), e => e.date, e => e.amount, n) };
-}
 function bmCommissionThisMonth(watches) {
   const m = {};
   for (const w of watches) for (const e of (w.expenses || [])) {
@@ -8661,168 +8600,19 @@ const bmCommissionHtml = (w, cls = 'text-xs') => w.commission != null
   ? `<span class="font-mono ${cls} bm-commission">${fmt.price(w.commission, w.commission_currency || w.currency || 'CHF')}</span>`
   : `<span class="${cls} text-outline">—</span>`;
 
-// ── Vault ──────────────────────────────────────────────────────────────────
-
-const _bmLoadDashboard = loadDashboard;
-loadDashboard = async function () {
-  if (!isBoutiqueManager()) return _bmLoadDashboard();
-
-  const shop = currentUser.shop;
-  const [stats, watches, shops, profiles] = await Promise.all([
-    api('GET', '/api/stats'),
-    api('GET', '/api/watches'),
-    api('GET', '/api/shops'),
-    api('GET', '/api/profiles'),
-  ]);
-  watches.forEach(w => { watchCache[w.id] = w; });
-  const count = fn => watches.filter(fn).length;
-  const quick = id => QUICK_FILTERS.find(f => f.id === id).test;
-
-  // ── Needs attention ──
-  const commMonth = bmCommissionThisMonth(watches);
-  const items = [
-    { n: count(quick('waiting30')),   tone: 'amber',  icon: 'hourglass_top', title: 'Wishlist waiting 30+ days', cta: 'Review list',     go: "openWatchesWithQuickFilter('waiting30')" },
-    { n: count(quick('handedMonth')), tone: 'cyan',   icon: 'handshake',     title: 'Handed over this month',    cta: 'See pieces',      go: "openWatchesWithQuickFilter('handedMonth')" },
-    { money: commMonth,               tone: 'green',  icon: 'payments',      title: 'Commission this month',     cta: 'See commissions', go: "showPage('commissions')" },
-  ].filter(it => it.money ? Object.keys(it.money).length : it.n > 0);
-  document.getElementById('vaultAttention').innerHTML = items.length
-    ? items.map(it => `
-      <button type="button" class="attention-card tone-${it.tone}" onclick="${it.go}">
-        <span class="attention-icon material-symbols-outlined">${it.icon}</span>
-        <span class="min-w-0 flex-1 text-left">
-          <span class="attention-title">${esc(it.title)}</span>
-          <span class="attention-value">${it.money ? fmt.byCurrency(it.money) : `${it.n}<span class="attention-unit">${it.n === 1 ? 'watch' : 'watches'}</span>`}</span>
-          <span class="attention-cta">${esc(it.cta)} →</span>
-        </span>
-      </button>`).join('')
-    : `<div class="attention-card tone-green col-span-full">
-        <span class="attention-icon material-symbols-outlined">task_alt</span>
-        <span><span class="attention-title">All clear</span><span class="attention-value text-base">Nothing needs your attention right now.</span></span>
-      </div>`;
-
-  // ── At a glance (shop figures — no P&L, no sale proceeds) ──
-  const vs   = vaultSeries(watches, 12);
-  const comm = bmCommissionSeries(watches, 12);
-  const longest = watches.filter(w => w.status === 'wishlist').reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
-  const tile = (label, value, sub, spark) => `
-    <article class="glass-surface rounded-lg p-5">
-      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-2">${label}</p>
-      <div class="font-playfair text-2xl text-on-surface leading-tight">${value}</div>
-      <p class="text-xs text-on-surface-variant mt-1">${sub}</p>
-      ${spark}
-    </article>`;
-  const pcs = n => `<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${n === 1 ? 'piece' : 'pieces'}</span>`;
-  document.getElementById('vaultTiles').innerHTML = [
-    tile(`Pieces at ${esc(shop?.name || 'the shop')}`, `${stats.total_watches}${pcs(stats.total_watches)}`, `${stats.handed_over_count} handed over · ${stats.wishlist_count} on the wishlist`,
-         sparkBlock(vs.boughtCount, { color: SPARK.cyan, caption: 'pieces handed over / month', label: 'Pieces handed over per month' })),
-    tile('Wishlist', `${stats.wishlist_count}${pcs(stats.wishlist_count)}`, stats.wishlist_count ? `longest wait ${longest} day${longest !== 1 ? 's' : ''}` : 'nothing waiting',
-         sparkBlock(vs.wishAdds, { color: SPARK.amber, caption: 'wishlist adds / month', label: 'Wishlist adds per month' })),
-    tile('Handed over', fmt.byCurrency(stats.handed_over_list_value), `${stats.handed_over_count} piece${stats.handed_over_count !== 1 ? 's' : ''} at list price`,
-         sparkBlock(vs.boughtValue, { color: SPARK.violet, caption: `value handed over / month · ${vs.cur}`, label: 'Value handed over per month' })),
-    tile('Commission', fmt.byCurrency(stats.commission_total), `${stats.commission_pieces} piece${stats.commission_pieces !== 1 ? 's' : ''} with commission`,
-         sparkBlock(comm.values, { color: SPARK.green, caption: `commission / month · ${comm.cur}`, label: 'Commission per month' })),
-  ].join('');
-
-  // ── Longest waiting ──
-  const waiting = watches.filter(w => w.status === 'wishlist')
-    .sort((a, b) => (wishlistDays(b) ?? -1) - (wishlistDays(a) ?? -1)).slice(0, 6);
-  document.getElementById('vaultWaiting').innerHTML = waiting.length ? waiting.map(w => {
-    const d = wishlistDays(w) ?? 0;
-    const urgency = d >= 30 ? 'text-error' : d >= 14 ? 'text-amber-400' : 'text-on-surface-variant';
-    return `
-    <button type="button" class="tbl-row w-full px-5 py-2.5 flex items-center gap-3 text-left" onclick="openWatchDetail(${w.id})">
-      ${bmThumb(w)}
-      <span class="flex-1 min-w-0">
-        <span class="block text-sm font-medium text-on-surface truncate">${esc(w.model)}</span>
-        <span class="block text-xs text-on-surface-variant truncate">${esc(w.client_name || '—')}${w.reference_number ? ` · <span class="font-mono">${esc(w.reference_number)}</span>` : ''}</span>
-      </span>
-      <span class="font-mono text-lg font-semibold leading-none ${urgency}">${d}<span class="text-xs font-sans font-medium text-outline ml-1">${d === 1 ? 'day' : 'days'}</span></span>
-    </button>`;
-  }).join('') : `<p class="px-5 py-10 text-center text-sm text-on-surface-variant">Nothing on the wishlist.</p>`;
-
-  // ── Recently handed over (replaces "Recent sales") ──
-  const salesPanel = document.getElementById('vaultSales');
-  const header = salesPanel.previousElementSibling;
-  const h3 = header?.querySelector('h3');
-  if (h3) h3.innerHTML = `<span class="material-symbols-outlined text-primary text-[18px]">handshake</span>Recently handed over`;
-  const link = header?.querySelector('button');
-  if (link) { link.textContent = 'Handed over this month →'; link.setAttribute('onclick', "openWatchesWithQuickFilter('handedMonth')"); }
-  const bought = sortByKey(watches.filter(w => w.status === 'handed_over'), w => w.purchase_date || (w.created_at || '').slice(0, 10), 'desc').slice(0, 6);
-  salesPanel.innerHTML = bought.length ? bought.map(w => `
-    <button type="button" class="tbl-row w-full px-5 py-2.5 flex items-center gap-3 text-left" onclick="openWatchDetail(${w.id})">
-      ${bmThumb(w)}
-      <span class="flex-1 min-w-0">
-        <span class="block text-sm font-medium text-on-surface truncate">${esc(w.model)}</span>
-        <span class="block text-xs text-on-surface-variant truncate">${esc(w.client_name || '—')} · <span class="font-mono">${fmt.date(w.purchase_date)}</span></span>
-      </span>
-      <span class="text-right flex-shrink-0">
-        <span class="block font-mono text-sm font-semibold text-on-surface">${w.list_price != null ? fmt.price(w.list_price, w.currency || 'CHF') : '—'}</span>
-        <span class="block text-[11px] text-outline">commission ${bmCommissionHtml(w, 'text-[11px]')}</span>
-      </span>
-    </button>`).join('') : `<p class="px-5 py-10 text-center text-sm text-on-surface-variant">Nothing handed over yet.</p>`;
-
-  document.getElementById('vaultUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-
-  // ── Registry line + tables ──
-  document.getElementById('s-shops').textContent   = shops.length.toLocaleString();
-  document.getElementById('s-clients').textContent = profiles.length.toLocaleString();
-  document.getElementById('s-clients-sub').textContent = `${watches.length.toLocaleString()} piece${watches.length !== 1 ? 's' : ''} at ${shop?.name || 'the shop'}`;
-
-  const portfoliosPerShop = await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)));
-  document.getElementById('recentShops').innerHTML = shops.length ? shops.map((s, i) => `
-    <tr class="tbl-row cursor-pointer" onclick="openShopDetail(${s.id})">
-      <td class="px-5 py-3">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <span class="material-symbols-outlined text-primary text-[18px]">store</span>
-          </div>
-          <span class="text-on-surface font-medium text-sm">${esc(s.name)}</span>
-        </div>
-      </td>
-      <td class="px-5 py-3 text-on-surface-variant text-xs whitespace-pre-line leading-relaxed">${esc(s.address || '—')}</td>
-      <td class="px-5 py-3 text-on-surface-variant text-sm">${portfoliosPerShop[i].length} portfolio${portfoliosPerShop[i].length !== 1 ? 's' : ''}</td>
-      <td class="px-5 py-3 text-right">
-        <button onclick="event.stopPropagation(); openShopDetail(${s.id})" class="text-[11px] font-semibold uppercase tracking-wider text-primary hover:underline px-3 py-1 border border-transparent hover:border-primary/20 rounded transition-all">View</button>
-      </td>
-    </tr>`).join('') : `<tr><td colspan="4" class="px-6 py-16 text-center text-on-surface-variant text-sm">No shop assigned to this account yet — ask the registry owner.</td></tr>`;
-
-  // Clients of this shop (the column headers are reused: Client / Patek ID / Portfolio / Watches)
-  const clientsTable = document.getElementById('recentClients').closest('table');
-  const ths = clientsTable.querySelectorAll('thead th');
-  if (ths[1]) ths[1].textContent = 'Patek ID';
-  if (ths[2]) ths[2].textContent = 'Portfolio';
-  const sorted = [...profiles].sort((a, b) => (b.watch_count || 0) - (a.watch_count || 0));
-  document.getElementById('recentClients').innerHTML = sorted.length ? sorted.map(p => `
-    <tr class="tbl-row cursor-pointer" onclick="openWatchesForClient('${esc(p.name).replace(/'/g, "\\'")}')">
-      <td class="px-5 py-3">
-        <div class="flex items-center gap-3">
-          ${avatarHtml(p.name, p.photo_path, 'sm')}
-          <span class="text-on-surface font-medium text-sm">${esc(p.name)}</span>
-        </div>
-      </td>
-      <td class="px-5 py-3 text-on-surface-variant text-xs font-mono">${esc(p.pp_urn || p.subscriber_id || '—')}</td>
-      <td class="px-5 py-3 text-on-surface-variant text-sm">${esc(p.portfolio_name || 'Individual')}</td>
-      <td class="px-5 py-3 text-on-surface-variant text-sm">${p.watch_count || 0} watch${(p.watch_count || 0) !== 1 ? 'es' : ''}</td>
-      <td class="px-5 py-3 text-right">
-        <span class="text-[11px] font-semibold uppercase tracking-wider text-primary px-3 py-1">Pieces →</span>
-      </td>
-    </tr>`).join('') : `<tr><td colspan="5" class="px-6 py-16 text-center text-on-surface-variant text-sm">No clients at this shop yet.</td></tr>`;
-  reapplyDomSort(document.getElementById('recentShops').closest('table'));
-  reapplyDomSort(clientsTable);
-};
-
 // ── Commissions page (Tools → Commissions) ─────────────────────────────────
 // Every commission the owner chose to share, newest first, grouped by month.
 // The data is the same `expenses` list the watches already carry.
 
 async function loadCommissions() {
   const body = document.getElementById('commissionsBody');
-  if (!isBoutiqueManager()) {
+  if (!isBoutiqueManager() || !currentUser?.shop) {
     document.getElementById('commissionTiles').innerHTML = '';
-    body.innerHTML = `<tr><td colspan="6" class="px-6 py-16 text-center text-on-surface-variant text-sm">This page is for boutique manager accounts.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" class="px-6 py-16 text-center text-on-surface-variant text-sm">${isBoutiqueManager() ? 'You are not linked to a shop yet — ask the registry owner.' : 'This page is for boutique manager accounts.'}</td></tr>`;
     return;
   }
-  document.getElementById('commissionsSubtitle').textContent = `Commission set for you on pieces at ${bmShopName()}. Your registry owner chooses which commissions appear here.`;
+  setBmView(true);   // the managed shop's pieces, as the owner shares them
+  document.getElementById('commissionsSubtitle').textContent = `Commission set for you on pieces at ${bmShopName()} (${currentUser.shop.owner_username || 'the owner'}'s registry). The owner chooses which commissions appear here.`;
   const watches = await api('GET', '/api/watches');
   watches.forEach(w => { watchCache[w.id] = w; });
   const entries = watches.flatMap(w => (w.expenses || []).map(e => ({ ...e, watch: w })))
@@ -8887,55 +8677,14 @@ async function loadCommissions() {
   body.innerHTML = html;
 }
 
-// ── Watches page ───────────────────────────────────────────────────────────
-
-const _bmLoadWatches = loadWatches;
-loadWatches = async function (q, source) {
-  if (!isBoutiqueManager()) return _bmLoadWatches(q, source);
-
-  const stats = await api('GET', '/api/stats');
-  const label = (id, text) => { const p = document.getElementById(id)?.parentElement?.querySelector('p'); if (p) p.textContent = text; };
-  label('wv-value',    'Pieces');
-  label('wv-active',   'Handed over');
-  label('wv-proceeds', 'Wishlist');
-  label('wv-pnl',      'Commission');
-  document.getElementById('wv-value').innerHTML    = `${stats.total_watches}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${stats.total_watches === 1 ? 'piece' : 'pieces'}</span>`;
-  document.getElementById('wv-active').innerHTML   = fmt.byCurrency(stats.handed_over_list_value);
-  document.getElementById('wv-proceeds').innerHTML = `${stats.wishlist_count}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${stats.wishlist_count === 1 ? 'piece' : 'pieces'}</span>`;
-  document.getElementById('wv-pnl').innerHTML      = `<span class="bm-commission">${fmt.byCurrency(stats.commission_total)}</span>`;
-  document.getElementById('wv-value-sub').textContent    = `at ${bmShopName()}`;
-  document.getElementById('wv-active-sub').textContent   = `${stats.handed_over_count} piece${stats.handed_over_count !== 1 ? 's' : ''} · list price`;
-  document.getElementById('wv-proceeds-sub').textContent = `${stats.wishlist_count} waiting`;
-  document.getElementById('wv-pnl-sub').textContent      = `${stats.commission_pieces} piece${stats.commission_pieces !== 1 ? 's' : ''} with commission`;
-  document.getElementById('wv-total').textContent = stats.total_watches.toLocaleString();
-
-  const params = new URLSearchParams();
-  if (q) params.set('q', q);
-  allWatches = await api('GET', `/api/watches?${params}`);
-  allWatches.forEach(w => { watchCache[w.id] = w; });
-  if (!q) renderWatchSparklines(allWatches);
-  watchPage = 1;
-  renderWatches();
-  renderWishlistWaiting();
-};
-
-const _bmRenderWatchSparklines = renderWatchSparklines;
-renderWatchSparklines = function (watches) {
-  if (!isBoutiqueManager()) return _bmRenderWatchSparklines(watches);
-  const vs = vaultSeries(watches, 12);
-  const comm = bmCommissionSeries(watches, 12);
-  document.getElementById('wv-value-spark').innerHTML    = sparkBlock(vs.boughtCount, { color: SPARK.cyan,   caption: 'pieces handed over / month', label: 'Pieces handed over per month' });
-  document.getElementById('wv-active-spark').innerHTML   = sparkBlock(vs.boughtValue, { color: SPARK.violet, caption: `value handed over / month · ${vs.cur}`, label: 'Value handed over per month' });
-  document.getElementById('wv-proceeds-spark').innerHTML = sparkBlock(vs.wishAdds,    { color: SPARK.amber,  caption: 'wishlist adds / month', label: 'Wishlist adds per month' });
-  document.getElementById('wv-pnl-spark').innerHTML      = sparkBlock(comm.values,    { color: SPARK.green,  caption: `commission / month · ${comm.cur}`, label: 'Commission per month' });
-};
-
 // ── Watch page ─────────────────────────────────────────────────────────────
-// A plain page: the piece, its identity, the commission on it and the client.
+// A plain page for a piece of the MANAGED shop (bmShopView): the piece, its
+// identity, the commission on it and the client. Their own watches use the
+// normal page.
 
 const _bmRenderWatchDetailPage = renderWatchDetailPage;
 renderWatchDetailPage = function (w) {
-  if (!isBoutiqueManager()) return _bmRenderWatchDetailPage(w);
+  if (!bmShopView) return _bmRenderWatchDetailPage(w);
 
   const cur = w.currency || 'CHF';
   const pr  = w.profile || {};

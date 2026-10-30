@@ -34,7 +34,9 @@ router.post('/login', async (req, res) => {
 function shopFor(sessionUser) {
   if (sessionUser.role !== 'boutique_manager' || !sessionUser.shop_id || !sessionUser.owner_id) return null;
   const s = db.getShop(sessionUser.shop_id, sessionUser.owner_id);
-  return s ? { id: s.id, name: s.name } : null;
+  if (!s) return null;
+  const owner = db.getUserById(sessionUser.owner_id);
+  return { id: s.id, name: s.name, address: s.address, owner_id: sessionUser.owner_id, owner_username: owner?.username || null };
 }
 
 // GET /api/auth/me — who is the current session?

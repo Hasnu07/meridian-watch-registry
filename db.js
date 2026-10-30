@@ -424,10 +424,11 @@ function init() {
   addOwnerCol('profiles',   JHONNY_ID);
 
   // ── Boutique managers ────────────────────────────────────────────────────
-  // A boutique_manager user has no workspace of their own: owner_id is the
-  // master/admin whose registry they look into and shop_id the one boutique
-  // they may see. Deleting the owner removes their managers; deleting the shop
-  // leaves the manager with nothing to see until reassigned.
+  // A boutique_manager user has a workspace of their own AND manages one shop
+  // of someone else's registry, view-only: owner_id is that registry's
+  // master/admin and shop_id the shop. Deleting the owner removes their
+  // managers; deleting the shop leaves the manager with nothing to view until
+  // reassigned.
   {
     const ucols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
     if (!ucols.includes('owner_id')) db.exec('ALTER TABLE users ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
@@ -518,9 +519,9 @@ function listUsers() {
 }
 
 function listUsersWithStats() {
-  // Per-user counts of clients, profiles, watches, sold count. Boutique
-  // managers own nothing, so their counts are 0; the shop they manage (and
-  // whose registry it belongs to) is reported instead.
+  // Per-user counts of clients, profiles, watches, sold count — of the user's
+  // own workspace. A boutique manager also reports the shop they manage (and
+  // whose registry it belongs to).
   return db.prepare(`
     SELECT
       u.id, u.username, u.role, u.created_at, u.owner_id, u.shop_id,
@@ -547,7 +548,8 @@ function listUsersWithStats() {
 
 function createUser({ username, passwordHash, role, ownerId, shopId }) {
   if (role === 'boutique_manager') {
-    // No workspace, no shop catalogue — just a window onto one shop of the owner's registry
+    // Their own workspace starts empty (no default catalogue — they add their
+    // own shops); owner_id / shop_id name the shop they manage, view-only
     return db.prepare('INSERT INTO users (username, password_hash, role, owner_id, shop_id) VALUES (?, ?, ?, ?, ?)')
       .run(username, passwordHash, role, ownerId, shopId).lastInsertRowid;
   }

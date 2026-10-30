@@ -3,20 +3,25 @@
 /**
  * Boutique manager — read-only window onto ONE shop of the owner's registry.
  *
- * Mounted at /api before every other authenticated router. For any user who
- * is not a boutique_manager it steps aside (`next('router')`) and the normal
- * routers handle the request. For a boutique manager it answers the handful
- * of GET endpoints the restricted dashboard needs — always filtered to their
- * shop and stripped of the operator's internals — and refuses everything else
- * with 403, so no write and no other page can be reached even by hand.
+ * A boutique manager has a workspace of their own (their shops, clients and
+ * watches — handled by the normal routers, exactly as for an admin). The shop
+ * they MANAGE belongs to someone else's registry and is view-only: when the
+ * dashboard opens it (from the Shops page's "Boutique Manager Shops", or the
+ * Commissions tab) every request carries `X-Boutique-Shop`, and this router —
+ * mounted at /api before the others — answers the handful of GET endpoints
+ * that view needs, filtered to the shop and stripped of the operator's
+ * internals, and refuses everything else under that header with 403, so no
+ * write and no other page can reach the owner's registry even by hand.
+ * Without the header, or for any other role, it steps aside (`next('router')`).
  *
- * What a boutique manager may see about a watch: model, reference / serial /
- * movement / case numbers, source, whether it is still on the wishlist or has
- * been handed over (never purchased vs sold), dates, list price, image, notes,
- * which client (membership) it belongs to, and the COMMISSION the owner chose
- * to share with them (expenses of category 'commission' flagged for_boutique;
- * their Commissions tab lists these). Never: stock number, the resale price,
- * who bought it, costs, payouts, loss settlements, split rules or capital.
+ * What a boutique manager may see about a watch there: model, reference /
+ * serial / movement / case numbers, source, whether it is still on the
+ * wishlist or has been handed over (never purchased vs sold), dates, list
+ * price, image, notes, which client (membership) it belongs to, and the
+ * COMMISSION the owner chose to share with them (expenses of category
+ * 'commission' flagged for_boutique; their Commissions tab lists these).
+ * Never: stock number, the resale price, who bought it, costs, payouts, loss
+ * settlements, split rules or capital.
  */
 
 const express = require('express');
@@ -24,12 +29,17 @@ const db      = require('../db');
 
 const router = express.Router();
 
-const READ_ONLY_MSG = 'Boutique managers can only view their own shop.';
+const HEADER        = 'x-boutique-shop';
+const READ_ONLY_MSG = 'The shop you manage is view-only. Your own shops, clients and watches are yours to change.';
 
 router.use((req, res, next) => {
-  if (req.session?.user?.role !== 'boutique_manager') return next('router');
-  req.bm = { ownerId: req.session.user.owner_id, shopId: req.session.user.shop_id };
-  if (!req.bm.ownerId) return res.status(403).json({ error: 'This boutique manager account is not linked to a registry.' });
+  const u = req.session?.user;
+  if (u?.role !== 'boutique_manager') return next('router');
+  const raw = req.get(HEADER);
+  if (raw == null || raw === '') return next('router');          // their own workspace
+  if (!u.owner_id || !u.shop_id) return res.status(403).json({ error: 'This boutique manager account is not linked to a shop yet.' });
+  if (Number(raw) !== u.shop_id)  return res.status(403).json({ error: 'You manage a different shop.' });
+  req.bm = { ownerId: u.owner_id, shopId: u.shop_id };
   next();
 });
 

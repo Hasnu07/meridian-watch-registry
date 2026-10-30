@@ -42,8 +42,8 @@ async function loadAdminUsers() {
                   : isBm ? 'text-amber-300 border-amber-400/30 bg-amber-400/5'
                   : 'text-purple-300 border-purple-300/30 bg-purple-300/5';
     const roleLabel = isBm ? 'Boutique Manager' : u.role;
-    // A boutique manager has no workspace: show the shop (and whose registry) instead of counts
-    const roleSub = isBm ? `<p class="text-[11px] text-on-surface-variant mt-1.5">${esc(u.shop_name || 'no shop assigned')}${u.owner_username ? ` · ${esc(u.owner_username)}'s registry` : ''}</p>`
+    // A boutique manager: the shop they manage (view-only) and whose registry it is; the counts are their own workspace
+    const roleSub = isBm ? `<p class="text-[11px] text-on-surface-variant mt-1.5">Manages ${esc(u.shop_name || 'no shop yet')}${u.owner_username ? ` · ${esc(u.owner_username)}'s registry` : ''}</p>`
                   // …and an admin/master invited to work a shop of another registry (Boutique Commission → Collaborators)
                   : u.collab_shops ? `<p class="text-[11px] text-on-surface-variant mt-1.5"><span class="material-symbols-outlined text-[12px] align-[-2px] mr-0.5">group</span>Collaborates on ${esc(u.collab_shops)}</p>` : '';
     return `
@@ -60,13 +60,13 @@ async function loadAdminUsers() {
         <td class="px-5 py-3">
           <span class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${roleCls}">${roleLabel}</span>${roleSub}
         </td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.clients_count || 0)}</td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.watches_count || 0)}</td>
-        <td class="px-5 py-3 text-sm text-on-surface-variant">${isBm ? '—' : (u.sold_count || 0)}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.clients_count || 0}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.watches_count || 0}</td>
+        <td class="px-5 py-3 text-sm text-on-surface-variant">${u.sold_count || 0}</td>
         <td class="px-5 py-3 text-xs text-outline">${created}</td>
         <td class="px-5 py-3">
           <div class="flex items-center justify-end gap-1.5">
-            ${!isMe && !isBm ? `
+            ${!isMe ? `
             <button onclick="adminViewAs(${u.id})" title="View their workspace" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
               <span class="material-symbols-outlined text-[16px]">visibility</span>
             </button>` : ''}
@@ -210,7 +210,7 @@ document.getElementById('newUserSubmit')?.addEventListener('click', async () => 
 const ROLE_HINTS = {
   admin:            'Own workspace with the default shop catalogue. Cannot see other users.',
   master:           'Full access: every workspace, user management and the audit log.',
-  boutique_manager: 'Read-only window onto ONE shop of this workspace: Vault, Shop, Watches and Wishlist. Sees commission per piece; never stock numbers, resale prices, costs, payouts, other users or settings.',
+  boutique_manager: 'Their own workspace (shops, clients, watches, as an admin) plus a view-only window onto ONE shop of this workspace: its clients and pieces, and the commissions you share. Never that shop\'s stock numbers, resale prices, costs or payouts.',
 };
 async function updateNewUserRoleUi() {
   const role = document.getElementById('newUserRole')?.value;
