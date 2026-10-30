@@ -8,9 +8,11 @@
 // window is open (bmShopView, 01-core.js) every request carries
 // X-Boutique-Shop and routes/boutique.js answers it stripped down: no stock
 // numbers, resale prices, costs, payouts, split rules; a piece is "wishlist"
-// or "handed over". public/style.css: `html.is-bm` all session (hides the
-// owner-side Boutique Commission page), `html.role-bm` while in the window
-// (hides every control). Nothing here runs for other roles.
+// or "handed over". On the Shops page the area is called "Shared profiles"
+// for them. public/style.css: `html.is-bm` all session (hides the pages that
+// are not theirs: Boutique Commission, Patek Desk, Messages, Main KPI),
+// `html.role-bm` while in the window (hides every control). Nothing here
+// runs for other roles.
 // Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
 // in filename order into public/js/dashboard.js (one classic script, so
 // functions and top-level variables stay shared exactly as before).
@@ -30,7 +32,19 @@ function applyRoleUi(user) {
   // Tools → Commissions: the commissions shared with them on the managed shop
   const nav = document.getElementById('navCommissions');
   if (nav) { nav.classList.toggle('hidden', !bm); nav.classList.toggle('flex', bm); }
+
+  // Not theirs (style.css hides the nav items): the owner-side Boutique
+  // Commission page, Patek Desk, Messages and Main KPI — nor their shortcuts
+  if (bm && typeof GOTO_KEYS !== 'undefined') for (const k of ['b', 'd', 'm', 'k']) delete GOTO_KEYS[k];
 }
+
+// Pages a boutique manager does not have fall back to the Vault
+const _bmShowPage = showPage;
+showPage = function (name) {
+  if (isBoutiqueManager() && BM_HIDDEN_PAGES.includes(name)) name = 'dashboard';
+  _bmShowPage(name);
+};
+const BM_HIDDEN_PAGES = ['boutique-commission', 'desk', 'messages', 'main-kpi'];
 
 // The shop they manage, view-only: the shop page under the boutique view
 function openBoutiqueShop() {

@@ -626,12 +626,14 @@ tr.wl-group-row:hover { box-shadow: none !important; background: none !important
 /* ── Boutique manager (24-boutique-manager.js) ──────────────────────────────
    `html.is-bm` is on for the whole session of a boutique manager: they have
    their own workspace (shops, clients, watches), so the navigation stays —
-   only the owner-side Boutique Commission page is not theirs.
+   minus the pages that are not theirs: the owner-side Boutique Commission,
+   Patek Desk, Messages and Main KPI.
    `html.role-bm` is on only while they look at the shop they MANAGE in
    someone else's registry (Shops → Boutique Manager Shops, the Commissions
    tab): the server withholds the data (stock numbers, resale prices, costs,
    payouts…) and these rules remove every control, since it is view-only. */
-html.is-bm [data-page="boutique-commission"], html.is-bm #navWishlist { display: none !important; }
+html.is-bm [data-page="boutique-commission"], html.is-bm [data-page="desk"], html.is-bm [data-page="messages"],
+html.is-bm [data-page="main-kpi"], html.is-bm #navWishlist { display: none !important; }
 html.role-bm #addProfileBtn, html.role-bm #addShopBtn, html.role-bm #addPortfolioBtn, html.role-bm #addWatchTopBtn,
 html.role-bm #addClientForShopBtn, html.role-bm #addExistingClientForShopBtn,
 html.role-bm .col-stock,
