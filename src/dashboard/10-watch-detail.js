@@ -29,6 +29,7 @@ async function openWatchDetail(id) {
     'client-detail':  'Back to Client',
     'shop-detail':    'Back to Shop',
     'watches':        'Back to Watches',
+    'boutique-commission': 'Back to Boutique Commission',
   };
   document.getElementById('backFromWatchDetailLabel').textContent =
     backLabels[_watchDetailFrom.page] || 'Back to Watches';

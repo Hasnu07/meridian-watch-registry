@@ -67,6 +67,24 @@ router.put('/:id', (req, res) => {
      'market_price','client_price_manual','offset_amount'].forEach(f => {
       if (updates[f] !== undefined) updates[f] = updates[f] !== '' ? Number(updates[f]) : null;
     });
+
+    // A collaborator on a shared shop (routes/collab.js) may edit a piece but
+    // never sell it or touch its settlement: the Edit form sends every field,
+    // so only a CHANGE to a sale-side value is refused.
+    if (req.collab) {
+      const SALE_ONLY = ['sale_price', 'market_price', 'client_price_manual', 'offset_amount', 'rule_applied',
+                         'discount_rate_applied', 'my_received', 'client_received', 'sold_date', 'sale_date'];
+      const changed = f => {
+        if (updates[f] === undefined) return false;
+        const nv = updates[f] === '' ? null : updates[f], ov = watch[f] ?? null;
+        if (nv == null && ov == null) return false;
+        if (nv == null || ov == null) return true;
+        return isNaN(nv) ? String(nv) !== String(ov) : Number(nv) !== Number(ov);
+      };
+      if ((updates.status === 'sold' && watch.status !== 'sold') || SALE_ONLY.some(changed)) {
+        return res.status(403).json({ error: 'Collaborators can edit a piece but not sell it or record its settlement.' });
+      }
+    }
     if (updates.status && !['wishlist','purchased','sold'].includes(updates.status)) delete updates.status;
     if (updates.discount_mode !== undefined && !['standard','manual'].includes(updates.discount_mode)) updates.discount_mode = 'standard';
     if (updates.rule_applied !== undefined && !['split','discount'].includes(updates.rule_applied)) updates.rule_applied = null;

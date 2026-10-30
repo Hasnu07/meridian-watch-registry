@@ -7,10 +7,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Tilt+Neon&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=aaaa23a536">
-  <script src="/cursor.js?v=10bd594ff4"></script>
-  <link rel="stylesheet" href="/neon.css?v=9522f066df">
-  <link rel="stylesheet" href="/css/app.css?v=1e8149b57e">
+  <link rel="stylesheet" href="style.css?v=39b3d7b1cd">
+  <script src="/cursor.js?v=1d36b475b2"></script>
+  <link rel="stylesheet" href="/neon.css?v=83ffa28203">
+  <link rel="stylesheet" href="/css/app.css?v=a7adcd09b5">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased">
 
@@ -898,16 +898,20 @@
         <div class="mb-8 flex items-end justify-between gap-4 flex-wrap">
           <div>
             <h2 class="font-playfair text-3xl font-semibold text-on-surface">Boutique Commission</h2>
-            <p class="text-on-surface-variant text-sm mt-2">Decide what each boutique manager sees: set the commission on an existing piece, or add a new piece to their shop, and it appears in their Commissions tab.</p>
+            <p class="text-on-surface-variant text-sm mt-2">Decide what each boutique manager sees: set the commission on an existing piece, or add a new piece to their shop, and it appears in their Commissions tab. Invite a colleague as a collaborator and they can do the same for that shop from their own sign-in.</p>
           </div>
           <label class="flex items-center gap-3">
-            <span class="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold">Boutique manager</span>
+            <span class="text-[11px] uppercase tracking-wider text-on-surface-variant font-semibold">Shop</span>
             <select id="bcManagerSelect" class="min-w-[260px] bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-4 py-2.5 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all"></select>
           </label>
         </div>
         <div id="bcEmpty" class="hidden glass-surface rounded-lg p-12 text-center text-on-surface-variant text-sm"></div>
         <div id="bcContent" class="hidden">
+          <!-- Working a shop another registry shared with us (25-boutique-commission.js) -->
+          <div id="bcContext" class="hidden mb-6 px-5 py-3.5 rounded-lg border border-primary/30 bg-primary/5 text-sm text-on-surface flex items-center gap-3"></div>
           <div id="bcTiles" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"></div>
+          <!-- Collaborators: who works this shop with its owner -->
+          <div id="bcCollab" class="glass-surface rounded-lg px-6 py-4 mb-8"></div>
           <div class="glass-surface rounded-lg overflow-hidden">
             <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
               <div>
@@ -2053,6 +2057,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=5fa9aefff0"></script>
+<script src="/js/dashboard.js?v=e62babc832"></script>
 </body>
 </html>

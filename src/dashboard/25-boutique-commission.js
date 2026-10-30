@@ -6,24 +6,59 @@
 // tab), share or hide commissions already recorded, or add a brand-new piece
 // to the shop and set its commission in one go. Boutique managers never see
 // this page (style.css hides the nav item; the API refuses them anyway).
+//
+// Collaborators (routes/collab.js): the owner names colleagues — other admin
+// or master accounts — on a shop here, in the Collaborators card. The picker
+// then also lists, for a colleague, the shops OTHER registries shared with
+// them ("Shops shared with you"); choosing one sets the collaborator context
+// (setCollabShop, 01-core.js) so every request is scoped to that shop, and
+// they can view its pieces, add or edit a piece and set commissions exactly as
+// the owner does here — nothing else.
 // Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
 // in filename order into public/js/dashboard.js (one classic script, so
 // functions and top-level variables stay shared exactly as before).
 
-let _bcManagers = [];
-let _bcManagerId = (() => { try { return Number(localStorage.getItem('meridian.bcManager')) || null; } catch { return null; } })();
+let _bcManagers = [];          // boutique managers of this workspace
+let _bcShared = [];            // shops of other registries shared with me (collaborations)
+let _bcChoice = (() => { try { return localStorage.getItem('meridian.bcChoice') || ''; } catch { return ''; } })();
 let _bcShop = null;            // { id, name, profiles }
 let _bcWatches = [];
+let _bcCollaborators = [];     // of the chosen shop
+let _bcUserNames = null;       // master only: usernames for the collaborator picker
 
-function bcSelectedManager() { return _bcManagers.find(m => m.id === _bcManagerId) || _bcManagers[0] || null; }
+// The picker: one choice per boutique manager of this workspace, one per shop shared with me
+function bcChoices() {
+  return [
+    ..._bcManagers.map(m => ({ key: `m:${m.id}`, kind: 'manager', shop_id: m.shop_id, shop_name: m.shop_name,
+                               managers: m.username, label: `${m.username} · ${m.shop_name || 'no shop assigned'}` })),
+    ..._bcShared.map(c => ({ key: `c:${c.shop_id}`, kind: 'collab', shop_id: c.shop_id, shop_name: c.shop_name,
+                             owner_id: c.owner_id, owner_username: c.owner_username, managers: c.managers || '',
+                             label: `${c.shop_name} · ${c.owner_username}'s registry` })),
+  ];
+}
+function bcSelected() {
+  const all = bcChoices();
+  return all.find(c => c.key === _bcChoice) || all[0] || null;
+}
+// For the callers that think in managers (the commission dialog's wording)
+function bcSelectedManager() {
+  const c = bcSelected();
+  return c ? { username: c.managers || 'the boutique', shop_id: c.shop_id } : null;
+}
 
 async function loadBoutiqueCommission() {
   const sel = document.getElementById('bcManagerSelect');
   const empty = document.getElementById('bcEmpty');
   const content = document.getElementById('bcContent');
-  try { _bcManagers = await api('GET', '/api/boutique-managers'); } catch (e) { _bcManagers = []; }
+  // The picker is about OUR workspace: never ask for it under a shared shop's scope
+  setCollabShop(null);
+  [_bcManagers, _bcShared] = await Promise.all([
+    api('GET', '/api/boutique-managers').catch(() => []),
+    api('GET', '/api/collab/shops').catch(() => []),
+  ]);
 
-  if (!_bcManagers.length) {
+  const choices = bcChoices();
+  if (!choices.length) {
     sel.innerHTML = `<option value="" style="background:#131A24;color:#E6EDF7">No boutique manager yet</option>`;
     content.classList.add('hidden');
     empty.classList.remove('hidden');
@@ -32,21 +67,26 @@ async function loadBoutiqueCommission() {
       <p class="text-on-surface font-semibold mb-1">No boutique manager in this workspace yet</p>
       <p>${currentUser?.role === 'master'
         ? `Create one under <button class="text-primary underline" onclick="showPage('admin'); setTimeout(() => showAdminTab('addUser'), 50)">Admin → Add User</button> with the role <strong class="text-on-surface">Boutique Manager</strong>, then come back here to decide what they see.`
-        : 'Ask the master to create a boutique manager for one of your shops (Admin → Add User → Boutique Manager). Then you can decide here what they see.'}</p>`;
+        : 'Ask the master to create a boutique manager for one of your shops (Admin → Add User → Boutique Manager). Then you can decide here what they see.'}</p>
+      <p class="mt-3 text-xs">A shop a colleague shares with you as a collaborator appears here too.</p>`;
     return;
   }
   empty.classList.add('hidden');
   content.classList.remove('hidden');
-  const chosen = bcSelectedManager();
-  _bcManagerId = chosen.id;
-  sel.innerHTML = _bcManagers.map(m =>
-    `<option value="${m.id}" style="background:#131A24;color:#E6EDF7" ${m.id === _bcManagerId ? 'selected' : ''}>${esc(m.username)} · ${esc(m.shop_name || 'no shop assigned')}</option>`).join('');
+  const chosen = bcSelected();
+  _bcChoice = chosen.key;
+  const opt = c => `<option value="${c.key}" style="background:#131A24;color:#E6EDF7">${esc(c.label)}</option>`;
+  const own = choices.filter(c => c.kind === 'manager'), shared = choices.filter(c => c.kind === 'collab');
+  sel.innerHTML =
+    (own.length    ? `<optgroup label="Your boutique managers" style="background:#131A24;color:#8A96A8">${own.map(opt).join('')}</optgroup>` : '') +
+    (shared.length ? `<optgroup label="Shops shared with you" style="background:#131A24;color:#8A96A8">${shared.map(opt).join('')}</optgroup>` : '');
+  sel.value = chosen.key;
   await loadBoutiqueCommissionShop();
 }
 
 document.getElementById('bcManagerSelect')?.addEventListener('change', e => {
-  _bcManagerId = Number(e.target.value) || null;
-  try { localStorage.setItem('meridian.bcManager', String(_bcManagerId || '')); } catch {}
+  _bcChoice = e.target.value || '';
+  try { localStorage.setItem('meridian.bcChoice', _bcChoice); } catch {}
   loadBoutiqueCommissionShop();
 });
 
@@ -62,23 +102,37 @@ function bcSum(list, pick = () => true) {
 }
 
 async function loadBoutiqueCommissionShop() {
-  const m = bcSelectedManager();
+  const c = bcSelected();
   const body = document.getElementById('bcBody');
-  if (!m) return;
-  if (!m.shop_id) {
-    _bcShop = null; _bcWatches = [];
+  if (!c) return;
+  const inCollab = c.kind === 'collab';
+  // Every request from here on is scoped to the shared shop (or to our own workspace)
+  setCollabShop(inCollab ? { id: c.shop_id, name: c.shop_name, owner_username: c.owner_username } : null);
+  const ctx = document.getElementById('bcContext');
+  ctx.classList.toggle('hidden', !inCollab);
+  ctx.classList.toggle('flex', inCollab);
+  if (inCollab) ctx.innerHTML = `
+    <span class="material-symbols-outlined text-primary text-[20px]">group</span>
+    <span class="flex-1 min-w-0"><strong class="font-semibold">${esc(c.shop_name)}</strong> is ${esc(c.owner_username)}'s shop, shared with you.
+      You can view its pieces, add or edit a piece and set commissions here — nothing else changes in ${esc(c.owner_username)}'s registry.</span>`;
+
+  const managerNames = c.managers || '';
+  if (!c.shop_id) {
+    _bcShop = null; _bcWatches = []; _bcCollaborators = [];
     document.getElementById('bcTiles').innerHTML = '';
     document.getElementById('bcShopTitle').textContent = 'No shop assigned';
-    document.getElementById('bcShopSub').textContent = `${m.username} is not linked to a shop yet — assign one under Admin → Users (store icon).`;
+    document.getElementById('bcShopSub').textContent = `${managerNames} is not linked to a shop yet — assign one under Admin → Users (store icon).`;
     document.getElementById('bcNewClient').innerHTML = '';
+    document.getElementById('bcCollab').innerHTML = '';
     body.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
     return;
   }
-  const [shop, watches] = await Promise.all([
-    api('GET', `/api/shops/${m.shop_id}`),
-    api('GET', `/api/watches?shop_id=${m.shop_id}`),
+  const [shop, watches, collaborators] = await Promise.all([
+    api('GET', `/api/shops/${c.shop_id}`),
+    api('GET', `/api/watches?shop_id=${c.shop_id}`),
+    api('GET', `/api/shops/${c.shop_id}/collaborators`).catch(() => []),
   ]);
-  _bcShop = shop; _bcWatches = watches;
+  _bcShop = shop; _bcWatches = watches; _bcCollaborators = collaborators;
   watches.forEach(w => { watchCache[w.id] = w; });
 
   // ── Tiles: what the boutique currently sees ──
@@ -90,14 +144,18 @@ async function loadBoutiqueCommissionShop() {
       <p class="font-playfair text-2xl ${cls}">${value}</p>
       <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
     </div>`;
+  const seenBy = managerNames ? esc(managerNames) : 'the boutique';
   document.getElementById('bcTiles').innerHTML = [
-    tile(`Shown to ${esc(m.username)}`, fmt.byCurrency(bcSum(shared)), `${shared.length} commission${shared.length !== 1 ? 's' : ''} shared · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''}`),
+    tile(`Shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${shared.length} commission${shared.length !== 1 ? 's' : ''} shared · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''}`),
     tile('Shared this month', fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date))), new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })),
     tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${all.length - shared.length} commission${all.length - shared.length !== 1 ? 's' : ''} recorded but not shown`, 'text-on-surface'),
   ].join('');
 
   document.getElementById('bcShopTitle').textContent = `Pieces at ${shop.name}`;
-  document.getElementById('bcShopSub').textContent = `${watches.length} piece${watches.length !== 1 ? 's' : ''} · ${(shop.profiles || []).length} client${(shop.profiles || []).length !== 1 ? 's' : ''} · seen by ${m.username}`;
+  document.getElementById('bcShopSub').textContent =
+    `${watches.length} piece${watches.length !== 1 ? 's' : ''} · ${(shop.profiles || []).length} client${(shop.profiles || []).length !== 1 ? 's' : ''}`
+    + ` · seen by ${managerNames || 'no boutique manager yet'}`
+    + (inCollab ? ` · ${c.owner_username}'s registry` : '');
 
   // New piece: pick which client of the shop it belongs to
   const clientSel = document.getElementById('bcNewClient');
@@ -108,10 +166,100 @@ async function loadBoutiqueCommissionShop() {
   document.getElementById('bcNewPieceBtn').disabled = !profiles.length;
   document.getElementById('bcNewPieceBtn').classList.toggle('opacity-50', !profiles.length);
 
+  renderBcCollaborators(c);
+
   // ── Pieces table: owned first, wishlist last ──
   const ordered = [...watches.filter(w => w.status !== 'wishlist'), ...watches.filter(w => w.status === 'wishlist')];
   body.innerHTML = ordered.length ? ordered.map(bcRowHtml).join('')
     : `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant text-sm">No pieces at this shop yet — add one with "New piece for this shop".</td></tr>`;
+}
+
+// ── Collaborators card ─────────────────────────────────────────────────────
+// Owner: the colleagues working this shop with you, remove one, add one by
+// username (a master gets the usernames to pick from). Collaborator: who
+// shared it and who else works on it — read-only.
+function renderBcCollaborators(c) {
+  const el = document.getElementById('bcCollab');
+  const list = _bcCollaborators || [];
+  const chip = u => `
+    <span class="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full border border-primary/30 bg-primary/5 text-sm text-on-surface">
+      <span class="w-5 h-5 rounded-full bg-primary/15 text-primary text-[10px] font-semibold uppercase flex items-center justify-center">${esc(u.username[0])}</span>
+      ${esc(u.username)}
+      ${c.kind === 'manager' ? `<button onclick="removeBcCollaborator(${u.user_id}, '${esc(u.username).replace(/'/g, "\\'")}')" title="Remove ${esc(u.username)} from this shop" class="w-5 h-5 rounded-full flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors">
+          <span class="material-symbols-outlined text-[14px]">close</span></button>` : ''}
+    </span>`;
+
+  if (c.kind === 'collab') {
+    const others = list.filter(u => u.user_id !== currentUser?.id);
+    el.innerHTML = `
+      <div class="flex items-center gap-4 flex-wrap">
+        <div class="min-w-0">
+          <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold">Collaborators</p>
+          <p class="text-xs text-on-surface-variant mt-0.5">Shared with you by <strong class="text-on-surface">${esc(c.owner_username)}</strong>${others.length ? ' · also working on it:' : ' · nobody else works on it yet'}</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">${others.map(chip).join('')}</div>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div class="min-w-0">
+        <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold">Collaborators</p>
+        <p class="text-xs text-on-surface-variant mt-0.5">${list.length
+          ? `Working on <strong class="text-on-surface">${esc(c.shop_name)}</strong> with you: they can view its pieces, add or edit a piece and set commissions from their own sign-in.`
+          : `Nobody else works on <strong class="text-on-surface">${esc(c.shop_name)}</strong> yet. Add a colleague by username — they can then view its pieces, add or edit a piece and set commissions from their own sign-in.`}</p>
+        ${list.length ? `<div class="flex items-center gap-2 flex-wrap mt-3">${list.map(chip).join('')}</div>` : ''}
+      </div>
+      <form id="bcCollabForm" class="flex items-center gap-2" onsubmit="addBcCollaborator(event)">
+        <input id="bcCollabName" list="bcCollabNames" autocomplete="off" placeholder="username" aria-label="Username of the colleague to add"
+               class="w-44 bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-3 py-2 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-all">
+        <datalist id="bcCollabNames"></datalist>
+        <button type="submit" class="text-xs font-semibold px-3.5 py-2.5 rounded-lg border border-primary/40 text-primary hover:bg-primary/10 active:scale-95 transition-all flex items-center gap-1.5 whitespace-nowrap">
+          <span class="material-symbols-outlined text-[16px]">person_add</span> Add collaborator
+        </button>
+      </form>
+    </div>
+    <p id="bcCollabError" class="hidden text-xs text-error mt-2"></p>`;
+  fillBcCollaboratorNames();
+}
+
+// A master can see every account: offer the admins/masters not yet on the shop
+async function fillBcCollaboratorNames() {
+  if (currentUser?.role !== 'master') return;
+  if (!_bcUserNames) {
+    try { _bcUserNames = (await api('GET', '/api/admin/users')).filter(u => u.role !== 'boutique_manager').map(u => ({ id: u.id, username: u.username })); }
+    catch { _bcUserNames = []; }
+  }
+  const dl = document.getElementById('bcCollabNames');
+  if (!dl) return;
+  const owner = currentUser?.viewing_as?.id || currentUser?.id;
+  const taken = new Set((_bcCollaborators || []).map(u => u.user_id));
+  dl.innerHTML = _bcUserNames.filter(u => u.id !== owner && !taken.has(u.id)).map(u => `<option value="${esc(u.username)}"></option>`).join('');
+}
+
+async function addBcCollaborator(ev) {
+  ev?.preventDefault?.();
+  const c = bcSelected();
+  const input = document.getElementById('bcCollabName');
+  const err = document.getElementById('bcCollabError');
+  const username = (input?.value || '').trim();
+  if (!c?.shop_id || !username) { input?.focus(); return; }
+  err.classList.add('hidden');
+  try {
+    _bcCollaborators = await api('POST', `/api/shops/${c.shop_id}/collaborators`, { username });
+    renderBcCollaborators(c);
+  } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
+}
+
+async function removeBcCollaborator(userId, username) {
+  const c = bcSelected();
+  if (!c?.shop_id) return;
+  if (!confirm(`Remove ${username} from ${c.shop_name}? They will no longer see this shop.`)) return;
+  try {
+    _bcCollaborators = await api('DELETE', `/api/shops/${c.shop_id}/collaborators/${userId}`);
+    renderBcCollaborators(c);
+  } catch (e) { alert(e.message); }
 }
 
 function bcRowHtml(w) {

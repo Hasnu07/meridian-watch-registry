@@ -7,9 +7,21 @@
    Meridian Watch Registry — App Logic
 ══════════════════════════════════════════════════════════════════════ */
 
+// ── Collaborator context ───────────────────────────────────────────────────
+// While a shop another registry shared with us is chosen on Boutique
+// Commission, every request carries X-Collab-Shop and the server scopes it to
+// that shop (routes/collab.js). `html.collab` hides the controls it refuses.
+// Cleared on leaving for any page but the watch detail (25-boutique-commission.js).
+let collabShop = null;   // { id, name, owner_username } or null
+function setCollabShop(shop) {
+  collabShop = shop || null;
+  document.documentElement.classList.toggle('collab', !!collabShop);
+}
+
 // ── API ────────────────────────────────────────────────────────────────────
 async function api(method, url, data) {
   const opts = { method, headers: {} };
+  if (collabShop) opts.headers['X-Collab-Shop'] = String(collabShop.id);
   if (data instanceof FormData) {
     opts.body = data;
   } else if (data) {
@@ -59,6 +71,7 @@ const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfo
 
 function showPage(name) {
   scrubAutofilledSearches();
+  if (collabShop && !['boutique-commission', 'watch-detail'].includes(name)) setCollabShop(null);
   PAGES.forEach(p => {
     const el = document.getElementById(`page-${p}`);
     if (el) {
