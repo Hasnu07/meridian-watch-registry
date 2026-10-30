@@ -371,5 +371,6 @@ function confirmDeleteWatch(id, model) {
     else if (currentPage === 'shop-detail')      openShopDetail(currentShopId);
     else if (currentPage === 'watches')   loadWatches(document.getElementById('watchSearch').value, '');
     else if (currentPage === 'dashboard') loadDashboard();
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
   });
 }

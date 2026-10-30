@@ -14,7 +14,10 @@
 // While a shop another registry shared with us is chosen on Boutique
 // Commission, every request carries X-Collab-Shop and the server scopes it to
 // that shop (routes/collab.js). `html.collab` hides the controls it refuses.
-// Cleared on leaving for any page but the watch detail (25-boutique-commission.js).
+// Set on Boutique Commission (25-boutique-commission.js) or from the Shops
+// page's "Boutique Manager Shops" (16-shops-portfolios.js); kept on the pages
+// inside that shop (shop, membership, watch) and cleared on leaving them.
+const COLLAB_PAGES = ['boutique-commission', 'shop-detail', 'profile-detail', 'watch-detail'];
 let collabShop = null;   // { id, name, owner_username } or null
 function setCollabShop(shop) {
   collabShop = shop || null;
@@ -74,7 +77,7 @@ const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfo
 
 function showPage(name) {
   scrubAutofilledSearches();
-  if (collabShop && !['boutique-commission', 'watch-detail'].includes(name)) setCollabShop(null);
+  if (collabShop && !COLLAB_PAGES.includes(name)) setCollabShop(null);
   PAGES.forEach(p => {
     const el = document.getElementById(`page-${p}`);
     if (el) {
@@ -6329,6 +6332,7 @@ function confirmDeleteWatch(id, model) {
     else if (currentPage === 'shop-detail')      openShopDetail(currentShopId);
     else if (currentPage === 'watches')   loadWatches(document.getElementById('watchSearch').value, '');
     else if (currentPage === 'dashboard') loadDashboard();
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
   });
 }
 
@@ -6597,6 +6601,89 @@ async function loadShops() {
   const portfoliosPerShop = await Promise.all(shops.map(s => api('GET', `/api/portfolios?shop_id=${s.id}`)));
   _shopsCache = { shops, portfolioCounts: portfoliosPerShop.map(p => p.length) };
   renderShops();
+  loadBoutiqueManagerShops(shops).catch(err => console.error('Boutique manager shops failed', err));
+}
+
+// ── Boutique Manager Shops ─────────────────────────────────────────────────
+// Below the shop list, the shops that have a boutique manager — our own
+// (with their manager and the collaborators working them with us) and the
+// ones other registries shared with us as a collaborator. A shared one opens
+// as the shop page itself, scoped to that shop (setCollabShop, 01-core.js).
+let _bmShopsOpen = (() => { try { return localStorage.getItem('meridian.bmShopsOpen') !== '0'; } catch { return true; } })();
+let _sharedShops = [];
+
+async function loadBoutiqueManagerShops(shops) {
+  const section = document.getElementById('bmShopsSection');
+  if (!section) return;
+  const [managers, shared] = await Promise.all([
+    api('GET', '/api/boutique-managers').catch(() => []),
+    api('GET', '/api/collab/shops').catch(() => []),
+  ]);
+  _sharedShops = shared;
+  const own = shops.filter(s => managers.some(m => m.shop_id === s.id));
+  const collaborators = await Promise.all(own.map(s => api('GET', `/api/shops/${s.id}/collaborators`).catch(() => [])));
+  const ownCards = own.map((s, i) => ({
+    key: `own:${s.id}`, name: s.name, address: s.address, clients: s.client_count,
+    managers: managers.filter(m => m.shop_id === s.id).map(m => m.username),
+    with: collaborators[i].map(u => u.username),
+    sub: 'Your shop', go: `openShopDetail(${s.id})`,
+  }));
+  const sharedCards = shared.map(c => ({
+    key: `shared:${c.shop_id}`, name: c.shop_name, address: null, clients: null,
+    managers: (c.managers || '').split(', ').filter(Boolean), with: [],
+    sub: `${c.owner_username}'s registry · shared with you`, go: `openSharedShop(${c.shop_id})`,
+  }));
+  const cards = [...ownCards, ...sharedCards];
+  const count = document.getElementById('bmShopsCount');
+  count.textContent = cards.length ? `${cards.length} shop${cards.length !== 1 ? 's' : ''}` : '';
+  const grid = document.getElementById('bmShopsGrid');
+  grid.innerHTML = cards.length ? cards.map(c => `
+    <div class="glass-surface rounded-lg p-5 hover:border-amber-400/30 border border-transparent transition-all cursor-pointer" onclick="${c.go}">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 rounded-lg bg-amber-400/10 flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-amber-300">storefront</span>
+        </div>
+        <div class="min-w-0 flex-1">
+          <h3 class="font-playfair text-lg font-semibold text-on-surface leading-tight truncate">${esc(c.name)}</h3>
+          <p class="text-[11px] uppercase tracking-[0.06em] ${c.key.startsWith('shared') ? 'text-primary' : 'text-on-surface-variant'} font-semibold mt-1">${esc(c.sub)}</p>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-outline-variant/10 space-y-1.5 text-sm">
+        <p class="flex items-center gap-2 text-on-surface-variant"><span class="material-symbols-outlined text-amber-300 text-[16px]">badge</span>
+          <span>Boutique manager: <span class="text-on-surface">${c.managers.length ? esc(c.managers.join(', ')) : 'none yet'}</span></span></p>
+        ${c.with.length ? `<p class="flex items-center gap-2 text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[16px]">group</span>
+          <span>With <span class="text-on-surface">${esc(c.with.join(', '))}</span></span></p>` : ''}
+        ${c.clients != null ? `<p class="flex items-center gap-2 text-on-surface-variant"><span class="material-symbols-outlined text-primary text-[16px]">person</span>
+          <span>${c.clients} client${c.clients !== 1 ? 's' : ''}</span></p>` : ''}
+      </div>
+    </div>`).join('')
+    : `<div class="col-span-full glass-surface rounded-lg p-8 text-center text-on-surface-variant text-sm border border-dashed border-outline-variant/20">
+         No boutique manager shops yet. A shop appears here once it has a boutique manager${currentUser?.role === 'master' ? ' (Admin → Add User → Boutique Manager)' : ' (ask the master)'}, or once a colleague shares one of theirs with you on Boutique Commission.
+       </div>`;
+  syncBmShopsOpen();
+}
+
+function syncBmShopsOpen() {
+  const body = document.getElementById('bmShopsBody');
+  const icon = document.getElementById('bmShopsChevron');
+  const btn  = document.getElementById('bmShopsToggle');
+  if (!body) return;
+  body.classList.toggle('hidden', !_bmShopsOpen);
+  if (icon) icon.style.transform = _bmShopsOpen ? 'rotate(180deg)' : '';
+  if (btn)  btn.setAttribute('aria-expanded', String(_bmShopsOpen));
+}
+document.getElementById('bmShopsToggle')?.addEventListener('click', () => {
+  _bmShopsOpen = !_bmShopsOpen;
+  try { localStorage.setItem('meridian.bmShopsOpen', _bmShopsOpen ? '1' : '0'); } catch {}
+  syncBmShopsOpen();
+});
+
+// A shop shared with us: the shop page, every request scoped to it
+function openSharedShop(shopId) {
+  const c = _sharedShops.find(x => x.shop_id === shopId);
+  if (!c) return;
+  setCollabShop({ id: c.shop_id, name: c.shop_name, owner_username: c.owner_username });
+  openShopDetail(shopId);
 }
 
 function shopRowHtml(shop, i) {
@@ -6769,7 +6856,7 @@ async function openShopDetail(id) {
   document.getElementById('shopDetailHeader').innerHTML = `
     <div class="flex items-start justify-between gap-4 flex-wrap mb-6">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.06em] text-primary font-semibold mb-1">Authorised Retailer</p>
+        <p class="text-[11px] uppercase tracking-[0.06em] text-primary font-semibold mb-1">${collabShop ? `${esc(collabShop.owner_username)}'s registry · shared with you` : 'Authorised Retailer'}</p>
         <h2 class="font-playfair text-3xl font-semibold text-on-surface">${esc(shop.name)}</h2>
         ${shop.address ? `<p class="text-on-surface-variant text-sm mt-2 whitespace-pre-line">${esc(shop.address)}</p>` : ''}
       </div>
@@ -9057,7 +9144,7 @@ async function loadBoutiqueCommissionShop() {
   if (inCollab) ctx.innerHTML = `
     <span class="material-symbols-outlined text-primary text-[20px]">group</span>
     <span class="flex-1 min-w-0"><strong class="font-semibold">${esc(c.shop_name)}</strong> is ${esc(c.owner_username)}'s shop, shared with you.
-      You can view its pieces, add or edit a piece and set commissions here — nothing else changes in ${esc(c.owner_username)}'s registry.</span>`;
+      You can see its clients and pieces, add a client or a piece, edit or remove a piece and set commissions — ${esc(c.owner_username)} and the boutique manager see it at once.</span>`;
 
   const managerNames = c.managers || '';
   if (!c.shop_id) {
@@ -9150,8 +9237,8 @@ function renderBcCollaborators(c) {
       <div class="min-w-0">
         <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold">Collaborators</p>
         <p class="text-xs text-on-surface-variant mt-0.5">${list.length
-          ? `Working on <strong class="text-on-surface">${esc(c.shop_name)}</strong> with you: they can view its pieces, add or edit a piece and set commissions from their own sign-in.`
-          : `Nobody else works on <strong class="text-on-surface">${esc(c.shop_name)}</strong> yet. Add a colleague by username — they can then view its pieces, add or edit a piece and set commissions from their own sign-in.`}</p>
+          ? `Working on <strong class="text-on-surface">${esc(c.shop_name)}</strong> with you: they can see its clients and pieces, add, edit or remove a piece and set commissions from their own sign-in.`
+          : `Nobody else works on <strong class="text-on-surface">${esc(c.shop_name)}</strong> yet. Add a colleague by username — they can then see its clients and pieces, add, edit or remove a piece and set commissions from their own sign-in.`}</p>
         ${list.length ? `<div class="flex items-center gap-2 flex-wrap mt-3">${list.map(chip).join('')}</div>` : ''}
       </div>
       <form id="bcCollabForm" class="flex items-center gap-2" onsubmit="addBcCollaborator(event)">
@@ -9244,12 +9331,18 @@ function bcRowHtml(w) {
         ${shared.length ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="text-xs text-outline">nothing shown</span>`}
         ${comms.length > shared.length ? `<span class="block text-[11px] text-outline mt-0.5">${comms.length - shared.length} private</span>` : ''}
       </td>
-      <td class="px-5 py-3 text-right">
+      <td class="px-5 py-3 text-right whitespace-nowrap">
         ${canSet
           ? `<button onclick="openBoutiqueCommissionModal(${w.id})" class="text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-amber-400/30 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15 transition-all inline-flex items-center gap-1.5">
               <span class="material-symbols-outlined text-[14px]">payments</span> Set commission
             </button>`
           : `<span class="text-[11px] text-outline" title="Commissions are recorded on bought pieces. Mark it purchased first.">wishlist · buy first</span>`}
+        <button onclick="openEditWatch(${w.id})" title="Edit piece" aria-label="Edit piece" class="p-1.5 ml-1 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors align-middle">
+          <span class="material-symbols-outlined text-[16px]">edit</span>
+        </button>
+        <button onclick="confirmDeleteWatch(${w.id}, '${esc(w.model).replace(/'/g, "\\'")}')" title="Remove piece" aria-label="Remove piece" class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors align-middle">
+          <span class="material-symbols-outlined text-[16px]">delete</span>
+        </button>
       </td>
     </tr>
     ${comms.length ? `<tr><td colspan="6" class="px-5 pb-3 pt-0"><div class="ml-14 pl-4 border-l border-amber-400/20">${entryRows}</div></td></tr>` : ''}`;
