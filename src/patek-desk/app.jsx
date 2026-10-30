@@ -110,17 +110,37 @@ const COUNTRIES = [
 const CUR_OF = Object.fromEntries(COUNTRIES.map(c => [c.code, c.cur]));
 
 const STORE_KEY = 'PATEK_DESK_V2';
+
+// The price list grows with each QC sheet: references in SEED that an
+// account's saved list does not have yet are slipped in (after the same
+// neighbour as in SEED, else at the end), so Jhonny and Robin get the new
+// pieces without losing a market price, an edit or a piece of their own.
+// Matched by reference; nothing already saved is touched.
+function withNewSeedRefs(saved) {
+  const key = w => String(w.ref || '').trim().toUpperCase();
+  const have = new Set(saved.map(key));
+  if (!SEED.watches.some(w => !have.has(key(w)))) return saved;
+  const out = [...saved];
+  SEED.watches.forEach((w, i) => {
+    if (have.has(key(w))) return;
+    const before = i > 0 ? out.findIndex(x => key(x) === key(SEED.watches[i - 1])) : -1;
+    out.splice(before >= 0 ? before + 1 : out.length, 0, { ...w, list: { ...w.list } });
+    have.add(key(w));
+  });
+  return out;
+}
 const DEFAULT_FX = { EUR: 1, USD: 0.92, GBP: 1.18, CHF: 1.05 };
 
 const SEED = {
-  // Full Patek Philippe price list (173 references) parsed from the QC
-  // PRICES sheet. List prices are per-country in native currency:
+  // Full Patek Philippe price list (191 references) parsed from the QC
+  // PRICES sheet ("Stock Listing - Complete - QC Prices", 30 Oct 2026). List prices are per-country in native currency:
   //   IT/DE/ES = EUR, UK = GBP, CH = CHF.  market is left 0 (no secondary
   //   market data in the source sheet) for the user to fill per deal.
   // This SEED is the default for any account with no saved data, so the
   // catalogue appears on first load from any PC.
   watches: [
     { id: 'w_5167A001', ref: "5167A-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 25899, UK: 22000, CH: 21800, DE: 25262, ES: 25686 } },
+    { id: 'w_5167A014', ref: "5167A-014", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 41580, UK: 35330, CH: 35000, DE: 40557, ES: 41239 } },
     { id: 'w_5167R001', ref: "5167R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 50846, UK: 43200, CH: 42800, DE: 49596, ES: 50429 } },
     { id: 'w_5164G001', ref: "5164G-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 68072, UK: 57830, CH: 57300, DE: 66398, ES: 67514 } },
     { id: 'w_5164R001', ref: "5164R-001", model: "Aquanaut", market: 0, marketCur: 'EUR', list: { IT: 68072, UK: 57830, CH: 57300, DE: 66398, ES: 67514 } },
@@ -206,6 +226,12 @@ const SEED = {
     { id: 'w_3738100G014', ref: "3738/100G-014", model: "Golden Ellipse", market: 0, marketCur: 'EUR', list: { IT: 38491, UK: 32700, CH: 32400, DE: 37545, ES: 38176 } },
     { id: 'w_7042100G010', ref: "7042/100G-010", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 250427, UK: 212740, CH: 210800, DE: 244269, ES: 248375 } },
     { id: 'w_7042100R010', ref: "7042/100R-010", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 250427, UK: 212740, CH: 210800, DE: 244269, ES: 248375 } },
+    { id: 'w_7043GR001', ref: "7043GR-001", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 35640, UK: 30280, CH: 30000, DE: 34764, ES: 35348 } },
+    { id: 'w_7043G001', ref: "7043G-001", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 35640, UK: 30280, CH: 30000, DE: 34764, ES: 35348 } },
+    { id: 'w_7043R001', ref: "7043R-001", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 35640, UK: 30280, CH: 30000, DE: 34764, ES: 35348 } },
+    { id: 'w_7043250GR001', ref: "7043/250GR-001", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 65340, UK: 55510, CH: 55000, DE: 63733, ES: 64804 } },
+    { id: 'w_7043250G001', ref: "7043/250G-001", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 65340, UK: 55510, CH: 55000, DE: 63733, ES: 64804 } },
+    { id: 'w_7043250R001', ref: "7043/250R-001", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 65340, UK: 55510, CH: 55000, DE: 63733, ES: 64804 } },
     { id: 'w_4962200R010', ref: "4962/200R-010", model: "Gondolo", market: 0, marketCur: 'EUR', list: { IT: 44906, UK: 38150, CH: 37800, DE: 43802, ES: 44538 } },
     { id: 'w_5226G001', ref: "5226G-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 44906, UK: 38150, CH: 37800, DE: 43802, ES: 44538 } },
     { id: 'w_5227G015', ref: "5227G-015", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 44906, UK: 38150, CH: 37800, DE: 43802, ES: 44538 } },
@@ -218,6 +244,7 @@ const SEED = {
     { id: 'w_6196P001', ref: "6196P-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 49421, UK: 41990, CH: 41600, DE: 48205, ES: 49016 } },
     { id: 'w_720050G001', ref: "7200/50G-001", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 35759, UK: 30380, CH: 30100, DE: 34880, ES: 35466 } },
     { id: 'w_720050G012', ref: "7200/50G-012", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 35759, UK: 30380, CH: 30100, DE: 34880, ES: 35466 } },
+    { id: 'w_7007G010', ref: "7007G-010", model: "Calatrava", market: 0, marketCur: 'EUR', list: { IT: 45144, UK: 38350, CH: 38000, DE: 44034, ES: 44774 } },
     { id: 'w_5328G001', ref: "5328G-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 74131, UK: 62980, CH: 62400, DE: 72308, ES: 73523 } },
     { id: 'w_5212A001', ref: "5212A-001", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 40986, UK: 34820, CH: 34500, DE: 39978, ES: 40650 } },
     { id: 'w_5205G013', ref: "5205G-013", model: "Complications", market: 0, marketCur: 'EUR', list: { IT: 63914, UK: 54300, CH: 53800, DE: 62342, ES: 63390 } },
@@ -279,6 +306,7 @@ const SEED = {
     { id: 'w_7040250G001', ref: "7040/250G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 579261, UK: 492070, CH: 487600, DE: 565017, ES: 574513 } },
     { id: 'w_5178G012', ref: "5178G-012", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 553126, UK: 469870, CH: 465600, DE: 539524, ES: 548592 } },
     { id: 'w_7047G001', ref: "7047G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 528653, UK: 449080, CH: 445000, DE: 515654, ES: 524320 } },
+    { id: 'w_7047G010', ref: "7047G-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 653392, UK: 555050, CH: 550000, DE: 637325, ES: 648036 } },
     { id: 'w_5303R001', ref: "5303R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 836222, UK: 710360, CH: 703900, DE: 815659, ES: 829368 } },
     { id: 'w_5304301R001', ref: "5304/301R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 993987, UK: 844370, CH: 836700, DE: 969544, ES: 985839 } },
     { id: 'w_5308G001', ref: "5308G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1297279, UK: 1102010, CH: 1092000, DE: 1265379, ES: 1286645 } },
@@ -287,12 +315,21 @@ const SEED = {
     { id: 'w_5374300P001', ref: "5374/300P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1254036, UK: 1065280, CH: 1055600, DE: 1223199, ES: 1243757 } },
     { id: 'w_5374400P001', ref: "5374/400P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 4276742, UK: 3633000, CH: 3600000, DE: 4171577, ES: 4241687 } },
     { id: 'w_5531G001', ref: "5531G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 763161, UK: 648290, CH: 642400, DE: 744395, ES: 756906 } },
+    { id: 'w_5531G012', ref: "5531G-012", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 807830, UK: 686240, CH: 680000, DE: 787965, ES: 801208 } },
+    { id: 'w_5531G013', ref: "5531G-013", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 807830, UK: 686240, CH: 680000, DE: 787965, ES: 801208 } },
     { id: 'w_6002R001', ref: "6002R-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1924179, UK: 1634560, CH: 1619700, DE: 1876863, ES: 1908406 } },
     { id: 'w_6301P001', ref: "6301P-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 1524659, UK: 1295170, CH: 1283400, DE: 1487167, ES: 1512162 } },
     { id: 'w_6300GR001', ref: "6300GR-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 3310674, UK: 2812360, CH: 2786800, DE: 3229265, ES: 3283537 } },
     { id: 'w_6300400G001', ref: "6300/400G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 4679232, UK: 3974910, CH: 3938800, DE: 4564169, ES: 4640878 } },
     { id: 'w_6300401G001', ref: "6300/401G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 4809673, UK: 4085720, CH: 4048600, DE: 4691402, ES: 4770249 } },
     { id: 'w_6300403G001', ref: "6300/403G-001", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 5206221, UK: 4422580, CH: 4382400, DE: 5078199, ES: 5163548 } },
+    { id: 'w_5978P010', ref: "5978P-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 320756, UK: 272480, CH: 270000, DE: 312869, ES: 318127 } },
+    { id: 'w_7147G010', ref: "7147G-010", model: "Grand Complications", market: 0, marketCur: 'EUR', list: { IT: 130679, UK: 111010, CH: 110000, DE: 127465, ES: 129608 } },
+    { id: 'w_973J001', ref: "973J-001", model: "Pocket Watch", market: 0, marketCur: 'EUR', list: { IT: 50133, UK: 42590, CH: 42200, DE: 48901, ES: 49722 } },
+    { id: 'w_980G010', ref: "980G-010", model: "Pocket Watch", market: 0, marketCur: 'EUR', list: { IT: 65102, UK: 55310, CH: 54800, DE: 63501, ES: 64568 } },
+    { id: 'w_980J011', ref: "980J-011", model: "Pocket Watch", market: 0, marketCur: 'EUR', list: { IT: 60825, UK: 51670, CH: 51200, DE: 59330, ES: 60327 } },
+    { id: 'w_980R001', ref: "980R-001", model: "Pocket Watch", market: 0, marketCur: 'EUR', list: { IT: 65102, UK: 55310, CH: 54800, DE: 63501, ES: 64568 } },
+    { id: 'w_983J001', ref: "983J-001", model: "Pocket Watch", market: 0, marketCur: 'EUR', list: { IT: 64508, UK: 54800, CH: 54300, DE: 62922, ES: 63979 } },
   ],
   fx: DEFAULT_FX,
 };
@@ -346,7 +383,7 @@ function PatekDesk() {
         const r = await window.storage.get(STORE_KEY);
         if (r && r.value) {
           const d = JSON.parse(r.value);
-          setWatches(d.watches || SEED.watches);
+          setWatches(withNewSeedRefs(d.watches || SEED.watches));
           setFx({ ...DEFAULT_FX, ...(d.fx || {}) });
         } else { setWatches(SEED.watches); setFx(DEFAULT_FX); }
       } catch { setWatches(SEED.watches); setFx(DEFAULT_FX); }
