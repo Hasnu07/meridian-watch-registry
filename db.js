@@ -289,6 +289,11 @@ function init() {
 
   // Migrate clients columns — add master_id if missing
   const clientCols = db.prepare("PRAGMA table_info(clients)").all().map(r => r.name);
+  // A client copied into this registry from a collaborator's own book
+  // (routes/profiles.js): which of THEIR clients it mirrors, so the same
+  // client is never copied twice. The copy is a client of this registry like
+  // any other — its own Master ID, its own memberships.
+  if (!clientCols.includes('source_client_id')) db.exec("ALTER TABLE clients ADD COLUMN source_client_id INTEGER");
   if (!clientCols.includes('master_id')) {
     db.exec("ALTER TABLE clients ADD COLUMN master_id TEXT");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_master_id ON clients (master_id)");
@@ -853,6 +858,18 @@ function createClient({ name, photo_path, ownerId }) {
   db.prepare("UPDATE clients SET master_id = ? WHERE id = ? AND master_id IS NULL")
     .run(String(id).padStart(3, '0'), id);
   return id;
+}
+
+// The copy of a collaborator's own client in the shop owner's registry —
+// made on first use, found again after that (routes/profiles.js)
+function findOrCopyClient(source, ownerId) {
+  const found = db.prepare('SELECT * FROM clients WHERE owner_id = ? AND source_client_id = ?').get(ownerId, source.id);
+  if (found) return found;
+  const result = db.prepare('INSERT INTO clients (name, photo_path, owner_id, source_client_id) VALUES (?, ?, ?, ?)')
+    .run(source.name, source.photo_path ?? null, ownerId, source.id);
+  const id = result.lastInsertRowid;
+  db.prepare("UPDATE clients SET master_id = ? WHERE id = ? AND master_id IS NULL").run(String(id).padStart(3, '0'), id);
+  return db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
 }
 
 function updateClient(id, updates, ownerId) {
@@ -1614,7 +1631,7 @@ module.exports = {
   logAudit, listAuditLog, countAuditLog,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
-  listClients, getClient, getClientByMasterId, getClientWithMemberships, createClient, updateClient, deleteClient,
+  listClients, findOrCopyClient, getClient, getClientByMasterId, getClientWithMemberships, createClient, updateClient, deleteClient,
   setClientToken, getClientByToken,
   listProfiles, getProfile, createProfile, updateProfile, deleteProfile,
   listWatchesForProfile, listAllWatches, getWatch, createWatch, updateWatch, deleteWatch,

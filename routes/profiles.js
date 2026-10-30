@@ -47,8 +47,16 @@ router.post('/', (req, res) => {
 
     let resolvedName      = name;
     let resolvedPhotoPath = null;
+    let resolvedClientId  = client_id ? Number(client_id) : null;
     if (client_id) {
-      const master = db.getClient(Number(client_id), uid(req));
+      let master = db.getClient(Number(client_id), uid(req));
+      // A collaborator (routes/collab.js) picks from THEIR OWN client book: that
+      // client is copied into the shop owner's registry once (found again after)
+      // and the membership hangs off the copy — the owner sees an ordinary client.
+      if (!master && req.collab) {
+        const own = db.getClient(Number(client_id), req.session.user.id);
+        if (own) { master = db.findOrCopyClient(own, uid(req)); resolvedClientId = master.id; }
+      }
       if (!master) return res.status(400).json({ error: 'Master client not found' });
       resolvedName      = master.name;
       resolvedPhotoPath = master.photo_path;
@@ -73,7 +81,6 @@ router.post('/', (req, res) => {
         : resolvedPhotoPath;
       const idCardUrl  = req.files?.id_card?.[0] ? await storage.uploadFile(req.files.id_card[0], 'meridian/profiles/id-cards') : null;
 
-      let resolvedClientId = client_id ? Number(client_id) : null;
       if (!resolvedClientId) {
         resolvedClientId = db.createClient({ name: resolvedName, photo_path: photoUrl, ownerId: uid(req) });
       }
