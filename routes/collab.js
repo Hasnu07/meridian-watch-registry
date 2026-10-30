@@ -13,7 +13,8 @@
  * shop owner's registry) and lets through ONLY what a collaborator may do:
  *
  *   view   the shop, its portfolios, clients and pieces (full detail, as the owner sees it)
- *   add    a client to the shop; add a piece to one of its clients
+ *   add    a client to the shop — new, or one of THEIR OWN clients (copied into
+ *          the owner's registry on first use); add a piece to one of its clients
  *   edit   a piece; remove a piece
  *   set    commissions on a piece, share / hide / void them
  *
@@ -100,6 +101,24 @@ router.use((req, res, next) => {
   }
   if (req.method === 'GET' && p === '/boutique-managers') {
     return res.json(db.listBoutiqueManagers(c.owner_id).filter(m => m.shop_id === shopId));
+  }
+  // "Existing Client" inside the shared shop picks from the collaborator's OWN
+  // client book (their registry, not the owner's); routes/profiles.js then
+  // copies the chosen client into the owner's registry for the membership.
+  if (req.method === 'GET' && p === '/clients') return res.json(db.listClients(u.id));
+  if (req.method === 'GET' && p === '/clients/lookup') {
+    const masterId = String(req.query.master_id || '').trim();
+    if (!masterId) return res.status(400).json({ error: 'master_id query param required' });
+    const own = db.getClientByMasterId(masterId, u.id);
+    if (!own) return res.status(404).json({ error: 'No client of yours with that Master ID' });
+    return res.json(db.getClientWithMemberships(own.id, u.id));
+  }
+  {
+    const m = req.method === 'GET' && p.match(/^\/clients\/(\d+)$/);
+    if (m) {
+      const own = db.getClientWithMemberships(m[1], u.id);
+      return own ? res.json(own) : res.status(404).json({ error: 'Not one of your clients' });
+    }
   }
 
   for (const [method, re, check] of ALLOWED) {
