@@ -148,11 +148,17 @@ async function loadBoutiqueCommissionShop() {
   const seenBy = managerNames ? esc(managerNames) : 'the boutique';
   const n = (list, word = 'commission') => `${list.length} ${word}${list.length !== 1 ? 's' : ''}`;
   const monthName = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  // Wishlist pending: pieces clients are waiting for — no commission until handed over
+  const wish = watches.filter(w => w.status === 'wishlist');
+  const longest = wish.reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
+  const waiting30 = wish.filter(w => (wishlistDays(w) ?? 0) >= 30).length;
   document.getElementById('bcTiles').innerHTML = [
     tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}`),
     tile('Paid', fmt.byCurrency(bcSum(paid)), `${n(paid)} paid out to ${seenBy}`, 'text-emerald-400'),
-    tile('Pending', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay`, pending.length ? 'bm-commission' : 'text-on-surface'),
+    tile('Commission left', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay ${seenBy}`, pending.length ? 'bm-commission' : 'text-on-surface'),
     tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${n(all.filter(e => !e.for_boutique))} recorded but not shown`, 'text-on-surface'),
+    tile('Wishlist pending', `<span class="${wish.length ? 'text-amber-300' : 'text-on-surface'}">${wish.length}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${wish.length === 1 ? 'piece' : 'pieces'}</span></span>`,
+         wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
 
   document.getElementById('bcShopTitle').textContent = `Pieces at ${shop.name}`;

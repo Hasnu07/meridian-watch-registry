@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="style.css?v=bc1a1c4519">
   <script src="/cursor.js?v=1d36b475b2"></script>
   <link rel="stylesheet" href="/neon.css?v=83ffa28203">
-  <link rel="stylesheet" href="/css/app.css?v=526442d266">
+  <link rel="stylesheet" href="/css/app.css?v=b96aac5685">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased">
 
@@ -929,7 +929,7 @@
         <div id="bcContent" class="hidden">
           <!-- Working a shop another registry shared with us (25-boutique-commission.js) -->
           <div id="bcContext" class="hidden mb-6 px-5 py-3.5 rounded-lg border border-primary/30 bg-primary/5 text-sm text-on-surface flex items-center gap-3"></div>
-          <div id="bcTiles" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8"></div>
+          <div id="bcTiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8"></div>
           <!-- Collaborators: who works this shop with its owner -->
           <div id="bcCollab" class="glass-surface rounded-lg px-6 py-4 mb-8"></div>
           <div class="glass-surface rounded-lg overflow-hidden">
@@ -972,7 +972,7 @@
           </div>
           <p id="commissionsUpdated" class="text-xs font-mono text-outline"></p>
         </div>
-        <div id="commissionTiles" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8"></div>
+        <div id="commissionTiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8"></div>
         <div class="glass-surface rounded-lg overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
             <h3 class="font-playfair text-xl text-on-surface">Entries</h3>
@@ -993,6 +993,17 @@
               <tbody id="commissionsBody" class="divide-y divide-white/[0.04]"></tbody>
             </table>
           </div>
+        </div>
+        <!-- Wishlist pending: the shop's pieces not bought yet — tomorrow's commissions (24-boutique-manager.js) -->
+        <div id="commissionWishlist" class="glass-surface rounded-lg overflow-hidden mt-8">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h3 class="font-playfair text-xl text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-amber-300 text-[20px]">bookmark</span>Wishlist pending</h3>
+              <p id="commissionWishlistSub" class="text-xs text-on-surface-variant mt-0.5">Pieces clients are waiting for — no commission until they are handed over.</p>
+            </div>
+            <span id="commissionWishlistCount" class="text-xs font-mono text-outline"></span>
+          </div>
+          <div id="commissionWishlistBody" class="divide-y divide-white/[0.04]"></div>
         </div>
       </div>
 
@@ -2076,6 +2087,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=096ea91171"></script>
+<script src="/js/dashboard.js?v=25b9601154"></script>
 </body>
 </html>

@@ -8706,12 +8706,20 @@ async function loadCommissions() {
       <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
     </div>`;
   const paid = entries.filter(e => e.paid_at), pending = entries.filter(e => !e.paid_at);
+  // Wishlist pending: pieces clients are waiting for — tomorrow's commissions
+  const wish = watches.filter(w => w.status === 'wishlist')
+    .sort((a, b) => (wishlistDays(b) ?? -1) - (wishlistDays(a) ?? -1));
+  const longest = wish.reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
+  const waiting30 = wish.filter(w => (wishlistDays(w) ?? 0) >= 30).length;
   document.getElementById('commissionTiles').innerHTML = [
     tile('Total balance', fmt.byCurrency(total), `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} shared with you · ${pieces} of ${watches.length} piece${watches.length !== 1 ? 's' : ''} at ${bmShopName()}`),
     tile('Paid', `<span class="text-emerald-400">${fmt.byCurrency(sum(paid))}</span>`, `${paid.length} entr${paid.length === 1 ? 'y' : 'ies'} paid out to you`),
-    tile('Pending', pending.length ? fmt.byCurrency(sum(pending)) : `<span class="text-on-surface">${fmt.byCurrency(sum(pending))}</span>`, `${pending.length} entr${pending.length === 1 ? 'y' : 'ies'} still to be paid`),
+    tile('Commission left', pending.length ? fmt.byCurrency(sum(pending)) : `<span class="text-on-surface">${fmt.byCurrency(sum(pending))}</span>`, `${pending.length} entr${pending.length === 1 ? 'y' : 'ies'} still to be paid to you`),
     tile(`This month`, fmt.byCurrency(month), monthName),
+    tile('Wishlist pending', `<span class="${wish.length ? 'text-amber-300' : 'text-on-surface'}">${wish.length}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${wish.length === 1 ? 'piece' : 'pieces'}</span></span>`,
+         wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
+  renderCommissionWishlist(wish);
   document.getElementById('commissionsCount').textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
   document.getElementById('commissionsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
@@ -8754,6 +8762,32 @@ async function loadCommissions() {
       </tr>`;
   }
   body.innerHTML = html;
+}
+
+// The shop's wishlist pieces, longest wait first: the client, since when, how
+// long — each a commission to come once the piece is handed over.
+function renderCommissionWishlist(wish) {
+  const body = document.getElementById('commissionWishlistBody');
+  const count = document.getElementById('commissionWishlistCount');
+  const sub = document.getElementById('commissionWishlistSub');
+  if (!body) return;
+  count.textContent = wish.length ? `${wish.length} piece${wish.length !== 1 ? 's' : ''} waiting` : '';
+  sub.textContent = `Pieces clients are waiting for at ${bmShopName()} — no commission until they are handed over.`;
+  body.innerHTML = wish.length ? wish.map(w => {
+    const d = wishlistDays(w) ?? 0;
+    const urgency = d >= 30 ? 'text-error' : d >= 14 ? 'text-amber-400' : 'text-on-surface-variant';
+    return `
+    <button type="button" class="tbl-row w-full px-6 py-3 flex items-center gap-4 text-left" onclick="openWatchDetail(${w.id})">
+      ${bmThumb(w)}
+      <span class="flex-1 min-w-0">
+        <span class="block text-sm font-medium text-on-surface truncate">${esc(w.model)}</span>
+        <span class="block text-xs text-on-surface-variant truncate">${esc(w.client_name || '—')}${w.reference_number ? ` · <span class="font-mono">${esc(w.reference_number)}</span>` : ''}</span>
+      </span>
+      <span class="hidden sm:block text-xs font-mono text-on-surface-variant whitespace-nowrap">since ${fmt.date((w.created_at || '').slice(0, 10))}</span>
+      ${w.list_price != null ? `<span class="hidden md:block font-mono text-sm text-on-surface whitespace-nowrap">${fmt.price(w.list_price, w.currency || 'CHF')}</span>` : ''}
+      <span class="font-mono text-lg font-semibold leading-none ${urgency} whitespace-nowrap">${d}<span class="text-xs font-sans font-medium text-outline ml-1">${d === 1 ? 'day' : 'days'}</span></span>
+    </button>`;
+  }).join('') : `<p class="px-6 py-10 text-center text-sm text-on-surface-variant">Nothing on the wishlist at ${esc(bmShopName())}.</p>`;
 }
 
 // ── Watch page ─────────────────────────────────────────────────────────────
@@ -9006,11 +9040,17 @@ async function loadBoutiqueCommissionShop() {
   const seenBy = managerNames ? esc(managerNames) : 'the boutique';
   const n = (list, word = 'commission') => `${list.length} ${word}${list.length !== 1 ? 's' : ''}`;
   const monthName = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  // Wishlist pending: pieces clients are waiting for — no commission until handed over
+  const wish = watches.filter(w => w.status === 'wishlist');
+  const longest = wish.reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
+  const waiting30 = wish.filter(w => (wishlistDays(w) ?? 0) >= 30).length;
   document.getElementById('bcTiles').innerHTML = [
     tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}`),
     tile('Paid', fmt.byCurrency(bcSum(paid)), `${n(paid)} paid out to ${seenBy}`, 'text-emerald-400'),
-    tile('Pending', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay`, pending.length ? 'bm-commission' : 'text-on-surface'),
+    tile('Commission left', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay ${seenBy}`, pending.length ? 'bm-commission' : 'text-on-surface'),
     tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${n(all.filter(e => !e.for_boutique))} recorded but not shown`, 'text-on-surface'),
+    tile('Wishlist pending', `<span class="${wish.length ? 'text-amber-300' : 'text-on-surface'}">${wish.length}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${wish.length === 1 ? 'piece' : 'pieces'}</span></span>`,
+         wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
 
   document.getElementById('bcShopTitle').textContent = `Pieces at ${shop.name}`;
