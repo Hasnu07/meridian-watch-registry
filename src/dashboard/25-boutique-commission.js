@@ -327,6 +327,9 @@ function bcRowHtml(w) {
         : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-outline flex-shrink-0">Private</span>`}
       <span class="font-mono text-xs ${e.for_boutique ? 'bm-commission' : 'text-on-surface-variant'} flex-shrink-0 w-24 text-right">${fmt.price(e.amount, e.currency || cur)}</span>
       <button onclick="toggleExpenseBoutique(${e.id}, ${e.for_boutique ? 'false' : 'true'})" title="${e.for_boutique ? 'Hide from the boutique manager' : 'Show to the boutique manager'}" class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border transition-all flex-shrink-0 ${e.for_boutique ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-amber-400/30 text-amber-300 hover:bg-amber-400/10'}">${e.for_boutique ? 'Hide' : 'Show'}</button>
+      <button onclick="openEditExpenseModal(${e.id}, ${w.id})" title="Edit this commission" aria-label="Edit this commission" class="p-1 text-on-surface-variant hover:text-primary transition-colors flex-shrink-0">
+        <span class="material-symbols-outlined text-[14px]">edit</span>
+      </button>
       <button onclick="reverseExpense(${e.id}, ${w.id})" title="Void this commission" class="p-1 text-on-surface-variant hover:text-error transition-colors flex-shrink-0">
         <span class="material-symbols-outlined text-[14px]">close</span>
       </button>

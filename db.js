@@ -1453,6 +1453,16 @@ function createExpense({ watch_id, category, date, amount, currency, description
   return result.lastInsertRowid;
 }
 
+// Correct a recorded expense in place (its date, amount, wording, category or
+// whether the boutique sees it) — no need to void it and record it again
+function updateExpense(id, { category, date, amount, currency, description, for_boutique }) {
+  const VALID_CATS = ['shipping','travel','pickup_meeting','insurance','restoration_service','storage','commission','other'];
+  const cat = VALID_CATS.includes(category) ? category : 'other';
+  db.prepare(
+    'UPDATE watch_expenses SET category = ?, date = ?, amount = ?, currency = ?, description = ?, for_boutique = ? WHERE id = ?'
+  ).run(cat, date, Number(amount), currency || 'CHF', description || null, cat === 'commission' && for_boutique ? 1 : 0, id);
+}
+
 // Share / unshare a commission with the shop's boutique manager
 function setExpenseBoutique(id, visible) {
   db.prepare("UPDATE watch_expenses SET for_boutique = ? WHERE id = ? AND category = 'commission'").run(visible ? 1 : 0, id);
@@ -1641,7 +1651,7 @@ module.exports = {
   listWishlistWatchesWithDays, getOwnerIdForProfile, getOwnerIdForWatch,
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
   applyDiscountOffset, clearOffsetsFrom, listMarketPrices, recordMarketPrice, resyncWatchStatuses,
-  listExpenses, getExpense, createExpense, reverseExpense, setExpenseBoutique,
+  listExpenses, getExpense, createExpense, updateExpense, reverseExpense, setExpenseBoutique,
   listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
   listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,
   listPatekDeals, getPatekDeal, createPatekDeal, updatePatekDeal, deletePatekDeal,

@@ -465,6 +465,7 @@ async function reversePayment(paymentId, watchId) {
 // ── Expenses ──────────────────────────────────────────────────────────────────
 
 let _expWatchId = null;
+let _expEditId  = null;   // set while the dialog edits an existing expense
 
 function expenseCategoryLabel(cat) {
   return {
@@ -482,6 +483,8 @@ function expenseCategoryLabel(cat) {
 function openAddExpenseModal(watchId) {
   const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
   _expWatchId = watchId;
+  _expEditId  = null;
+  document.getElementById('expSubmitLabel').textContent = 'Save Expense';
 
   const cur = w?.currency || 'CHF';
   document.getElementById('expWatchModel').textContent   = w?.model || `Watch #${watchId}`;
@@ -500,6 +503,29 @@ function openAddExpenseModal(watchId) {
 
   document.getElementById('addExpenseModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('expAmount').focus(), 50);
+}
+
+// Edit a recorded expense in place: the same dialog, filled with its values.
+// Saving sends PUT /api/expenses/:id instead of recording a new one.
+async function openEditExpenseModal(expenseId, watchId) {
+  const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
+  let ex = (w?.expenses || []).find(e => e.id === expenseId);
+  if (!ex) {
+    try { ex = (await api('GET', `/api/watches/${watchId}/expenses`)).find(e => e.id === expenseId); } catch {}
+  }
+  if (!ex) { alert('Expense not found'); return; }
+  openAddExpenseModal(watchId);
+  _expEditId = expenseId;
+  document.getElementById('expCategory').value      = ex.category || 'other';
+  document.getElementById('expDate').value          = ex.date || '';
+  document.getElementById('expAmount').value        = ex.amount != null ? String(ex.amount) : '';
+  document.getElementById('expDescription').value   = ex.description || '';
+  document.getElementById('expCurrencyBadge').textContent = ex.currency || w?.currency || 'CHF';
+  document.getElementById('expBoutique').checked    = !!ex.for_boutique;
+  syncExpenseBoutiqueOption();
+  const isCommission = ex.category === 'commission';
+  document.querySelector('#addExpenseModal h2').textContent = isCommission ? 'Edit commission' : 'Edit expense';
+  document.getElementById('expSubmitLabel').textContent = 'Save changes';
 }
 
 // "Show to the boutique manager" only applies to commissions
@@ -537,6 +563,7 @@ function expenseBoutiqueControls(ex, size = 16) {
 function closeAddExpenseModal() {
   document.getElementById('addExpenseModal').classList.add('hidden');
   _expWatchId = null;
+  _expEditId  = null;
 }
 
 async function submitExpense() {
@@ -557,7 +584,8 @@ async function submitExpense() {
   const for_boutique = category === 'commission' && document.getElementById('expBoutique').checked;
 
   try {
-    await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined, for_boutique });
+    if (_expEditId) await api('PUT', `/api/expenses/${_expEditId}`, { category, date, amount, currency, description: description || undefined, for_boutique });
+    else            await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined, for_boutique });
     closeAddExpenseModal();
     if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
     else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);

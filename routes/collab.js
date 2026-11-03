@@ -16,7 +16,7 @@
  *   add    a client to the shop — new, or one of THEIR OWN clients (copied into
  *          the owner's registry on first use); add a piece to one of its clients
  *   edit   a piece; remove a piece
- *   set    commissions on a piece, share / hide / void them
+ *   set    commissions on a piece, correct, share / hide / void them
  *
  * Everything they add or change lands in the owner's registry, so the owner
  * and the shop's boutique manager see it at once. Everything else under that
@@ -65,6 +65,7 @@ const ALLOWED = [
   ['DELETE', /^\/watches\/(\d+)$/,                   watchIn],     // remove a piece
   ['GET',    /^\/watches\/(\d+)\/expenses$/,         watchIn],
   ['POST',   /^\/watches\/(\d+)\/expenses$/,         watchIn],
+  ['PUT',    /^\/expenses\/(\d+)$/,                  expIn],      // correct a commission
   ['PUT',    /^\/expenses\/(\d+)\/boutique$/,        expIn],
   ['POST',   /^\/expenses\/(\d+)\/reverse$/,         expIn],
   ['POST',   /^\/profiles$/,                         () => true],   // a client for THIS shop (routes/profiles.js checks shop_id)

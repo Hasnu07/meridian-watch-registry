@@ -40,6 +40,33 @@ router.post('/watches/:watchId/expenses', (req, res) => {
   }
 });
 
+// PUT /api/expenses/:id { category, date, amount, currency, description, for_boutique }
+// Correct a recorded expense (e.g. a boutique commission) in place.
+router.put('/expenses/:id', (req, res) => {
+  const expense = db.getExpense(req.params.id);
+  if (!expense) return res.status(404).json({ error: 'Expense not found' });
+  if (db.getOwnerIdForWatch(expense.watch_id) !== uid(req)) return res.status(404).json({ error: 'Expense not found' });
+  if (expense.reversed) return res.status(409).json({ error: 'This expense has been voided' });
+
+  const { category, date, amount, currency, description, for_boutique } = req.body || {};
+  if (!date)   return res.status(400).json({ error: 'date is required' });
+  if (!amount) return res.status(400).json({ error: 'amount is required' });
+  const parsed = Number(amount);
+  if (isNaN(parsed) || parsed <= 0) return res.status(400).json({ error: 'amount must be a positive number' });
+
+  try {
+    const cat   = category || expense.category;
+    const share = cat === 'commission' && (for_boutique === true || for_boutique === 1 || for_boutique === '1' || for_boutique === 'true');
+    db.updateExpense(expense.id, { category: cat, date, amount: parsed, currency: currency || expense.currency, description, for_boutique: share });
+    audit(req, { action: 'update', targetType: 'expense', targetId: expense.id,
+                 details: { watch_id: expense.watch_id, before: { amount: expense.amount, date: expense.date, category: expense.category, for_boutique: !!expense.for_boutique },
+                            amount: parsed, date, category: cat, for_boutique: share } });
+    res.json({ ok: true, expense: db.getExpense(expense.id), watch: db.getWatch(expense.watch_id, uid(req)) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Database error' });
+  }
+});
+
 // PUT /api/expenses/:id/boutique { for_boutique: true|false }
 // Share or hide a commission for the shop's boutique manager.
 router.put('/expenses/:id/boutique', (req, res) => {

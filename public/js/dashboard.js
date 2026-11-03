@@ -3661,6 +3661,9 @@ function renderWatchDetailPage(w) {
         <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(ex.description || '')}</span>
         ${expenseBoutiqueControls(ex, 16)}
         <span class="font-mono text-sm text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
+        <button onclick="openEditExpenseModal(${ex.id}, ${w.id})" title="Edit" class="p-1 hover:text-primary transition-colors flex-shrink-0">
+          <span class="material-symbols-outlined text-[16px] text-on-surface-variant">edit</span>
+        </button>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void" class="p-1 hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[16px] text-on-surface-variant">close</span>
         </button>
@@ -4309,6 +4312,9 @@ function watchDetailBanner(w) {
         <span class="flex-1 text-[11px] text-on-surface-variant truncate">${esc(ex.description || '')}</span>
         ${expenseBoutiqueControls(ex, 13)}
         <span class="font-mono text-[11px] text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
+        <button onclick="openEditExpenseModal(${ex.id}, ${w.id})" title="Edit expense" class="hover:text-primary transition-colors flex-shrink-0">
+          <span class="material-symbols-outlined text-[13px] text-on-surface-variant">edit</span>
+        </button>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void expense" class="hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[13px] text-on-surface-variant">close</span>
         </button>
@@ -5054,6 +5060,7 @@ async function reversePayment(paymentId, watchId) {
 // ── Expenses ──────────────────────────────────────────────────────────────────
 
 let _expWatchId = null;
+let _expEditId  = null;   // set while the dialog edits an existing expense
 
 function expenseCategoryLabel(cat) {
   return {
@@ -5071,6 +5078,8 @@ function expenseCategoryLabel(cat) {
 function openAddExpenseModal(watchId) {
   const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
   _expWatchId = watchId;
+  _expEditId  = null;
+  document.getElementById('expSubmitLabel').textContent = 'Save Expense';
 
   const cur = w?.currency || 'CHF';
   document.getElementById('expWatchModel').textContent   = w?.model || `Watch #${watchId}`;
@@ -5089,6 +5098,29 @@ function openAddExpenseModal(watchId) {
 
   document.getElementById('addExpenseModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('expAmount').focus(), 50);
+}
+
+// Edit a recorded expense in place: the same dialog, filled with its values.
+// Saving sends PUT /api/expenses/:id instead of recording a new one.
+async function openEditExpenseModal(expenseId, watchId) {
+  const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
+  let ex = (w?.expenses || []).find(e => e.id === expenseId);
+  if (!ex) {
+    try { ex = (await api('GET', `/api/watches/${watchId}/expenses`)).find(e => e.id === expenseId); } catch {}
+  }
+  if (!ex) { alert('Expense not found'); return; }
+  openAddExpenseModal(watchId);
+  _expEditId = expenseId;
+  document.getElementById('expCategory').value      = ex.category || 'other';
+  document.getElementById('expDate').value          = ex.date || '';
+  document.getElementById('expAmount').value        = ex.amount != null ? String(ex.amount) : '';
+  document.getElementById('expDescription').value   = ex.description || '';
+  document.getElementById('expCurrencyBadge').textContent = ex.currency || w?.currency || 'CHF';
+  document.getElementById('expBoutique').checked    = !!ex.for_boutique;
+  syncExpenseBoutiqueOption();
+  const isCommission = ex.category === 'commission';
+  document.querySelector('#addExpenseModal h2').textContent = isCommission ? 'Edit commission' : 'Edit expense';
+  document.getElementById('expSubmitLabel').textContent = 'Save changes';
 }
 
 // "Show to the boutique manager" only applies to commissions
@@ -5126,6 +5158,7 @@ function expenseBoutiqueControls(ex, size = 16) {
 function closeAddExpenseModal() {
   document.getElementById('addExpenseModal').classList.add('hidden');
   _expWatchId = null;
+  _expEditId  = null;
 }
 
 async function submitExpense() {
@@ -5146,7 +5179,8 @@ async function submitExpense() {
   const for_boutique = category === 'commission' && document.getElementById('expBoutique').checked;
 
   try {
-    await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined, for_boutique });
+    if (_expEditId) await api('PUT', `/api/expenses/${_expEditId}`, { category, date, amount, currency, description: description || undefined, for_boutique });
+    else            await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined, for_boutique });
     closeAddExpenseModal();
     if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
     else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
@@ -9127,6 +9161,9 @@ function bcRowHtml(w) {
         : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-outline flex-shrink-0">Private</span>`}
       <span class="font-mono text-xs ${e.for_boutique ? 'bm-commission' : 'text-on-surface-variant'} flex-shrink-0 w-24 text-right">${fmt.price(e.amount, e.currency || cur)}</span>
       <button onclick="toggleExpenseBoutique(${e.id}, ${e.for_boutique ? 'false' : 'true'})" title="${e.for_boutique ? 'Hide from the boutique manager' : 'Show to the boutique manager'}" class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border transition-all flex-shrink-0 ${e.for_boutique ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-amber-400/30 text-amber-300 hover:bg-amber-400/10'}">${e.for_boutique ? 'Hide' : 'Show'}</button>
+      <button onclick="openEditExpenseModal(${e.id}, ${w.id})" title="Edit this commission" aria-label="Edit this commission" class="p-1 text-on-surface-variant hover:text-primary transition-colors flex-shrink-0">
+        <span class="material-symbols-outlined text-[14px]">edit</span>
+      </button>
       <button onclick="reverseExpense(${e.id}, ${w.id})" title="Void this commission" class="p-1 text-on-surface-variant hover:text-error transition-colors flex-shrink-0">
         <span class="material-symbols-outlined text-[14px]">close</span>
       </button>
