@@ -3661,6 +3661,9 @@ function renderWatchDetailPage(w) {
         <span class="flex-1 text-sm text-on-surface-variant truncate">${esc(ex.description || '')}</span>
         ${expenseBoutiqueControls(ex, 16)}
         <span class="font-mono text-sm text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
+        <button onclick="openEditExpenseModal(${ex.id}, ${w.id})" title="Edit" class="p-1 hover:text-primary transition-colors flex-shrink-0">
+          <span class="material-symbols-outlined text-[16px] text-on-surface-variant">edit</span>
+        </button>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void" class="p-1 hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[16px] text-on-surface-variant">close</span>
         </button>
@@ -4309,6 +4312,9 @@ function watchDetailBanner(w) {
         <span class="flex-1 text-[11px] text-on-surface-variant truncate">${esc(ex.description || '')}</span>
         ${expenseBoutiqueControls(ex, 13)}
         <span class="font-mono text-[11px] text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
+        <button onclick="openEditExpenseModal(${ex.id}, ${w.id})" title="Edit expense" class="hover:text-primary transition-colors flex-shrink-0">
+          <span class="material-symbols-outlined text-[13px] text-on-surface-variant">edit</span>
+        </button>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void expense" class="hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[13px] text-on-surface-variant">close</span>
         </button>
@@ -5054,6 +5060,7 @@ async function reversePayment(paymentId, watchId) {
 // ── Expenses ──────────────────────────────────────────────────────────────────
 
 let _expWatchId = null;
+let _expEditId  = null;   // set while the dialog edits an existing expense
 
 function expenseCategoryLabel(cat) {
   return {
@@ -5071,6 +5078,8 @@ function expenseCategoryLabel(cat) {
 function openAddExpenseModal(watchId) {
   const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
   _expWatchId = watchId;
+  _expEditId  = null;
+  document.getElementById('expSubmitLabel').textContent = 'Save Expense';
 
   const cur = w?.currency || 'CHF';
   document.getElementById('expWatchModel').textContent   = w?.model || `Watch #${watchId}`;
@@ -5089,6 +5098,29 @@ function openAddExpenseModal(watchId) {
 
   document.getElementById('addExpenseModal').classList.remove('hidden');
   setTimeout(() => document.getElementById('expAmount').focus(), 50);
+}
+
+// Edit a recorded expense in place: the same dialog, filled with its values.
+// Saving sends PUT /api/expenses/:id instead of recording a new one.
+async function openEditExpenseModal(expenseId, watchId) {
+  const w = watchCache[watchId] || allWatches.find(x => x.id === watchId);
+  let ex = (w?.expenses || []).find(e => e.id === expenseId);
+  if (!ex) {
+    try { ex = (await api('GET', `/api/watches/${watchId}/expenses`)).find(e => e.id === expenseId); } catch {}
+  }
+  if (!ex) { alert('Expense not found'); return; }
+  openAddExpenseModal(watchId);
+  _expEditId = expenseId;
+  document.getElementById('expCategory').value      = ex.category || 'other';
+  document.getElementById('expDate').value          = ex.date || '';
+  document.getElementById('expAmount').value        = ex.amount != null ? String(ex.amount) : '';
+  document.getElementById('expDescription').value   = ex.description || '';
+  document.getElementById('expCurrencyBadge').textContent = ex.currency || w?.currency || 'CHF';
+  document.getElementById('expBoutique').checked    = !!ex.for_boutique;
+  syncExpenseBoutiqueOption();
+  const isCommission = ex.category === 'commission';
+  document.querySelector('#addExpenseModal h2').textContent = isCommission ? 'Edit commission' : 'Edit expense';
+  document.getElementById('expSubmitLabel').textContent = 'Save changes';
 }
 
 // "Show to the boutique manager" only applies to commissions
@@ -5113,11 +5145,32 @@ async function toggleExpenseBoutique(expenseId, visible) {
   }
 }
 
+// A commission was paid out to the boutique (or back to pending)
+async function toggleExpensePaid(expenseId, paid) {
+  try {
+    await api('PUT', `/api/expenses/${expenseId}/paid`, { paid: !!paid });
+    if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
+    else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
+    else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
+  } catch (e) {
+    alert(e.message || 'Failed to update commission');
+  }
+}
+
+// Paid / pending badge of a commission (what the boutique is still owed)
+function expensePaidBadge(ex) {
+  if (ex.category !== 'commission' || ex.reversed) return '';
+  return ex.paid_at
+    ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 flex-shrink-0" title="Paid ${fmt.date(ex.paid_at)}">Paid</span>`
+    : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-on-surface-variant flex-shrink-0">Pending</span>`;
+}
+
 // Badge + toggle shown next to a commission expense in the ledgers
 function expenseBoutiqueControls(ex, size = 16) {
   if (ex.category !== 'commission' || ex.reversed) return '';
   const on = !!ex.for_boutique;
-  return `${on ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Boutique</span>` : ''}
+  return `${expensePaidBadge(ex)}${on ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Boutique</span>` : ''}
     <button onclick="toggleExpenseBoutique(${ex.id}, ${on ? 'false' : 'true'})" title="${on ? 'Shown to the boutique manager — click to hide' : 'Show to the boutique manager'}" class="p-1 transition-colors flex-shrink-0 ${on ? 'text-amber-300 hover:text-on-surface-variant' : 'text-on-surface-variant hover:text-amber-300'}">
       <span class="material-symbols-outlined text-[${size}px]">storefront</span>
     </button>`;
@@ -5126,6 +5179,7 @@ function expenseBoutiqueControls(ex, size = 16) {
 function closeAddExpenseModal() {
   document.getElementById('addExpenseModal').classList.add('hidden');
   _expWatchId = null;
+  _expEditId  = null;
 }
 
 async function submitExpense() {
@@ -5146,7 +5200,8 @@ async function submitExpense() {
   const for_boutique = category === 'commission' && document.getElementById('expBoutique').checked;
 
   try {
-    await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined, for_boutique });
+    if (_expEditId) await api('PUT', `/api/expenses/${_expEditId}`, { category, date, amount, currency, description: description || undefined, for_boutique });
+    else            await api('POST', `/api/watches/${_expWatchId}/expenses`, { category, date, amount, currency, description: description || undefined, for_boutique });
     closeAddExpenseModal();
     if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
     else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
@@ -8650,10 +8705,12 @@ async function loadCommissions() {
       <p class="font-playfair text-2xl bm-commission">${value}</p>
       <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
     </div>`;
+  const paid = entries.filter(e => e.paid_at), pending = entries.filter(e => !e.paid_at);
   document.getElementById('commissionTiles').innerHTML = [
-    tile('Total commission', fmt.byCurrency(total), `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} shared with you`),
+    tile('Total balance', fmt.byCurrency(total), `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} shared with you · ${pieces} of ${watches.length} piece${watches.length !== 1 ? 's' : ''} at ${bmShopName()}`),
+    tile('Paid', `<span class="text-emerald-400">${fmt.byCurrency(sum(paid))}</span>`, `${paid.length} entr${paid.length === 1 ? 'y' : 'ies'} paid out to you`),
+    tile('Pending', pending.length ? fmt.byCurrency(sum(pending)) : `<span class="text-on-surface">${fmt.byCurrency(sum(pending))}</span>`, `${pending.length} entr${pending.length === 1 ? 'y' : 'ies'} still to be paid`),
     tile(`This month`, fmt.byCurrency(month), monthName),
-    tile('Pieces with commission', `<span class="text-on-surface">${pieces}</span>`, `of ${watches.length} piece${watches.length !== 1 ? 's' : ''} at ${bmShopName()}`),
   ].join('');
   document.getElementById('commissionsCount').textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
   document.getElementById('commissionsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -8692,7 +8749,8 @@ async function loadCommissions() {
         <td class="px-5 py-3 text-sm text-on-surface-variant">${esc(w.client_name || '—')}</td>
         <td class="px-5 py-3">${statusBadge(w.status)}</td>
         <td class="px-5 py-3 text-sm text-on-surface-variant max-w-[320px] truncate">${esc(e.description || '—')}</td>
-        <td class="px-5 py-3 text-right font-mono text-sm font-semibold bm-commission whitespace-nowrap">${fmt.price(e.amount, e.currency || w.currency || 'CHF')}</td>
+        <td class="px-5 py-3 text-right font-mono text-sm font-semibold bm-commission whitespace-nowrap">${fmt.price(e.amount, e.currency || w.currency || 'CHF')}
+          <span class="block mt-0.5">${expensePaidBadge(e)}</span></td>
       </tr>`;
   }
   body.innerHTML = html;
@@ -8924,7 +8982,7 @@ async function loadBoutiqueCommissionShop() {
     document.getElementById('bcShopSub').textContent = `${managerNames} is not linked to a shop yet — assign one under Admin → Users (store icon).`;
     document.getElementById('bcNewClient').innerHTML = '';
     document.getElementById('bcCollab').innerHTML = '';
-    body.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
     return;
   }
   const [shop, watches, collaborators] = await Promise.all([
@@ -8935,9 +8993,10 @@ async function loadBoutiqueCommissionShop() {
   _bcShop = shop; _bcWatches = watches; _bcCollaborators = collaborators;
   watches.forEach(w => { watchCache[w.id] = w; });
 
-  // ── Tiles: what the boutique currently sees ──
+  // ── Tiles: the balance with the boutique — total shown, paid out, still pending ──
   const all = watches.flatMap(bcCommissions);
   const shared = all.filter(e => e.for_boutique);
+  const paid = shared.filter(e => e.paid_at), pending = shared.filter(e => !e.paid_at);
   const tile = (label, value, sub, cls = 'bm-commission') => `
     <div class="glass-surface rounded-lg p-5">
       <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-3">${label}</p>
@@ -8945,10 +9004,13 @@ async function loadBoutiqueCommissionShop() {
       <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
     </div>`;
   const seenBy = managerNames ? esc(managerNames) : 'the boutique';
+  const n = (list, word = 'commission') => `${list.length} ${word}${list.length !== 1 ? 's' : ''}`;
+  const monthName = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   document.getElementById('bcTiles').innerHTML = [
-    tile(`Shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${shared.length} commission${shared.length !== 1 ? 's' : ''} shared · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''}`),
-    tile('Shared this month', fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date))), new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })),
-    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${all.length - shared.length} commission${all.length - shared.length !== 1 ? 's' : ''} recorded but not shown`, 'text-on-surface'),
+    tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}`),
+    tile('Paid', fmt.byCurrency(bcSum(paid)), `${n(paid)} paid out to ${seenBy}`, 'text-emerald-400'),
+    tile('Pending', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay`, pending.length ? 'bm-commission' : 'text-on-surface'),
+    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${n(all.filter(e => !e.for_boutique))} recorded but not shown`, 'text-on-surface'),
   ].join('');
 
   document.getElementById('bcShopTitle').textContent = `Pieces at ${shop.name}`;
@@ -8968,10 +9030,60 @@ async function loadBoutiqueCommissionShop() {
 
   renderBcCollaborators(c);
 
-  // ── Pieces table: owned first, wishlist last ──
-  const ordered = [...watches.filter(w => w.status !== 'wishlist'), ...watches.filter(w => w.status === 'wishlist')];
-  body.innerHTML = ordered.length ? ordered.map(bcRowHtml).join('')
-    : `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant text-sm">No pieces at this shop yet — add one with "New piece for this shop".</td></tr>`;
+  // ── Pieces table: one block per client — their bought pieces first, then their wishlist ──
+  body.innerHTML = watches.length ? bcGroupsHtml(watches, profiles)
+    : `<tr><td colspan="5" class="px-6 py-12 text-center text-on-surface-variant text-sm">No pieces at this shop yet — add one with "New piece for this shop".</td></tr>`;
+}
+
+// Group the shop's pieces by client so each person reads as one block: a
+// header row with the client's name, how many pieces they bought and have on
+// their wishlist, the list-price total and the commission shown to the
+// boutique, then their purchased pieces, then their wishlist pieces. Clients
+// with pieces are ordered by name; a client of the shop with no piece yet is
+// listed at the end so they are not forgotten when new pieces come in.
+function bcGroupsHtml(watches, profiles) {
+  const groups = new Map();
+  const keyOf = w => w.profile_id ?? `name:${w.client_name || ''}`;
+  for (const w of watches) {
+    const k = keyOf(w);
+    if (!groups.has(k)) groups.set(k, { name: w.client_name || '—', watches: [] });
+    groups.get(k).watches.push(w);
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  const withPieces = [...groups.values()].sort(byName);
+  const without = (profiles || []).filter(p => !groups.has(p.id)).map(p => ({ name: p.name, watches: [] })).sort(byName);
+
+  return [...withPieces, ...without].map(g => {
+    const owned = g.watches.filter(w => w.status !== 'wishlist');
+    const wish  = g.watches.filter(w => w.status === 'wishlist');
+    const listTotal = {};
+    for (const w of owned) if (w.list_price != null) listTotal[w.currency || 'CHF'] = (listTotal[w.currency || 'CHF'] || 0) + Number(w.list_price);
+    const shared = g.watches.flatMap(bcCommissions).filter(e => e.for_boutique);
+    const header = `
+      <tr class="bc-client-row">
+        <td colspan="5" class="!py-2.5 !px-5">
+          <div class="flex items-center gap-4 flex-wrap">
+            <span class="inline-flex items-center gap-2 text-sm font-semibold text-on-surface">
+              <span class="w-6 h-6 rounded-full bg-primary/15 text-primary text-[11px] font-semibold uppercase flex items-center justify-center">${esc((g.name || '?')[0])}</span>
+              ${esc(g.name)}
+            </span>
+            <span class="text-[11px] font-mono text-on-surface-variant">${g.watches.length} piece${g.watches.length !== 1 ? 's' : ''}</span>
+            ${owned.length ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-purple-300"><span class="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"></span>${owned.length} purchased</span>` : ''}
+            ${wish.length  ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>${wish.length} wishlist</span>` : ''}
+            <span class="ml-auto flex items-center gap-5 text-[11px] text-on-surface-variant">
+              ${owned.length ? `<span>List <span class="font-mono text-on-surface">${fmt.byCurrency(listTotal)}</span></span>` : ''}
+              ${shared.length ? `<span>Shown <span class="font-mono font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span></span>` : `<span class="text-outline">nothing shown</span>`}
+              ${shared.some(e => e.paid_at) ? `<span>Paid <span class="font-mono font-semibold text-emerald-400">${fmt.byCurrency(bcSum(shared, e => e.paid_at))}</span></span>` : ''}
+              ${shared.some(e => !e.paid_at) ? `<span>Pending <span class="font-mono font-semibold text-on-surface">${fmt.byCurrency(bcSum(shared, e => !e.paid_at))}</span></span>` : ''}
+            </span>
+          </div>
+        </td>
+      </tr>`;
+    const rows = g.watches.length
+      ? [...owned, ...wish].map(bcRowHtml).join('')
+      : `<tr><td colspan="5" class="px-5 py-3 pl-[4.5rem] text-xs text-outline">No piece yet — add one with "New piece for this shop".</td></tr>`;
+    return header + rows;
+  }).join('');
 }
 
 // ── Collaborators card ─────────────────────────────────────────────────────
@@ -9074,18 +9186,23 @@ function bcRowHtml(w) {
     <div class="flex items-center gap-3 py-1.5">
       <span class="text-[11px] font-mono text-on-surface-variant w-20 flex-shrink-0">${fmt.date(e.date)}</span>
       <span class="flex-1 text-xs text-on-surface-variant truncate">${esc(e.description || 'Commission')}</span>
+      ${expensePaidBadge(e)}
       ${e.for_boutique
         ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Shown</span>`
         : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-outline flex-shrink-0">Private</span>`}
       <span class="font-mono text-xs ${e.for_boutique ? 'bm-commission' : 'text-on-surface-variant'} flex-shrink-0 w-24 text-right">${fmt.price(e.amount, e.currency || cur)}</span>
+      <button onclick="toggleExpensePaid(${e.id}, ${e.paid_at ? 'false' : 'true'})" title="${e.paid_at ? `Paid ${fmt.date(e.paid_at)} — click to set back to pending` : 'Mark this commission as paid out'}" class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border transition-all flex-shrink-0 ${e.paid_at ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'}">${e.paid_at ? 'Unpaid' : 'Mark paid'}</button>
       <button onclick="toggleExpenseBoutique(${e.id}, ${e.for_boutique ? 'false' : 'true'})" title="${e.for_boutique ? 'Hide from the boutique manager' : 'Show to the boutique manager'}" class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border transition-all flex-shrink-0 ${e.for_boutique ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-amber-400/30 text-amber-300 hover:bg-amber-400/10'}">${e.for_boutique ? 'Hide' : 'Show'}</button>
+      <button onclick="openEditExpenseModal(${e.id}, ${w.id})" title="Edit this commission" aria-label="Edit this commission" class="p-1 text-on-surface-variant hover:text-primary transition-colors flex-shrink-0">
+        <span class="material-symbols-outlined text-[14px]">edit</span>
+      </button>
       <button onclick="reverseExpense(${e.id}, ${w.id})" title="Void this commission" class="p-1 text-on-surface-variant hover:text-error transition-colors flex-shrink-0">
         <span class="material-symbols-outlined text-[14px]">close</span>
       </button>
     </div>`).join('');
   return `
     <tr class="tbl-row">
-      <td class="px-5 py-3">
+      <td class="pl-9 pr-5 py-3">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-11 h-11 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">${thumb}</div>
           <div class="min-w-0">
@@ -9094,11 +9211,13 @@ function bcRowHtml(w) {
           </div>
         </div>
       </td>
-      <td class="px-5 py-3 text-sm text-on-surface-variant">${esc(w.client_name || '—')}</td>
       <td class="px-5 py-3">${statusBadge(w.status)}</td>
       <td class="px-5 py-3 text-sm font-mono text-on-surface">${w.list_price != null ? fmt.price(w.list_price, cur) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-3">
         ${shared.length ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="text-xs text-outline">nothing shown</span>`}
+        ${shared.length ? (shared.every(e => e.paid_at)
+            ? `<span class="block text-[11px] text-emerald-400 mt-0.5">paid</span>`
+            : `<span class="block text-[11px] text-on-surface-variant mt-0.5">${fmt.byCurrency(bcSum(shared, e => !e.paid_at))} pending</span>`) : ''}
         ${comms.length > shared.length ? `<span class="block text-[11px] text-outline mt-0.5">${comms.length - shared.length} private</span>` : ''}
       </td>
       <td class="px-5 py-3 text-right whitespace-nowrap">
@@ -9115,7 +9234,7 @@ function bcRowHtml(w) {
         </button>
       </td>
     </tr>
-    ${comms.length ? `<tr><td colspan="6" class="px-5 pb-3 pt-0"><div class="ml-14 pl-4 border-l border-amber-400/20">${entryRows}</div></td></tr>` : ''}`;
+    ${comms.length ? `<tr><td colspan="5" class="px-5 pb-3 pt-0"><div class="ml-14 pl-4 border-l border-amber-400/20">${entryRows}</div></td></tr>` : ''}`;
 }
 
 // Set commission = the Add Expense dialog, preset to a commission that the

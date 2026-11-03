@@ -225,6 +225,9 @@ function watchDetailBanner(w) {
         <span class="flex-1 text-[11px] text-on-surface-variant truncate">${esc(ex.description || '')}</span>
         ${expenseBoutiqueControls(ex, 13)}
         <span class="font-mono text-[11px] text-sky-300 flex-shrink-0">${fmt.price(ex.amount, ex.currency || cur)}</span>
+        <button onclick="openEditExpenseModal(${ex.id}, ${w.id})" title="Edit expense" class="hover:text-primary transition-colors flex-shrink-0">
+          <span class="material-symbols-outlined text-[13px] text-on-surface-variant">edit</span>
+        </button>
         <button onclick="reverseExpense(${ex.id}, ${w.id})" title="Void expense" class="hover:text-error transition-colors flex-shrink-0">
           <span class="material-symbols-outlined text-[13px] text-on-surface-variant">close</span>
         </button>
