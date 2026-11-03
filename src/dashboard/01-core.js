@@ -34,8 +34,8 @@ function setBmView(on) {
 }
 
 // ── API ────────────────────────────────────────────────────────────────────
-async function api(method, url, data) {
-  const opts = { method, headers: {} };
+async function api(method, url, data, extraHeaders) {
+  const opts = { method, headers: { ...(extraHeaders || {}) } };
   if (collabShop)  opts.headers['X-Collab-Shop']    = String(collabShop.id);
   if (bmShopView)  opts.headers['X-Boutique-Shop']  = String(currentUser.shop.id);
   if (data instanceof FormData) {
