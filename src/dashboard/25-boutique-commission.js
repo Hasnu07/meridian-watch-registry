@@ -124,7 +124,7 @@ async function loadBoutiqueCommissionShop() {
     document.getElementById('bcShopSub').textContent = `${managerNames} is not linked to a shop yet — assign one under Admin → Users (store icon).`;
     document.getElementById('bcNewClient').innerHTML = '';
     document.getElementById('bcCollab').innerHTML = '';
-    body.innerHTML = `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
     return;
   }
   const [shop, watches, collaborators] = await Promise.all([
@@ -168,10 +168,58 @@ async function loadBoutiqueCommissionShop() {
 
   renderBcCollaborators(c);
 
-  // ── Pieces table: owned first, wishlist last ──
-  const ordered = [...watches.filter(w => w.status !== 'wishlist'), ...watches.filter(w => w.status === 'wishlist')];
-  body.innerHTML = ordered.length ? ordered.map(bcRowHtml).join('')
-    : `<tr><td colspan="6" class="px-6 py-12 text-center text-on-surface-variant text-sm">No pieces at this shop yet — add one with "New piece for this shop".</td></tr>`;
+  // ── Pieces table: one block per client — their bought pieces first, then their wishlist ──
+  body.innerHTML = watches.length ? bcGroupsHtml(watches, profiles)
+    : `<tr><td colspan="5" class="px-6 py-12 text-center text-on-surface-variant text-sm">No pieces at this shop yet — add one with "New piece for this shop".</td></tr>`;
+}
+
+// Group the shop's pieces by client so each person reads as one block: a
+// header row with the client's name, how many pieces they bought and have on
+// their wishlist, the list-price total and the commission shown to the
+// boutique, then their purchased pieces, then their wishlist pieces. Clients
+// with pieces are ordered by name; a client of the shop with no piece yet is
+// listed at the end so they are not forgotten when new pieces come in.
+function bcGroupsHtml(watches, profiles) {
+  const groups = new Map();
+  const keyOf = w => w.profile_id ?? `name:${w.client_name || ''}`;
+  for (const w of watches) {
+    const k = keyOf(w);
+    if (!groups.has(k)) groups.set(k, { name: w.client_name || '—', watches: [] });
+    groups.get(k).watches.push(w);
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  const withPieces = [...groups.values()].sort(byName);
+  const without = (profiles || []).filter(p => !groups.has(p.id)).map(p => ({ name: p.name, watches: [] })).sort(byName);
+
+  return [...withPieces, ...without].map(g => {
+    const owned = g.watches.filter(w => w.status !== 'wishlist');
+    const wish  = g.watches.filter(w => w.status === 'wishlist');
+    const listTotal = {};
+    for (const w of owned) if (w.list_price != null) listTotal[w.currency || 'CHF'] = (listTotal[w.currency || 'CHF'] || 0) + Number(w.list_price);
+    const shared = g.watches.flatMap(bcCommissions).filter(e => e.for_boutique);
+    const header = `
+      <tr class="bc-client-row">
+        <td colspan="5" class="!py-2.5 !px-5">
+          <div class="flex items-center gap-4 flex-wrap">
+            <span class="inline-flex items-center gap-2 text-sm font-semibold text-on-surface">
+              <span class="w-6 h-6 rounded-full bg-primary/15 text-primary text-[11px] font-semibold uppercase flex items-center justify-center">${esc((g.name || '?')[0])}</span>
+              ${esc(g.name)}
+            </span>
+            <span class="text-[11px] font-mono text-on-surface-variant">${g.watches.length} piece${g.watches.length !== 1 ? 's' : ''}</span>
+            ${owned.length ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-purple-300"><span class="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"></span>${owned.length} purchased</span>` : ''}
+            ${wish.length  ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>${wish.length} wishlist</span>` : ''}
+            <span class="ml-auto flex items-center gap-5 text-[11px] text-on-surface-variant">
+              ${owned.length ? `<span>List <span class="font-mono text-on-surface">${fmt.byCurrency(listTotal)}</span></span>` : ''}
+              ${shared.length ? `<span>Shown <span class="font-mono font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span></span>` : `<span class="text-outline">nothing shown</span>`}
+            </span>
+          </div>
+        </td>
+      </tr>`;
+    const rows = g.watches.length
+      ? [...owned, ...wish].map(bcRowHtml).join('')
+      : `<tr><td colspan="5" class="px-5 py-3 pl-[4.5rem] text-xs text-outline">No piece yet — add one with "New piece for this shop".</td></tr>`;
+    return header + rows;
+  }).join('');
 }
 
 // ── Collaborators card ─────────────────────────────────────────────────────
@@ -285,7 +333,7 @@ function bcRowHtml(w) {
     </div>`).join('');
   return `
     <tr class="tbl-row">
-      <td class="px-5 py-3">
+      <td class="pl-9 pr-5 py-3">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-11 h-11 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">${thumb}</div>
           <div class="min-w-0">
@@ -294,7 +342,6 @@ function bcRowHtml(w) {
           </div>
         </div>
       </td>
-      <td class="px-5 py-3 text-sm text-on-surface-variant">${esc(w.client_name || '—')}</td>
       <td class="px-5 py-3">${statusBadge(w.status)}</td>
       <td class="px-5 py-3 text-sm font-mono text-on-surface">${w.list_price != null ? fmt.price(w.list_price, cur) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-3">
@@ -315,7 +362,7 @@ function bcRowHtml(w) {
         </button>
       </td>
     </tr>
-    ${comms.length ? `<tr><td colspan="6" class="px-5 pb-3 pt-0"><div class="ml-14 pl-4 border-l border-amber-400/20">${entryRows}</div></td></tr>` : ''}`;
+    ${comms.length ? `<tr><td colspan="5" class="px-5 pb-3 pt-0"><div class="ml-14 pl-4 border-l border-amber-400/20">${entryRows}</div></td></tr>` : ''}`;
 }
 
 // Set commission = the Add Expense dialog, preset to a commission that the

@@ -600,6 +600,9 @@ html.wl-hidden [data-wl-row] { display: none; }
 [data-wl-row] { background-color: rgba(255, 194, 51, 0.025); }
 tr.wl-group-row > td { padding: 8px 20px; background: rgba(255, 194, 51, 0.04); border-top: 1px solid rgba(255, 194, 51, 0.18); }
 tr.wl-group-row:hover { box-shadow: none !important; background: none !important; }
+/* Boutique Commission: one block per client — the header row carries the name, counts and totals */
+tr.bc-client-row > td { background: rgba(34, 211, 255, 0.04); border-top: 1px solid rgba(34, 211, 255, 0.16); }
+tr.bc-client-row:hover { box-shadow: none !important; background: none !important; }
 .wl-toggle {
   display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 6px 4px; font-size: 13px; font-weight: 600; color: var(--text-2); text-align: left;
