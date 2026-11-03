@@ -550,11 +550,32 @@ async function toggleExpenseBoutique(expenseId, visible) {
   }
 }
 
+// A commission was paid out to the boutique (or back to pending)
+async function toggleExpensePaid(expenseId, paid) {
+  try {
+    await api('PUT', `/api/expenses/${expenseId}/paid`, { paid: !!paid });
+    if (currentPage === 'watch-detail'   && currentWatchId)   openWatchDetail(currentWatchId);
+    else if (currentPage === 'profile-detail' && currentProfileId) openProfileDetail(currentProfileId);
+    else if (currentPage === 'client-detail' && currentClientId) openClientDetail(currentClientId);
+    else if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
+  } catch (e) {
+    alert(e.message || 'Failed to update commission');
+  }
+}
+
+// Paid / pending badge of a commission (what the boutique is still owed)
+function expensePaidBadge(ex) {
+  if (ex.category !== 'commission' || ex.reversed) return '';
+  return ex.paid_at
+    ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 flex-shrink-0" title="Paid ${fmt.date(ex.paid_at)}">Paid</span>`
+    : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-on-surface-variant flex-shrink-0">Pending</span>`;
+}
+
 // Badge + toggle shown next to a commission expense in the ledgers
 function expenseBoutiqueControls(ex, size = 16) {
   if (ex.category !== 'commission' || ex.reversed) return '';
   const on = !!ex.for_boutique;
-  return `${on ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Boutique</span>` : ''}
+  return `${expensePaidBadge(ex)}${on ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Boutique</span>` : ''}
     <button onclick="toggleExpenseBoutique(${ex.id}, ${on ? 'false' : 'true'})" title="${on ? 'Shown to the boutique manager — click to hide' : 'Show to the boutique manager'}" class="p-1 transition-colors flex-shrink-0 ${on ? 'text-amber-300 hover:text-on-surface-variant' : 'text-on-surface-variant hover:text-amber-300'}">
       <span class="material-symbols-outlined text-[${size}px]">storefront</span>
     </button>`;

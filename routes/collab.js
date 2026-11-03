@@ -67,6 +67,7 @@ const ALLOWED = [
   ['POST',   /^\/watches\/(\d+)\/expenses$/,         watchIn],
   ['PUT',    /^\/expenses\/(\d+)$/,                  expIn],      // correct a commission
   ['PUT',    /^\/expenses\/(\d+)\/boutique$/,        expIn],
+  ['PUT',    /^\/expenses\/(\d+)\/paid$/,            expIn],      // paid out / pending
   ['POST',   /^\/expenses\/(\d+)\/reverse$/,         expIn],
   ['POST',   /^\/profiles$/,                         () => true],   // a client for THIS shop (routes/profiles.js checks shop_id)
   ['GET',    /^\/profiles\/(\d+)$/,                  profIn],

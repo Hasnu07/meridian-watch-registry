@@ -51,7 +51,7 @@ function commissionOf(watchId) {
   const byCur = {};
   for (const e of rows) byCur[e.currency || 'CHF'] = (byCur[e.currency || 'CHF'] || 0) + Number(e.amount || 0);
   return {
-    entries: rows.map(e => ({ id: e.id, date: e.date, amount: e.amount, currency: e.currency || 'CHF', description: e.description, category: e.category })),
+    entries: rows.map(e => ({ id: e.id, date: e.date, amount: e.amount, currency: e.currency || 'CHF', description: e.description, category: e.category, paid_at: e.paid_at || null })),
     byCur,
   };
 }

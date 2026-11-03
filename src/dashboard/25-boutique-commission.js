@@ -135,9 +135,10 @@ async function loadBoutiqueCommissionShop() {
   _bcShop = shop; _bcWatches = watches; _bcCollaborators = collaborators;
   watches.forEach(w => { watchCache[w.id] = w; });
 
-  // ── Tiles: what the boutique currently sees ──
+  // ── Tiles: the balance with the boutique — total shown, paid out, still pending ──
   const all = watches.flatMap(bcCommissions);
   const shared = all.filter(e => e.for_boutique);
+  const paid = shared.filter(e => e.paid_at), pending = shared.filter(e => !e.paid_at);
   const tile = (label, value, sub, cls = 'bm-commission') => `
     <div class="glass-surface rounded-lg p-5">
       <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-3">${label}</p>
@@ -145,10 +146,13 @@ async function loadBoutiqueCommissionShop() {
       <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
     </div>`;
   const seenBy = managerNames ? esc(managerNames) : 'the boutique';
+  const n = (list, word = 'commission') => `${list.length} ${word}${list.length !== 1 ? 's' : ''}`;
+  const monthName = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   document.getElementById('bcTiles').innerHTML = [
-    tile(`Shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${shared.length} commission${shared.length !== 1 ? 's' : ''} shared · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''}`),
-    tile('Shared this month', fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date))), new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })),
-    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${all.length - shared.length} commission${all.length - shared.length !== 1 ? 's' : ''} recorded but not shown`, 'text-on-surface'),
+    tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}`),
+    tile('Paid', fmt.byCurrency(bcSum(paid)), `${n(paid)} paid out to ${seenBy}`, 'text-emerald-400'),
+    tile('Pending', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay`, pending.length ? 'bm-commission' : 'text-on-surface'),
+    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${n(all.filter(e => !e.for_boutique))} recorded but not shown`, 'text-on-surface'),
   ].join('');
 
   document.getElementById('bcShopTitle').textContent = `Pieces at ${shop.name}`;
@@ -211,6 +215,8 @@ function bcGroupsHtml(watches, profiles) {
             <span class="ml-auto flex items-center gap-5 text-[11px] text-on-surface-variant">
               ${owned.length ? `<span>List <span class="font-mono text-on-surface">${fmt.byCurrency(listTotal)}</span></span>` : ''}
               ${shared.length ? `<span>Shown <span class="font-mono font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span></span>` : `<span class="text-outline">nothing shown</span>`}
+              ${shared.some(e => e.paid_at) ? `<span>Paid <span class="font-mono font-semibold text-emerald-400">${fmt.byCurrency(bcSum(shared, e => e.paid_at))}</span></span>` : ''}
+              ${shared.some(e => !e.paid_at) ? `<span>Pending <span class="font-mono font-semibold text-on-surface">${fmt.byCurrency(bcSum(shared, e => !e.paid_at))}</span></span>` : ''}
             </span>
           </div>
         </td>
@@ -322,10 +328,12 @@ function bcRowHtml(w) {
     <div class="flex items-center gap-3 py-1.5">
       <span class="text-[11px] font-mono text-on-surface-variant w-20 flex-shrink-0">${fmt.date(e.date)}</span>
       <span class="flex-1 text-xs text-on-surface-variant truncate">${esc(e.description || 'Commission')}</span>
+      ${expensePaidBadge(e)}
       ${e.for_boutique
         ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 flex-shrink-0">Shown</span>`
         : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-outline flex-shrink-0">Private</span>`}
       <span class="font-mono text-xs ${e.for_boutique ? 'bm-commission' : 'text-on-surface-variant'} flex-shrink-0 w-24 text-right">${fmt.price(e.amount, e.currency || cur)}</span>
+      <button onclick="toggleExpensePaid(${e.id}, ${e.paid_at ? 'false' : 'true'})" title="${e.paid_at ? `Paid ${fmt.date(e.paid_at)} — click to set back to pending` : 'Mark this commission as paid out'}" class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border transition-all flex-shrink-0 ${e.paid_at ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'}">${e.paid_at ? 'Unpaid' : 'Mark paid'}</button>
       <button onclick="toggleExpenseBoutique(${e.id}, ${e.for_boutique ? 'false' : 'true'})" title="${e.for_boutique ? 'Hide from the boutique manager' : 'Show to the boutique manager'}" class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border transition-all flex-shrink-0 ${e.for_boutique ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-amber-400/30 text-amber-300 hover:bg-amber-400/10'}">${e.for_boutique ? 'Hide' : 'Show'}</button>
       <button onclick="openEditExpenseModal(${e.id}, ${w.id})" title="Edit this commission" aria-label="Edit this commission" class="p-1 text-on-surface-variant hover:text-primary transition-colors flex-shrink-0">
         <span class="material-symbols-outlined text-[14px]">edit</span>
@@ -349,6 +357,9 @@ function bcRowHtml(w) {
       <td class="px-5 py-3 text-sm font-mono text-on-surface">${w.list_price != null ? fmt.price(w.list_price, cur) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-3">
         ${shared.length ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="text-xs text-outline">nothing shown</span>`}
+        ${shared.length ? (shared.every(e => e.paid_at)
+            ? `<span class="block text-[11px] text-emerald-400 mt-0.5">paid</span>`
+            : `<span class="block text-[11px] text-on-surface-variant mt-0.5">${fmt.byCurrency(bcSum(shared, e => !e.paid_at))} pending</span>`) : ''}
         ${comms.length > shared.length ? `<span class="block text-[11px] text-outline mt-0.5">${comms.length - shared.length} private</span>` : ''}
       </td>
       <td class="px-5 py-3 text-right whitespace-nowrap">

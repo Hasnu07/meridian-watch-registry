@@ -82,6 +82,21 @@ router.put('/expenses/:id/boutique', (req, res) => {
   res.json({ ok: true, expense: db.getExpense(expense.id), watch: db.getWatch(expense.watch_id, uid(req)) });
 });
 
+// PUT /api/expenses/:id/paid { paid: true|false }
+// A commission was paid out to the boutique — or wasn't after all.
+router.put('/expenses/:id/paid', (req, res) => {
+  const expense = db.getExpense(req.params.id);
+  if (!expense) return res.status(404).json({ error: 'Expense not found' });
+  if (db.getOwnerIdForWatch(expense.watch_id) !== uid(req)) return res.status(404).json({ error: 'Expense not found' });
+  if (expense.category !== 'commission') return res.status(400).json({ error: 'Only commissions can be marked paid' });
+  if (expense.reversed) return res.status(409).json({ error: 'This expense has been voided' });
+
+  const paid = !!req.body?.paid;
+  db.setExpensePaid(expense.id, paid);
+  audit(req, { action: 'update', targetType: 'expense', targetId: expense.id, details: { watch_id: expense.watch_id, amount: expense.amount, paid } });
+  res.json({ ok: true, expense: db.getExpense(expense.id), watch: db.getWatch(expense.watch_id, uid(req)) });
+});
+
 // POST /api/expenses/:id/reverse
 router.post('/expenses/:id/reverse', (req, res) => {
   const expense = db.getExpense(req.params.id);

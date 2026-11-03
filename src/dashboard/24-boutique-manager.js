@@ -97,10 +97,12 @@ async function loadCommissions() {
       <p class="font-playfair text-2xl bm-commission">${value}</p>
       <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
     </div>`;
+  const paid = entries.filter(e => e.paid_at), pending = entries.filter(e => !e.paid_at);
   document.getElementById('commissionTiles').innerHTML = [
-    tile('Total commission', fmt.byCurrency(total), `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} shared with you`),
+    tile('Total balance', fmt.byCurrency(total), `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} shared with you · ${pieces} of ${watches.length} piece${watches.length !== 1 ? 's' : ''} at ${bmShopName()}`),
+    tile('Paid', `<span class="text-emerald-400">${fmt.byCurrency(sum(paid))}</span>`, `${paid.length} entr${paid.length === 1 ? 'y' : 'ies'} paid out to you`),
+    tile('Pending', pending.length ? fmt.byCurrency(sum(pending)) : `<span class="text-on-surface">${fmt.byCurrency(sum(pending))}</span>`, `${pending.length} entr${pending.length === 1 ? 'y' : 'ies'} still to be paid`),
     tile(`This month`, fmt.byCurrency(month), monthName),
-    tile('Pieces with commission', `<span class="text-on-surface">${pieces}</span>`, `of ${watches.length} piece${watches.length !== 1 ? 's' : ''} at ${bmShopName()}`),
   ].join('');
   document.getElementById('commissionsCount').textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
   document.getElementById('commissionsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -139,7 +141,8 @@ async function loadCommissions() {
         <td class="px-5 py-3 text-sm text-on-surface-variant">${esc(w.client_name || '—')}</td>
         <td class="px-5 py-3">${statusBadge(w.status)}</td>
         <td class="px-5 py-3 text-sm text-on-surface-variant max-w-[320px] truncate">${esc(e.description || '—')}</td>
-        <td class="px-5 py-3 text-right font-mono text-sm font-semibold bm-commission whitespace-nowrap">${fmt.price(e.amount, e.currency || w.currency || 'CHF')}</td>
+        <td class="px-5 py-3 text-right font-mono text-sm font-semibold bm-commission whitespace-nowrap">${fmt.price(e.amount, e.currency || w.currency || 'CHF')}
+          <span class="block mt-0.5">${expensePaidBadge(e)}</span></td>
       </tr>`;
   }
   body.innerHTML = html;
