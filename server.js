@@ -14,7 +14,7 @@ const cron        = require('node-cron');
 const db          = require('./db');
 const notifier    = require('./lib/wishlist-notifier');
 const seedDemo    = require('./lib/seed-demo-data');
-const { UPLOADS_DIR } = require('./config');
+const { UPLOADS_DIR, DATA_DIR } = require('./config');
 
 // ── Initialise database ───────────────────────────────────────────────────
 db.init();
@@ -27,9 +27,13 @@ const PORT = process.env.PORT || 3000;
 // We never want to ship the literal 'fallback-secret'. If SESSION_SECRET
 // isn't set we persist a generated 64-byte hex string to .session-secret
 // the first time the server starts and reuse it on subsequent boots.
+// The file lives on the DATA_DIR disk (persistent on Render), not beside the
+// code: a secret beside the code was wiped by every deploy, and a new secret
+// signs every session out — phones, which dip in and out over days, felt it
+// most. (Set SESSION_SECRET in the environment and the file is never used.)
 function loadOrCreateSessionSecret() {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
-  const secretPath = path.join(__dirname, '.session-secret');
+  const secretPath = path.join(DATA_DIR, '.session-secret');
   try {
     if (fs.existsSync(secretPath)) {
       const s = fs.readFileSync(secretPath, 'utf8').trim();
@@ -50,13 +54,23 @@ function loadOrCreateSessionSecret() {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Persistent session store — sessions survive server restarts
+// Behind Render's proxy: trust the first hop so req.ip is the real client
+// (the login rate limit counts per person, not per proxy) and req.secure
+// reflects the HTTPS the browser used (the cookie can be marked Secure).
+app.set('trust proxy', 1);
+
+// Persistent session store — sessions survive server restarts.
+// The sign-in lasts 30 days and is extended on every visit (rolling), so a
+// phone that opens the registry a few times a day stays signed in; it used
+// to run out 8 hours after signing in, whatever happened in between.
+const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 app.use(session({
-  store:             createSqliteSessionStore(),
+  store:             createSqliteSessionStore(SESSION_MAX_AGE),
   secret:            loadOrCreateSessionSecret(),
   resave:            false,
   saveUninitialized: false,
-  cookie:            { httpOnly: true, maxAge: 8 * 60 * 60 * 1000 }, // 8 h
+  rolling:           true,
+  cookie:            { httpOnly: true, sameSite: 'lax', secure: 'auto', maxAge: SESSION_MAX_AGE },
 }));
 
 app.use('/uploads', express.static(UPLOADS_DIR));

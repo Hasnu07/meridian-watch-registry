@@ -7,16 +7,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Tilt+Neon&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=bc1a1c4519">
+  <link rel="stylesheet" href="style.css?v=8129dd2e73">
   <script src="/cursor.js?v=1d36b475b2"></script>
   <link rel="stylesheet" href="/neon.css?v=83ffa28203">
-  <link rel="stylesheet" href="/css/app.css?v=dab5ed8052">
+  <link rel="stylesheet" href="/css/app.css?v=58d2abd8b1">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased">
 
 <!-- ═══ APP SHELL ════════════════════════════════════════════════════════ -->
 <div class="flex min-h-screen">
 
+  <!-- Phone: tap outside the open drawer to close it -->
+  <div id="navBackdrop" class="nav-backdrop" hidden></div>
   <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
   <aside id="sidebar" class="w-64 fixed left-0 top-0 h-screen flex flex-col bg-background border-r border-outline-variant/15 z-50">
     <!-- Logo -->
@@ -133,6 +135,10 @@
     <!-- Topbar -->
     <header id="topbar" class="fixed top-0 right-0 left-64 h-16 flex items-center justify-between px-6 bg-background border-b border-outline-variant/60 z-40 transition-all">
       <div class="flex items-center gap-3 min-w-0">
+        <!-- Phone: the sidebar is a drawer behind this button (01-core.js) -->
+        <button type="button" id="navToggle" class="nav-toggle lg:hidden" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+          <span class="material-symbols-outlined text-[22px]">menu</span>
+        </button>
         <div id="topbarTitle" class="text-lg font-semibold text-on-surface tracking-tight truncate"></div>
         <span class="live-pill hidden lg:inline-flex" title="Local time"><span class="live-dot"></span><span id="liveClock">--:--</span></span>
       </div>
@@ -2090,6 +2096,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=ae368c7b7e"></script>
+<script src="/js/dashboard.js?v=2865a3106a"></script>
 </body>
 </html>
