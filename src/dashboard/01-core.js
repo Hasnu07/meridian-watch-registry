@@ -87,6 +87,7 @@ const PAGES = ['dashboard','shops','portfolios','main-kpi','shop-detail','portfo
 
 function showPage(name) {
   scrubAutofilledSearches();
+  if (typeof window.closePhoneSearch === 'function') window.closePhoneSearch();
   if (collabShop && !COLLAB_PAGES.includes(name)) setCollabShop(null);
   if (bmShopView && !BM_VIEW_PAGES.includes(name)) setBmView(false);
   PAGES.forEach(p => {
@@ -167,6 +168,20 @@ document.getElementById('navBackdrop')?.addEventListener('click', () => setNavOp
 document.getElementById('sidebar')?.addEventListener('click', e => { if (e.target.closest('[data-page], #logoutBtn')) setNavOpen(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) setNavOpen(false); });
 window.matchMedia('(min-width: 1024px)').addEventListener('change', e => { if (e.matches) setNavOpen(false); });
+
+// Under 640px the search is an icon (style.css); a tap opens the field over
+// the top bar, leaving it closes it again when nothing was typed.
+(() => {
+  const wrap = document.getElementById('globalSearchWrap'), input = document.getElementById('globalSearch');
+  if (!wrap || !input) return;
+  const small = () => window.matchMedia('(max-width: 639px)').matches;
+  wrap.addEventListener('click', () => { if (small() && !wrap.classList.contains('is-open')) { wrap.classList.add('is-open'); input.focus(); } });
+  input.addEventListener('blur', () => { if (small() && !input.value) wrap.classList.remove('is-open'); });
+  input.addEventListener('keydown', e => { if (e.key === 'Escape') { input.value = ''; input.blur(); } });
+  // A tap anywhere else, or a page change, folds it again
+  document.addEventListener('pointerdown', e => { if (small() && wrap.classList.contains('is-open') && !wrap.contains(e.target)) { wrap.classList.remove('is-open'); } }, true);
+  window.closePhoneSearch = () => { if (small()) wrap.classList.remove('is-open'); };
+})();
 
 // ── Logout ─────────────────────────────────────────────────────────────────
 document.getElementById('logoutBtn').addEventListener('click', async () => {

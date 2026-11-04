@@ -712,3 +712,61 @@ html.collab [onclick*="openPortfolioDetail"], html.collab [onclick*="openClientD
   /* Modals use the whole width */
   [id$="Modal"] > div { max-width: calc(100vw - 24px) !important; }
 }
+
+/* ── Phone content (under 640px) ──────────────────────────────────────────────
+   Tables become stacked cards: the header row goes, each row is a block, each
+   cell a line (first cell bold, the rest muted), the action buttons a row
+   underneath. Grid list rows wrap. Pickers and search fit the width. */
+@media (max-width: 639px) {
+  /* Tables → cards */
+  [id^="page-"] table { min-width: 0 !important; width: 100%; }
+  [id^="page-"] table thead { display: none; }
+  [id^="page-"] table, [id^="page-"] table tbody, [id^="page-"] table tr, [id^="page-"] table td { display: block; width: 100%; box-sizing: border-box; }
+  [id^="page-"] table tr { padding: 12px 16px; }
+  [id^="page-"] table tbody tr + tr { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+  [id^="page-"] table td { padding: 3px 0 !important; text-align: left !important; white-space: normal !important; max-width: none !important; }
+  [id^="page-"] table td:empty { display: none; }
+  [id^="page-"] table td[colspan] { padding: 4px 0 !important; }
+  [id^="page-"] table tr > td:first-child { padding-bottom: 6px !important; }
+  [id^="page-"] table td .justify-end { justify-content: flex-start; }
+  [id^="page-"] table td .ml-14, [id^="page-"] table td .pl-\[4\.5rem\] { margin-left: 0 !important; padding-left: 12px !important; }
+  [id^="page-"] table .bc-client-row > td, [id^="page-"] table .wl-group-row > td { padding: 8px 0 !important; }
+  [id^="page-"] table .bc-client-row .ml-auto { margin-left: 0; width: 100%; flex-wrap: wrap; gap: 6px 14px; }
+  /* Grid list rows (Shops / Portfolios list view) wrap */
+  [id^="page-"] .tbl-row.grid { display: flex !important; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+  [id^="page-"] .tbl-row.grid > :first-child { flex: 1 1 100%; }
+  [id^="page-"] .grid.bg-surface-container-low { display: none; }   /* the list views' header row */
+  /* Section titles with inline figures (Registry · 9 shops · 17 clients …) flow as text */
+  p.vault-section-title { display: block; line-height: 1.7; }
+  p.vault-section-title::before { display: inline-block; vertical-align: middle; margin-right: 8px; }
+  /* Pickers and selects take the width */
+  #bcManagerSelect, #newUserShop, .sort-select-wrap { min-width: 0 !important; width: 100%; }
+  #page-boutique-commission label.flex.items-center.gap-3 { flex-wrap: wrap; width: 100%; }
+  /* Fixed three-column grids stack; two-column form grids in dialogs stack */
+  [id^="page-"] .grid-cols-3 { grid-template-columns: minmax(0, 1fr) !important; }
+  [id$="Modal"] .grid-cols-2, [id$="Modal"] .sm\:grid-cols-2 { grid-template-columns: minmax(0, 1fr) !important; }
+  [id$="Modal"] > div { max-height: 92vh; overflow-y: auto; }
+  /* The top-bar search folds to an icon; tapping it opens the field over the bar */
+  #topbar { position: fixed; }
+  #globalSearchWrap { flex: 0 0 40px; width: 40px !important; padding: 0 !important; justify-content: center; cursor: pointer; }
+  #globalSearchWrap input { display: none; }
+  #globalSearchWrap.is-open { position: absolute; left: 12px; right: 12px; top: 12px; width: auto !important; flex: none; padding: 0 12px !important; z-index: 5; background: #0B0F15; cursor: text; }
+  #globalSearchWrap.is-open input { display: block; }
+  /* List views' bare figures (portfolios / clients columns) have no header on a phone: the cards carry them */
+  [id^="page-"] .tbl-row.grid > p.font-mono { display: none; }
+  /* Admin users: the counts keep their meaning, on one line */
+  #adminUsersBody td:nth-child(3), #adminUsersBody td:nth-child(4), #adminUsersBody td:nth-child(5), #adminUsersBody td:nth-child(6) { display: inline-block; width: auto; margin-right: 14px; }
+  #adminUsersBody td:nth-child(3)::before { content: 'Clients '; color: var(--muted); }
+  #adminUsersBody td:nth-child(4)::before { content: 'Watches '; color: var(--muted); }
+  #adminUsersBody td:nth-child(5)::before { content: 'Sold '; color: var(--muted); }
+  #adminUsersBody td:nth-child(6)::before { content: 'Since '; color: var(--muted); }
+  /* Watch page: the hero's action buttons become a two-column block under the title */
+  #watchDetailContent .flex:not(.flex-col) { flex-wrap: wrap; }
+  #watchDetailContent .flex-shrink-0.flex-wrap.justify-end { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 8px; }
+  #watchDetailContent .flex-shrink-0.flex-wrap.justify-end > button { justify-content: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Detail-page hero rows and chip rows wrap */
+  [id^="page-"] .flex.items-start.gap-6 { flex-wrap: wrap; }
+  [id^="page-"] .w-32.h-32 { width: 96px; height: 96px; }
+  /* Wide page headers: title and controls stack */
+  [id^="page-"] > .mb-8.flex.items-end { align-items: flex-start; }
+}
