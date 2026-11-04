@@ -222,8 +222,11 @@ function esc(s) {
     if (topBtn) {
       topBtn.setAttribute('aria-pressed', String(isOn));
       topBtn.classList.toggle('is-on', isOn);
-      document.getElementById('cursorModeIcon').textContent  = isOn ? 'ads_click' : 'arrow_selector_tool';
-      document.getElementById('cursorModeLabel').textContent = isOn ? 'Neon' : 'Normal';
+      // On a touch device cursor.js strips the button's inner spans: guard, or
+      // this top-level call throws and the rest of the dashboard script never runs
+      const icon = document.getElementById('cursorModeIcon'), label = document.getElementById('cursorModeLabel');
+      if (icon)  icon.textContent  = isOn ? 'ads_click' : 'arrow_selector_tool';
+      if (label) label.textContent = isOn ? 'Neon' : 'Normal';
       topBtn.title = isOn ? 'Neon cursor is on — click for the normal cursor' : 'Normal cursor — click to turn the neon cursor back on';
     }
   }

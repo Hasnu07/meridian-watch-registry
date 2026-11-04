@@ -152,6 +152,22 @@ document.querySelectorAll('[data-page]').forEach(el => {
   el.addEventListener('click', () => showPage(el.dataset.page));
 });
 
+// ── Phone: the sidebar as a drawer ─────────────────────────────────────────
+// Under 1024px the sidebar slides in over the page from the menu button in
+// the top bar (style.css: body.nav-open). Choosing a page, tapping the
+// backdrop or pressing Escape closes it; resizing to a desktop width resets.
+function setNavOpen(open) {
+  document.body.classList.toggle('nav-open', open);
+  document.getElementById('navToggle')?.setAttribute('aria-expanded', String(open));
+  const backdrop = document.getElementById('navBackdrop');
+  if (backdrop) backdrop.hidden = !open;
+}
+document.getElementById('navToggle')?.addEventListener('click', () => setNavOpen(!document.body.classList.contains('nav-open')));
+document.getElementById('navBackdrop')?.addEventListener('click', () => setNavOpen(false));
+document.getElementById('sidebar')?.addEventListener('click', e => { if (e.target.closest('[data-page], #logoutBtn')) setNavOpen(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) setNavOpen(false); });
+window.matchMedia('(min-width: 1024px)').addEventListener('change', e => { if (e.matches) setNavOpen(false); });
+
 // ── Logout ─────────────────────────────────────────────────────────────────
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   await api('POST', '/api/auth/logout');
