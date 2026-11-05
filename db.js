@@ -604,6 +604,10 @@ function createUser({ username, passwordHash, role, ownerId, shopId }) {
   return id;
 }
 
+function setUsername(id, username) {
+  db.prepare('UPDATE users SET username = ? WHERE id = ?').run(username, id);
+}
+
 function updateUserRole(id, role) {
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
 }
@@ -1753,7 +1757,7 @@ function deletePatekDeal(id, ownerId) {
 module.exports = {
   init,
   getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
-  createUser, updateUserRole, setUserShop, listBoutiqueManagers, deleteUser,
+  createUser, updateUserRole, setUserShop, setUsername, listBoutiqueManagers, deleteUser,
   listShopCollaborators, addShopCollaborator, removeShopCollaborator, getCollaboration, listCollaborationsForUser,
   listSalaries, getSalary, createSalary, updateSalary, deleteSalary, setSalaryMonthPaid, isMonth, monthsBetween,
   logAudit, listAuditLog, countAuditLog,
