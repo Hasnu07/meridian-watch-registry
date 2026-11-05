@@ -1018,6 +1018,29 @@
             </table>
           </div>
         </div>
+        <!-- Pieces shared with you: every piece the owner shows this manager, with the commission on it (24-boutique-manager.js) -->
+        <div id="commissionPieces" class="glass-surface rounded-lg overflow-hidden mt-8">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h3 class="font-playfair text-xl text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[20px]">visibility</span>Pieces shared with you</h3>
+              <p id="commissionPiecesSub" class="text-xs text-on-surface-variant mt-0.5">Every piece the owner shows you, by client, with the commission set on it.</p>
+            </div>
+            <span id="commissionPiecesCount" class="text-xs font-mono text-outline"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                  <th class="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Client · Piece</th>
+                  <th class="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Status</th>
+                  <th class="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant text-right">List price</th>
+                  <th class="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant text-right">Your commission</th>
+                </tr>
+              </thead>
+              <tbody id="commissionPiecesBody" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+        </div>
         <!-- Wishlist pending: the shop's pieces not bought yet — tomorrow's commissions (24-boutique-manager.js) -->
         <div id="commissionWishlist" class="glass-surface rounded-lg overflow-hidden mt-8">
           <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
@@ -2114,6 +2137,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=971b316612"></script>
+<script src="/js/dashboard.js?v=0845984b3f"></script>
 </body>
 </html>

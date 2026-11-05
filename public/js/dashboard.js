@@ -9026,6 +9026,7 @@ async function loadCommissions() {
          wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
   renderCommissionWishlist(wish);
+  renderCommissionPieces(watches);
   document.getElementById('commissionsCount').textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
   document.getElementById('commissionsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
@@ -9094,6 +9095,65 @@ function renderCommissionWishlist(wish) {
       <span class="font-mono text-lg font-semibold leading-none ${urgency} whitespace-nowrap">${d}<span class="text-xs font-sans font-medium text-outline ml-1">${d === 1 ? 'day' : 'days'}</span></span>
     </button>`;
   }).join('') : `<p class="px-6 py-10 text-center text-sm text-on-surface-variant">Nothing on the wishlist at ${esc(bmShopName())}.</p>`;
+}
+
+// Every piece the owner shows this manager, grouped by client (as the owner's
+// Boutique Commission page groups them), with the commission set on each —
+// so a piece shown without a commission yet is still seen here.
+function renderCommissionPieces(watches) {
+  const body = document.getElementById('commissionPiecesBody');
+  const count = document.getElementById('commissionPiecesCount');
+  const sub = document.getElementById('commissionPiecesSub');
+  if (!body) return;
+  const sum = list => { const m = {}; for (const e of list) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; };
+  const groups = new Map();
+  for (const w of watches) {
+    const key = w.profile_id ?? `name:${w.client_name || ''}`;
+    if (!groups.has(key)) groups.set(key, { name: w.client_name || 'No client', items: [] });
+    groups.get(key).items.push(w);
+  }
+  const clients = [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+  count.textContent = watches.length ? `${watches.length} piece${watches.length !== 1 ? 's' : ''} · ${clients.length} client${clients.length !== 1 ? 's' : ''}` : '';
+  sub.textContent = `Every piece the owner shows you at ${bmShopName()}, by client, with the commission set on it.`;
+  if (!watches.length) {
+    body.innerHTML = `<tr><td colspan="4" class="px-6 py-10 text-center text-sm text-on-surface-variant">No pieces shared with you yet at ${esc(bmShopName())}.</td></tr>`;
+    return;
+  }
+  let html = '';
+  for (const c of clients) {
+    const withCommission = c.items.filter(w => (w.expenses || []).length);
+    const total = sum(c.items.flatMap(w => w.expenses || []));
+    html += `<tr class="wl-group-row"><td colspan="4" class="!py-2 !px-5">
+      <span class="inline-flex items-center gap-2">
+        <span class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">${esc((c.name || '?').trim().charAt(0).toUpperCase())}</span>
+        <span class="text-sm font-semibold text-on-surface">${esc(c.name)}</span>
+        <span class="text-[11px] font-mono text-outline">${c.items.length} piece${c.items.length !== 1 ? 's' : ''}</span>
+        ${withCommission.length ? `<span class="font-mono text-xs bm-commission ml-2">${fmt.byCurrency(total)}</span>` : `<span class="text-[11px] text-outline ml-2">no commission yet</span>`}
+      </span></td></tr>`;
+    for (const w of c.items) {
+      const entries = w.expenses || [];
+      const pending = entries.filter(e => !e.paid_at);
+      html += `
+      <tr class="tbl-row cursor-pointer" onclick="openWatchDetail(${w.id})">
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-3 min-w-0">
+            ${bmThumb(w)}
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+              <p class="text-xs font-mono text-outline truncate">${esc(w.reference_number || '')}${w.serial_number ? ` · ${esc(w.serial_number)}` : ''}</p>
+            </div>
+          </div>
+        </td>
+        <td class="px-5 py-3">${statusBadge(w.status)}</td>
+        <td class="px-5 py-3 text-right font-mono text-sm text-on-surface whitespace-nowrap">${w.list_price != null ? fmt.price(w.list_price, w.currency || 'CHF') : '<span class="text-outline">—</span>'}</td>
+        <td class="px-5 py-3 text-right whitespace-nowrap">${entries.length
+          ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(sum(entries))}</span>
+             <span class="block text-[11px] text-on-surface-variant mt-0.5">${pending.length ? `${fmt.byCurrency(sum(pending))} pending` : 'paid out'}</span>`
+          : `<span class="text-xs text-outline">${w.status === 'wishlist' ? 'wishlist · once handed over' : 'no commission yet'}</span>`}</td>
+      </tr>`;
+    }
+  }
+  body.innerHTML = html;
 }
 
 // ── Watch page ─────────────────────────────────────────────────────────────
