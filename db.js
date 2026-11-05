@@ -462,6 +462,35 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_shop_collaborators_user ON shop_collaborators(user_id);
   `);
 
+  // ── Boutique salaries ────────────────────────────────────────────────────
+  // Besides commissions, an owner may pay the shop's boutique manager a fixed
+  // monthly salary. A salary is a monthly amount from a start month, until an
+  // end month or still running; each month is paid or pending
+  // (boutique_salary_paid). Owned by the registry; the manager sees it
+  // read-only (routes/boutique.js); collaborators of the shop manage it like
+  // commissions (routes/collab.js).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS boutique_salaries (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      shop_id     INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+      owner_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount      REAL    NOT NULL,
+      currency    TEXT    NOT NULL DEFAULT 'EUR',
+      start_month TEXT    NOT NULL,
+      end_month   TEXT,
+      description TEXT,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  DATETIME DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_boutique_salaries_shop ON boutique_salaries(shop_id);
+    CREATE TABLE IF NOT EXISTS boutique_salary_paid (
+      salary_id INTEGER NOT NULL REFERENCES boutique_salaries(id) ON DELETE CASCADE,
+      month     TEXT    NOT NULL,
+      paid_at   TEXT    NOT NULL,
+      PRIMARY KEY (salary_id, month)
+    );
+  `);
+
   // Per-owner email uniqueness — safe here because owner_id now exists on
   // profiles (fresh DBs: just added above; existing DBs: already present).
   // NULL emails are ignored (SQLite treats NULLs as distinct in indices).
@@ -590,6 +619,77 @@ function listBoutiqueManagers(ownerId) {
     WHERE u.role = 'boutique_manager' AND u.owner_id = ?
     ORDER BY s.name ASC, u.username ASC
   `).all(ownerId);
+}
+
+// ── Boutique salaries ──────────────────────────────────────────────────────
+
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+function isMonth(m) { return typeof m === 'string' && MONTH_RE.test(m); }
+function currentMonth() { return new Date().toISOString().slice(0, 7); }
+// Every month from `from` to `to` inclusive ('YYYY-MM')
+function monthsBetween(from, to) {
+  const out = [];
+  if (!isMonth(from) || !isMonth(to) || from > to) return out;
+  let [y, m] = from.split('-').map(Number);
+  for (;;) {
+    const k = `${y}-${String(m).padStart(2, '0')}`;
+    out.push(k);
+    if (k >= to) break;
+    if (++m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+
+// A salary with its months so far (newest first) and whether each was paid.
+// Months run from the start month to the end month, or to the current month
+// while the salary is still running.
+function salaryWithMonths(row) {
+  const paid = Object.fromEntries(db.prepare('SELECT month, paid_at FROM boutique_salary_paid WHERE salary_id = ?').all(row.id).map(r => [r.month, r.paid_at]));
+  const upTo = row.end_month && row.end_month < currentMonth() ? row.end_month : currentMonth();
+  const months = monthsBetween(row.start_month, upTo).reverse().map(month => ({ month, amount: row.amount, currency: row.currency, paid_at: paid[month] || null }));
+  return { ...row, months };
+}
+
+function listSalaries(shopId, ownerId) {
+  return db.prepare('SELECT * FROM boutique_salaries WHERE shop_id = ? AND owner_id = ? ORDER BY start_month DESC, id DESC')
+    .all(shopId, ownerId).map(salaryWithMonths);
+}
+
+function getSalary(id) {
+  const row = db.prepare('SELECT * FROM boutique_salaries WHERE id = ?').get(id);
+  return row ? salaryWithMonths(row) : null;
+}
+
+function createSalary({ shopId, ownerId, amount, currency, start_month, end_month, description, createdBy }) {
+  return db.prepare(
+    'INSERT INTO boutique_salaries (shop_id, owner_id, amount, currency, start_month, end_month, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(shopId, ownerId, Number(amount), currency || 'EUR', start_month, end_month || null, description || null, createdBy ?? null).lastInsertRowid;
+}
+
+function updateSalary(id, { amount, currency, start_month, end_month, description }) {
+  const fields = [], values = [];
+  if (amount      !== undefined) { fields.push('amount = ?');      values.push(Number(amount)); }
+  if (currency    !== undefined) { fields.push('currency = ?');    values.push(currency || 'EUR'); }
+  if (start_month !== undefined) { fields.push('start_month = ?'); values.push(start_month); }
+  if (end_month   !== undefined) { fields.push('end_month = ?');   values.push(end_month || null); }
+  if (description !== undefined) { fields.push('description = ?'); values.push(description || null); }
+  if (!fields.length) return;
+  values.push(id);
+  db.prepare(`UPDATE boutique_salaries SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+function deleteSalary(id) {
+  db.prepare('DELETE FROM boutique_salaries WHERE id = ?').run(id);
+}
+
+// A month of a salary was paid out (or wasn't after all)
+function setSalaryMonthPaid(id, month, paid) {
+  if (paid) {
+    db.prepare('INSERT INTO boutique_salary_paid (salary_id, month, paid_at) VALUES (?, ?, ?) ON CONFLICT(salary_id, month) DO UPDATE SET paid_at = excluded.paid_at')
+      .run(id, month, new Date().toISOString().split('T')[0]);
+  } else {
+    db.prepare('DELETE FROM boutique_salary_paid WHERE salary_id = ? AND month = ?').run(id, month);
+  }
 }
 
 // ── Shop collaborators ─────────────────────────────────────────────────────
@@ -1646,6 +1746,7 @@ module.exports = {
   getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
   createUser, updateUserRole, setUserShop, listBoutiqueManagers, deleteUser,
   listShopCollaborators, addShopCollaborator, removeShopCollaborator, getCollaboration, listCollaborationsForUser,
+  listSalaries, getSalary, createSalary, updateSalary, deleteSalary, setSalaryMonthPaid, isMonth, monthsBetween,
   logAudit, listAuditLog, countAuditLog,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
