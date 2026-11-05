@@ -342,6 +342,10 @@ function init() {
   // Rule a sold watch was settled under ('split' | 'discount'); NULL = the
   // client's (profile's) rule. Chosen per watch on Mark Sold.
   if (!wcols.includes('rule_applied'))             db.exec("ALTER TABLE watches ADD COLUMN rule_applied TEXT");
+  // A piece the owner keeps off the boutique manager's view altogether (the
+  // Boutique Commission page's per-piece switch). Off by default: every piece
+  // of the shop is shown unless hidden.
+  if (!wcols.includes('hidden_from_boutique'))     db.exec("ALTER TABLE watches ADD COLUMN hidden_from_boutique INTEGER NOT NULL DEFAULT 0");
   const lpcols = db.prepare("PRAGMA table_info(loss_payments)").all().map(r => r.name);
   if (!lpcols.includes('offset_from_watch_id'))    db.exec("ALTER TABLE loss_payments ADD COLUMN offset_from_watch_id INTEGER");
   // Commission expenses the owner chose to show to the shop's boutique manager
@@ -1571,6 +1575,11 @@ function setExpensePaid(id, paid) {
     .run(paid ? new Date().toISOString().split('T')[0] : null, id);
 }
 
+// Show / hide a piece itself to the shop's boutique manager
+function setWatchBoutiqueHidden(id, hidden) {
+  db.prepare('UPDATE watches SET hidden_from_boutique = ? WHERE id = ?').run(hidden ? 1 : 0, id);
+}
+
 // Share / unshare a commission with the shop's boutique manager
 function setExpenseBoutique(id, visible) {
   db.prepare("UPDATE watch_expenses SET for_boutique = ? WHERE id = ? AND category = 'commission'").run(visible ? 1 : 0, id);
@@ -1761,6 +1770,7 @@ module.exports = {
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
   applyDiscountOffset, clearOffsetsFrom, listMarketPrices, recordMarketPrice, resyncWatchStatuses,
   listExpenses, getExpense, createExpense, updateExpense, reverseExpense, setExpenseBoutique, setExpensePaid,
+  setWatchBoutiqueHidden,
   listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
   listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,
   listPatekDeals, getPatekDeal, createPatekDeal, updatePatekDeal, deletePatekDeal,
