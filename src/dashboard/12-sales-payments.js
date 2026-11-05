@@ -550,6 +550,15 @@ async function toggleExpenseBoutique(expenseId, visible) {
   }
 }
 
+// Show or hide a piece itself to the boutique manager (Boutique Commission page)
+async function toggleWatchBoutique(watchId, visible) {
+  try {
+    await api('PUT', `/api/watches/${watchId}/boutique`, { visible: !!visible });
+    if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
+    else if (currentPage === 'watch-detail' && currentWatchId) openWatchDetail(currentWatchId);
+  } catch (e) { alert(e.message || 'Failed to update the piece'); }
+}
+
 // A commission was paid out to the boutique (or back to pending)
 async function toggleExpensePaid(expenseId, paid) {
   try {

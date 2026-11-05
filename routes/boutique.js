@@ -91,6 +91,7 @@ function sanitizeWatch(w) {
 
 function sanitizeProfile(p) {
   return {
+    // watch_count re-counted below where the watches are listed; here as given
     id:             p.id,
     name:           p.name,
     email:          p.email,
@@ -116,8 +117,12 @@ function sanitizePortfolio(pt) {
 }
 
 // A sanitised profile list with full watch rows (for shop detail expand rows)
+// A piece the owner hid from the boutique (watches.hidden_from_boutique) is
+// left out everywhere here — lists, counts, its page — commissions included.
+const shown = w => !w.hidden_from_boutique;
+
 function profileWithWatches(p, ownerId) {
-  return { ...sanitizeProfile(p), watches: db.listWatchesForProfile(p.id, ownerId).map(w => sanitizeWatch({ ...w, client_name: p.name, shop_name: p.shop_name })) };
+  return { ...sanitizeProfile(p), watches: db.listWatchesForProfile(p.id, ownerId).filter(shown).map(w => sanitizeWatch({ ...w, client_name: p.name, shop_name: p.shop_name })) };
 }
 
 function myShop(req) {
@@ -126,7 +131,7 @@ function myShop(req) {
 
 function shopWatches(req, q) {
   if (!req.bm.shopId) return [];
-  return db.listAllWatches({ q, shop_id: req.bm.shopId, ownerId: req.bm.ownerId }).map(sanitizeWatch);
+  return db.listAllWatches({ q, shop_id: req.bm.shopId, ownerId: req.bm.ownerId }).filter(shown).map(sanitizeWatch);
 }
 
 // ── Endpoints ──────────────────────────────────────────────────────────────
@@ -211,7 +216,7 @@ router.get('/watches/:id', (req, res) => {
   const shop = myShop(req);
   const w = shop && db.getWatch(req.params.id, req.bm.ownerId);
   const p = w && db.getProfile(w.profile_id, req.bm.ownerId);
-  if (!w || !p || p.shop_id !== shop.id) return res.status(404).json({ error: 'Not found' });
+  if (!w || !p || p.shop_id !== shop.id || !shown(w)) return res.status(404).json({ error: 'Not found' });
   res.json({ ...sanitizeWatch({ ...w, client_name: p.name, shop_name: p.shop_name }), profile: sanitizeProfile(p) });
 });
 

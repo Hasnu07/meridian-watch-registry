@@ -67,6 +67,7 @@ const ALLOWED = [
   ['GET',    /^\/portfolios$/,                       () => true],   // forced to shop_id below
   ['GET',    /^\/watches$/,                          () => true],   // forced to shop_id below
   ['GET',    /^\/watches\/(\d+)$/,                   watchIn],
+  ['PUT',    /^\/watches\/(\d+)\/boutique$/,         watchIn],     // show / hide the piece to the manager
   ['PUT',    /^\/watches\/(\d+)$/,                   watchIn],     // edit — not sell (routes/watches.js)
   ['DELETE', /^\/watches\/(\d+)$/,                   watchIn],     // remove a piece
   ['GET',    /^\/watches\/(\d+)\/expenses$/,         watchIn],

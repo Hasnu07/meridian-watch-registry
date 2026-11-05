@@ -49,6 +49,18 @@ router.get('/:id', (req, res) => {
   });
 });
 
+// PUT /api/watches/:id/boutique { visible: true|false }
+// Show or hide the piece itself to the shop's boutique manager (their view,
+// routes/boutique.js, leaves a hidden piece out entirely — commissions included).
+router.put('/:id/boutique', (req, res) => {
+  const watch = db.getWatch(req.params.id, uid(req));
+  if (!watch) return res.status(404).json({ error: 'Not found' });
+  const visible = !!req.body?.visible;
+  db.setWatchBoutiqueHidden(watch.id, !visible);
+  audit(req, { action: 'update', targetType: 'watch', targetId: watch.id, details: { model: watch.model, shown_to_boutique: visible } });
+  res.json({ ok: true, watch: db.getWatch(watch.id, uid(req)) });
+});
+
 // PUT /api/watches/:id
 router.put('/:id', (req, res) => {
   upload.single('image')(req, res, async (err) => {

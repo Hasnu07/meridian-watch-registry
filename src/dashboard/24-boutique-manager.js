@@ -313,6 +313,7 @@ async function loadCommissions() {
     tile('Paid', `<span class="text-emerald-400">${fmt.byCurrency(sum(paid))}</span>`, `${paid.length} entr${paid.length === 1 ? 'y' : 'ies'} paid out to you`),
     tile('Commission left', pending.length ? fmt.byCurrency(sum(pending)) : `<span class="text-on-surface">${fmt.byCurrency(sum(pending))}</span>`, `${pending.length} entr${pending.length === 1 ? 'y' : 'ies'} still to be paid to you`),
     tile(`This month`, fmt.byCurrency(month), monthName),
+    tile('Total · commission + salary', `<span class="text-on-surface">${fmt.byCurrency(sumCurrencyMaps(total, salaryTotals(salaries).total))}</span>`, `${fmt.byCurrency(total)} commission + ${fmt.byCurrency(salaryTotals(salaries).total)} salary · paid ${fmt.byCurrency(sumCurrencyMaps(sum(paid), salaryTotals(salaries).paid))} · left ${fmt.byCurrency(sumCurrencyMaps(sum(pending), salaryTotals(salaries).pending))}`),
     tile('Wishlist pending', `<span class="${wish.length ? 'text-amber-300' : 'text-on-surface'}">${wish.length}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${wish.length === 1 ? 'piece' : 'pieces'}</span></span>`,
          wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
