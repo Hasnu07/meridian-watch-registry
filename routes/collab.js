@@ -54,7 +54,13 @@ const inShop   = (m, c) => Number(m[1]) === c.shopId ? true : null;
 const watchIn  = (m, c) => shopOfWatch(m[1], c.ownerId) === c.shopId ? true : null;
 const profIn   = (m, c) => shopOfProfile(m[1], c.ownerId) === c.shopId ? true : null;
 const expIn    = (m, c) => shopOfExpense(m[1], c.ownerId) === c.shopId ? true : null;
+const salaryIn = (m, c) => { const sl = db.getSalary(m[1]); return sl && sl.shop_id === c.shopId && sl.owner_id === c.ownerId ? true : null; };
 const ALLOWED = [
+  ['GET',    /^\/shops\/(\d+)\/salaries$/,           inShop],      // the manager's salary: set, paid month by month
+  ['POST',   /^\/shops\/(\d+)\/salaries$/,           inShop],
+  ['PUT',    /^\/salaries\/(\d+)$/,                  salaryIn],
+  ['DELETE', /^\/salaries\/(\d+)$/,                  salaryIn],
+  ['PUT',    /^\/salaries\/(\d+)\/months\/[0-9-]+\/paid$/, salaryIn],
   ['GET',    /^\/shops\/(\d+)$/,                     inShop],
   ['GET',    /^\/shops\/(\d+)\/individual-clients$/,  inShop],
   ['GET',    /^\/shops\/(\d+)\/collaborators$/,      inShop],

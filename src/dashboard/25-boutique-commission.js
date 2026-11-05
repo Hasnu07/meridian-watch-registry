@@ -124,13 +124,15 @@ async function loadBoutiqueCommissionShop() {
     document.getElementById('bcShopSub').textContent = `${managerNames} is not linked to a shop yet — assign one under Admin → Users (store icon).`;
     document.getElementById('bcNewClient').innerHTML = '';
     document.getElementById('bcCollab').innerHTML = '';
+    document.getElementById('bcSalaryPane').innerHTML = '';
     body.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
     return;
   }
-  const [shop, watches, collaborators] = await Promise.all([
+  const [shop, watches, collaborators, salaries] = await Promise.all([
     api('GET', `/api/shops/${c.shop_id}`),
     api('GET', `/api/watches?shop_id=${c.shop_id}`),
     api('GET', `/api/shops/${c.shop_id}/collaborators`).catch(() => []),
+    api('GET', `/api/shops/${c.shop_id}/salaries`).catch(() => []),
   ]);
   _bcShop = shop; _bcWatches = watches; _bcCollaborators = collaborators;
   watches.forEach(w => { watchCache[w.id] = w; });
@@ -153,7 +155,7 @@ async function loadBoutiqueCommissionShop() {
   const longest = wish.reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
   const waiting30 = wish.filter(w => (wishlistDays(w) ?? 0) >= 30).length;
   document.getElementById('bcTiles').innerHTML = [
-    tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}`),
+    tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}${salaryTotals(salaries).months ? ` · + ${fmt.byCurrency(salaryTotals(salaries).total)} salary` : ''}`),
     tile('Paid', fmt.byCurrency(bcSum(paid)), `${n(paid)} paid out to ${seenBy}`, 'text-emerald-400'),
     tile('Commission left', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay ${seenBy}`, pending.length ? 'bm-commission' : 'text-on-surface'),
     tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${n(all.filter(e => !e.for_boutique))} recorded but not shown`, 'text-on-surface'),
@@ -177,6 +179,14 @@ async function loadBoutiqueCommissionShop() {
   document.getElementById('bcNewPieceBtn').classList.toggle('opacity-50', !profiles.length);
 
   renderBcCollaborators(c);
+
+  // ── Salary tab: the manager's monthly salary, paid month by month ──
+  renderSalaryPane(document.getElementById('bcSalaryPane'), salaries, {
+    canEdit: true, shopId: c.shop_id, managerName: managerNames || 'the boutique manager',
+    ownerName: inCollab ? c.owner_username : 'you', commissionTotals: bcSum(shared),
+    reload: loadBoutiqueCommissionShop,
+  });
+  showPaneTab('bc', currentPaneTab('bc'));
 
   // ── Pieces table: one block per client — their bought pieces first, then their wishlist ──
   body.innerHTML = watches.length ? bcGroupsHtml(watches, profiles)

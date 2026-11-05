@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="style.css?v=8129dd2e73">
   <script src="/cursor.js?v=1d36b475b2"></script>
   <link rel="stylesheet" href="/neon.css?v=83ffa28203">
-  <link rel="stylesheet" href="/css/app.css?v=58d2abd8b1">
+  <link rel="stylesheet" href="/css/app.css?v=22179dd6f8">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased">
 
@@ -938,6 +938,12 @@
         <div id="bcContent" class="hidden">
           <!-- Working a shop another registry shared with us (25-boutique-commission.js) -->
           <div id="bcContext" class="hidden mb-6 px-5 py-3.5 rounded-lg border border-primary/30 bg-primary/5 text-sm text-on-surface flex items-center gap-3"></div>
+          <!-- Commissions | Salary (26-salary.js) -->
+          <div class="flex items-center gap-1 border-b border-outline-variant/15 mb-6" role="tablist" aria-label="Commissions or salary">
+            <button type="button" role="tab" data-bc-tab="commissions" class="text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b-2 border-amber-400 text-amber-300"><span class="material-symbols-outlined text-[15px] align-[-3px] mr-1">payments</span>Commissions</button>
+            <button type="button" role="tab" data-bc-tab="salary" class="text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b-2 border-transparent text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[15px] align-[-3px] mr-1">account_balance_wallet</span>Salary</button>
+          </div>
+          <div id="bcCommissionsPane">
           <div id="bcTiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8"></div>
           <!-- Collaborators: who works this shop with its owner -->
           <div id="bcCollab" class="glass-surface rounded-lg px-6 py-4 mb-8"></div>
@@ -969,6 +975,9 @@
               </table>
             </div>
           </div>
+          </div><!-- /bcCommissionsPane -->
+          <!-- The manager's salary: set by the owner, paid month by month -->
+          <div id="bcSalaryPane" class="hidden"></div>
         </div>
       </div>
 
@@ -981,6 +990,12 @@
           </div>
           <p id="commissionsUpdated" class="text-xs font-mono text-outline"></p>
         </div>
+        <!-- Commissions | Salary (26-salary.js) -->
+          <div class="flex items-center gap-1 border-b border-outline-variant/15 mb-6" role="tablist" aria-label="Commissions or salary">
+            <button type="button" role="tab" data-cm-tab="commissions" class="text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b-2 border-amber-400 text-amber-300"><span class="material-symbols-outlined text-[15px] align-[-3px] mr-1">payments</span>Commissions</button>
+            <button type="button" role="tab" data-cm-tab="salary" class="text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b-2 border-transparent text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[15px] align-[-3px] mr-1">account_balance_wallet</span>Salary</button>
+          </div>
+        <div id="cmCommissionsPane">
         <div id="commissionTiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8"></div>
         <div class="glass-surface rounded-lg overflow-hidden">
           <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
@@ -1014,6 +1029,9 @@
           </div>
           <div id="commissionWishlistBody" class="divide-y divide-white/[0.04]"></div>
         </div>
+        </div><!-- /cmCommissionsPane -->
+        <!-- The salary the owner pays them, month by month (read-only) -->
+        <div id="cmSalaryPane" class="hidden"></div>
       </div>
 
       <div id="page-messages" class="hidden p-6 xl:p-8 max-w-[1440px] w-full mx-auto">
@@ -2096,6 +2114,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=2865a3106a"></script>
+<script src="/js/dashboard.js?v=15eee9ae7a"></script>
 </body>
 </html>

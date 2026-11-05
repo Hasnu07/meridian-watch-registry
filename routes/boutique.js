@@ -19,7 +19,8 @@
  * wishlist or has been handed over (never purchased vs sold), dates, list
  * price, image, notes, which client (membership) it belongs to, and the
  * COMMISSION the owner chose to share with them (expenses of category
- * 'commission' flagged for_boutique; their Commissions tab lists these).
+ * 'commission' flagged for_boutique; their Commissions tab lists these) and
+ * the SALARY the owner pays them, month by month (the Salary tab).
  * Never: stock number, the resale price, who bought it, costs, payouts, loss
  * settlements, split rules or capital.
  */
@@ -166,6 +167,15 @@ router.get('/shops/:id', (req, res) => {
   const shop = myShop(req);
   if (!shop || Number(req.params.id) !== shop.id) return res.status(404).json({ error: 'Not found' });
   res.json({ ...sanitizeShop(shop), profiles: db.listProfilesForShop(shop.id, req.bm.ownerId).map(sanitizeProfile) });
+});
+
+// The salary the owner pays them, month by month (read-only)
+router.get('/shops/:id/salaries', (req, res) => {
+  const shop = myShop(req);
+  if (!shop || Number(req.params.id) !== shop.id) return res.status(404).json({ error: 'Not found' });
+  res.json(db.listSalaries(shop.id, req.bm.ownerId).map(sl => ({
+    id: sl.id, amount: sl.amount, currency: sl.currency, start_month: sl.start_month, end_month: sl.end_month, description: sl.description, months: sl.months,
+  })));
 });
 
 router.get('/shops/:id/individual-clients', (req, res) => {
