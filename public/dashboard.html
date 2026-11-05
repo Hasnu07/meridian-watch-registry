@@ -1018,6 +1018,29 @@
             </table>
           </div>
         </div>
+        <!-- Pieces shared with you: every piece the owner shows this manager, with the commission on it (24-boutique-manager.js) -->
+        <div id="commissionPieces" class="glass-surface rounded-lg overflow-hidden mt-8">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h3 class="font-playfair text-xl text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[20px]">visibility</span>Pieces shared with you</h3>
+              <p id="commissionPiecesSub" class="text-xs text-on-surface-variant mt-0.5">Every piece the owner shows you, by client, with the commission set on it.</p>
+            </div>
+            <span id="commissionPiecesCount" class="text-xs font-mono text-outline"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low border-b border-outline-variant/10">
+                  <th class="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Client · Piece</th>
+                  <th class="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Status</th>
+                  <th class="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant text-right">List price</th>
+                  <th class="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant text-right">Your commission</th>
+                </tr>
+              </thead>
+              <tbody id="commissionPiecesBody" class="divide-y divide-white/[0.04]"></tbody>
+            </table>
+          </div>
+        </div>
         <!-- Wishlist pending: the shop's pieces not bought yet — tomorrow's commissions (24-boutique-manager.js) -->
         <div id="commissionWishlist" class="glass-surface rounded-lg overflow-hidden mt-8">
           <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
@@ -2012,6 +2035,52 @@
   </div>
 </div>
 
+<!-- ═══ USER MODAL (Admin → edit a user) ════════════════════════════════ -->
+<div id="userModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-md bg-surface-container border border-white/10 rounded-lg shadow-2xl">
+    <div class="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+      <div>
+        <h2 class="font-playfair text-xl text-on-surface">Edit user</h2>
+        <p id="userModalSub" class="text-[11px] text-on-surface-variant mt-0.5"></p>
+      </div>
+      <button id="closeUserModal" type="button" aria-label="Close" class="text-outline hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="userModalId">
+      <div>
+        <label for="userModalUsername" class="block text-xs uppercase tracking-wider text-outline mb-1.5">Username</label>
+        <input type="text" id="userModalUsername" autocomplete="off" data-lpignore="true" data-1p-ignore data-bwignore class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        <p class="text-[11px] text-on-surface-variant mt-1.5">At least 3 characters. They sign in with it.</p>
+      </div>
+      <div id="userModalRoleWrap">
+        <label for="userModalRole" class="block text-xs uppercase tracking-wider text-outline mb-1.5">Role</label>
+        <select id="userModalRole" class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+          <option value="admin" style="background:#131A24;color:#E6EDF7">Admin · isolated workspace</option>
+          <option value="master" style="background:#131A24;color:#E6EDF7">Master · full system access</option>
+        </select>
+        <p id="userModalRoleHint" class="text-[11px] text-on-surface-variant mt-1.5"></p>
+      </div>
+      <div id="userModalShopWrap" class="hidden">
+        <label for="userModalShop" class="block text-xs uppercase tracking-wider text-outline mb-1.5">Shop they look after</label>
+        <select id="userModalShop" class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"></select>
+        <p id="userModalShopHint" class="text-[11px] text-on-surface-variant mt-1.5"></p>
+      </div>
+      <div>
+        <label for="userModalPassword" class="block text-xs uppercase tracking-wider text-outline mb-1.5">New password <span class="normal-case tracking-normal text-on-surface-variant/70">· optional</span></label>
+        <input type="password" id="userModalPassword" autocomplete="new-password" placeholder="leave empty to keep the current one" class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-4 py-3 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all">
+        <p class="text-[11px] text-on-surface-variant mt-1.5">At least 6 characters.</p>
+      </div>
+      <div id="userModalError" class="hidden px-4 py-3 rounded-lg bg-error-container/20 border border-error/20 text-error text-sm"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-white/[0.06] flex items-center justify-end gap-3">
+      <button id="cancelUserModal" type="button" class="text-on-surface-variant hover:text-on-surface text-sm underline px-4 py-2 transition-all">Cancel</button>
+      <button id="saveUserBtn" type="button" class="bg-primary text-on-primary font-semibold px-8 py-3 rounded-lg text-sm hover:brightness-110 active:scale-[0.98] transition-all">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ PORTFOLIO MODAL ══════════════════════════════════════════════════ -->
 <div id="portfolioModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
   <div class="w-full max-w-sm bg-surface-container border border-white/10 rounded-lg shadow-2xl">
@@ -2114,6 +2183,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=971b316612"></script>
+<script src="/js/dashboard.js?v=5dd6daa98a"></script>
 </body>
 </html>

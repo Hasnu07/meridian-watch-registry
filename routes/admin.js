@@ -67,11 +67,34 @@ router.post('/users', async (req, res) => {
   }
 });
 
-// PUT /api/admin/users/:id { role } | { shop_id }
+// GET /api/admin/users/:id/shops — the shops a boutique manager can be moved
+// between: those of the registry they belong to (the Edit dialog's shop list,
+// without first viewing as that owner). Empty for any other role.
+router.get('/users/:id/shops', (req, res) => {
+  const user = db.getUserById(Number(req.params.id));
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role !== 'boutique_manager' || !user.owner_id) return res.json([]);
+  res.json(db.listShops(user.owner_id).map(s => ({ id: s.id, name: s.name })));
+});
+
+// PUT /api/admin/users/:id { username? , role? , shop_id? }
 router.put('/users/:id', (req, res) => {
   const id   = Number(req.params.id);
   const user = db.getUserById(id);
   if (!user) return res.status(404).json({ error: 'User not found' });
+
+  // Rename (any role). The signed-in master's own session follows the rename.
+  if (req.body.username !== undefined) {
+    const name = String(req.body.username).trim();
+    if (name.length < 3) return res.status(400).json({ error: 'username must be at least 3 characters' });
+    if (name !== user.username) {
+      const taken = db.getUserByUsername(name);
+      if (taken && taken.id !== id) return res.status(409).json({ error: 'Username already taken' });
+      db.setUsername(id, name);
+      if (id === req.session.user.id) req.session.user.username = name;
+      audit(req, { action: 'update', targetType: 'user', targetId: id, details: { username_from: user.username, username_to: name } });
+    }
+  }
 
   // Boutique managers: only their shop can change (within the same registry).
   // The role itself never changes — the shop assignment would be lost.

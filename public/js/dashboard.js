@@ -255,8 +255,10 @@ document.querySelectorAll('.admin-tab').forEach(b => {
   b.addEventListener('click', () => showAdminTab(b.dataset.adminTab));
 });
 
+let _adminUsers = [];
 async function loadAdminUsers() {
   const users = await api('GET', '/api/admin/users');
+  _adminUsers = users;
   const me    = currentUser?.id;
   const body  = document.getElementById('adminUsersBody');
   body.innerHTML = users.map(u => {
@@ -295,17 +297,9 @@ async function loadAdminUsers() {
             <button onclick="adminViewAs(${u.id})" title="View their workspace" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
               <span class="material-symbols-outlined text-[16px]">visibility</span>
             </button>` : ''}
-            ${isBm ? `
-            <button onclick="adminChangeShop(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}', ${u.owner_id || 'null'})" title="Change shop" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
-              <span class="material-symbols-outlined text-[16px]">store</span>
-            </button>` : ''}
-            <button onclick="adminResetPassword(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}' )" title="Reset password" class="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors">
-              <span class="material-symbols-outlined text-[16px]">key</span>
+            <button onclick="adminEditUser(${u.id})" title="Edit user" class="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors">
+              <span class="material-symbols-outlined text-[16px]">edit</span>
             </button>
-            ${u.role === 'master' || isBm || isMe ? '' : `
-            <button onclick="adminPromote(${u.id})" title="Promote to master" class="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors">
-              <span class="material-symbols-outlined text-[16px]">workspace_premium</span>
-            </button>`}
             ${!isMe ? `
             <button onclick="adminDeleteUser(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}' )" title="Delete user" class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors">
               <span class="material-symbols-outlined text-[16px]">delete</span>
@@ -316,53 +310,80 @@ async function loadAdminUsers() {
   }).join('');
 }
 
-// Move a boutique manager to another shop of the registry they belong to.
-// The shop list comes from the current workspace, so switch to that owner's
-// workspace (View as) first when the manager belongs to someone else.
-async function adminChangeShop(userId, username, ownerId) {
-  const workspace = currentUser?.viewing_as?.id || currentUser?.id;
-  if (ownerId && ownerId !== workspace) {
-    alert(`${username} belongs to another registry. Use "View their workspace" on its owner first, then change the shop from there.`);
-    return;
+// ── Edit user (dialog): username, role, the managed shop, a new password ──
+// One place for everything that used to be a prompt: rename, admin ↔ master,
+// move a boutique manager between the shops of the registry they belong to
+// (listed by the server, so no "view as" first), and reset the password.
+async function adminEditUser(userId) {
+  const u = _adminUsers.find(x => x.id === userId);
+  if (!u) return;
+  const isBm = u.role === 'boutique_manager', isMe = u.id === currentUser?.id;
+  document.getElementById('userModalId').value = u.id;
+  document.getElementById('userModalSub').textContent = `ID #${u.id}${isBm ? ` · boutique manager${u.owner_username ? ` in ${u.owner_username}'s registry` : ''}` : ''}`;
+  document.getElementById('userModalUsername').value = u.username;
+  document.getElementById('userModalPassword').value = '';
+  const err = document.getElementById('userModalError'); err.classList.add('hidden'); err.textContent = '';
+
+  const roleWrap = document.getElementById('userModalRoleWrap'), role = document.getElementById('userModalRole'), roleHint = document.getElementById('userModalRoleHint');
+  roleWrap.classList.toggle('hidden', isBm);
+  role.value = u.role === 'master' ? 'master' : 'admin';
+  role.disabled = isMe;
+  roleHint.textContent = isMe ? 'You cannot change your own role.' : 'Master sees every workspace and the Admin page; Admin has an isolated workspace.';
+
+  const shopWrap = document.getElementById('userModalShopWrap'), shop = document.getElementById('userModalShop'), shopHint = document.getElementById('userModalShopHint');
+  shopWrap.classList.toggle('hidden', !isBm);
+  if (isBm) {
+    shop.innerHTML = '<option>Loading…</option>';
+    try {
+      const shops = await api('GET', `/api/admin/users/${u.id}/shops`);
+      shop.innerHTML = shops.map(s => `<option value="${s.id}" style="background:#131A24;color:#E6EDF7" ${s.id === u.shop_id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')
+        || '<option value="">No shops in that registry</option>';
+      shopHint.textContent = `The shops of ${u.owner_username || 'the owner'}'s registry. The manager sees only this shop's clients and pieces.`;
+    } catch (e) { shop.innerHTML = '<option value="">Could not load shops</option>'; shopHint.textContent = e.message; }
   }
-  let shops;
-  try { shops = await api('GET', '/api/shops'); } catch (e) { alert(e.message); return; }
-  if (!shops.length) { alert('This workspace has no shops yet.'); return; }
-  const choice = prompt(`Which shop should ${username} look after?\n\n` + shops.map((s, i) => `${i + 1}. ${s.name}`).join('\n') + '\n\nType the number:');
-  if (!choice) return;
-  const shop = shops[Number(choice) - 1];
-  if (!shop) { alert('No shop with that number.'); return; }
+  document.getElementById('userModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('userModalUsername').focus(), 50);
+}
+
+function closeUserModal() { document.getElementById('userModal').classList.add('hidden'); }
+
+async function saveAdminUser() {
+  const id = Number(document.getElementById('userModalId').value);
+  const u = _adminUsers.find(x => x.id === id);
+  if (!u) return;
+  const err = document.getElementById('userModalError');
+  const fail = msg => { err.textContent = msg; err.classList.remove('hidden'); };
+  const username = document.getElementById('userModalUsername').value.trim();
+  const password = document.getElementById('userModalPassword').value;
+  if (username.length < 3) return fail('Username must be at least 3 characters.');
+  if (password && password.length < 6) return fail('New password must be at least 6 characters.');
+
+  const body = {};
+  if (username !== u.username) body.username = username;
+  if (u.role === 'boutique_manager') {
+    const shopId = Number(document.getElementById('userModalShop').value);
+    if (shopId && shopId !== u.shop_id) body.shop_id = shopId;
+  } else {
+    const role = document.getElementById('userModalRole').value;
+    if (role !== u.role && u.id !== currentUser?.id) body.role = role;
+  }
+  const btn = document.getElementById('saveUserBtn');
+  btn.disabled = true;
   try {
-    await api('PUT', `/api/admin/users/${userId}`, { shop_id: shop.id });
+    if (Object.keys(body).length) await api('PUT', `/api/admin/users/${id}`, body);
+    if (password) await api('PUT', `/api/admin/users/${id}/password`, { new_password: password });
+    closeUserModal();
+    if (id === currentUser?.id && body.username) await refreshCurrentUser();
     await loadAdminUsers();
-  } catch (e) { alert(e.message); }
+  } catch (e) { fail(e.message); }
+  finally { btn.disabled = false; }
 }
 
-async function adminViewAs(userId) {
-  try {
-    await api('POST', '/api/admin/view-as', { user_id: userId });
-    await refreshCurrentUser();
-    showPage('dashboard');
-  } catch (e) { alert(e.message); }
-}
-
-async function adminResetPassword(userId, username) {
-  const pw = prompt(`Set a new password for ${username}\n(at least 6 characters)`);
-  if (!pw) return;
-  if (pw.length < 6) { alert('Password must be at least 6 characters'); return; }
-  try {
-    await api('PUT', `/api/admin/users/${userId}/password`, { new_password: pw });
-    alert(`Password for ${username} has been reset.`);
-  } catch (e) { alert(e.message); }
-}
-
-async function adminPromote(userId) {
-  if (!confirm('Promote this user to master? They will gain full access to all workspaces.')) return;
-  try {
-    await api('PUT', `/api/admin/users/${userId}`, { role: 'master' });
-    await loadAdminUsers();
-  } catch (e) { alert(e.message); }
-}
+document.getElementById('closeUserModal').addEventListener('click', closeUserModal);
+document.getElementById('cancelUserModal').addEventListener('click', closeUserModal);
+document.getElementById('saveUserBtn').addEventListener('click', saveAdminUser);
+document.getElementById('userModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeUserModal(); });
+document.getElementById('userModal').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); saveAdminUser(); } });
 
 async function adminDeleteUser(userId, username) {
   if (!confirm(`Delete user "${username}" and ALL their data (clients, watches, settings)? This cannot be undone.`)) return;
@@ -6703,7 +6724,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal(); closeShopModal(); closeMarkSoldModal();
-  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal(); closeRecordPayoutModal(); closeShareLinkModal();
+  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal(); closeRecordPayoutModal(); closeShareLinkModal(); closeUserModal();
   document.getElementById('lightbox').classList.add('hidden');
 });
 
@@ -9026,6 +9047,7 @@ async function loadCommissions() {
          wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
   renderCommissionWishlist(wish);
+  renderCommissionPieces(watches);
   document.getElementById('commissionsCount').textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
   document.getElementById('commissionsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
@@ -9094,6 +9116,65 @@ function renderCommissionWishlist(wish) {
       <span class="font-mono text-lg font-semibold leading-none ${urgency} whitespace-nowrap">${d}<span class="text-xs font-sans font-medium text-outline ml-1">${d === 1 ? 'day' : 'days'}</span></span>
     </button>`;
   }).join('') : `<p class="px-6 py-10 text-center text-sm text-on-surface-variant">Nothing on the wishlist at ${esc(bmShopName())}.</p>`;
+}
+
+// Every piece the owner shows this manager, grouped by client (as the owner's
+// Boutique Commission page groups them), with the commission set on each —
+// so a piece shown without a commission yet is still seen here.
+function renderCommissionPieces(watches) {
+  const body = document.getElementById('commissionPiecesBody');
+  const count = document.getElementById('commissionPiecesCount');
+  const sub = document.getElementById('commissionPiecesSub');
+  if (!body) return;
+  const sum = list => { const m = {}; for (const e of list) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; };
+  const groups = new Map();
+  for (const w of watches) {
+    const key = w.profile_id ?? `name:${w.client_name || ''}`;
+    if (!groups.has(key)) groups.set(key, { name: w.client_name || 'No client', items: [] });
+    groups.get(key).items.push(w);
+  }
+  const clients = [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+  count.textContent = watches.length ? `${watches.length} piece${watches.length !== 1 ? 's' : ''} · ${clients.length} client${clients.length !== 1 ? 's' : ''}` : '';
+  sub.textContent = `Every piece the owner shows you at ${bmShopName()}, by client, with the commission set on it.`;
+  if (!watches.length) {
+    body.innerHTML = `<tr><td colspan="4" class="px-6 py-10 text-center text-sm text-on-surface-variant">No pieces shared with you yet at ${esc(bmShopName())}.</td></tr>`;
+    return;
+  }
+  let html = '';
+  for (const c of clients) {
+    const withCommission = c.items.filter(w => (w.expenses || []).length);
+    const total = sum(c.items.flatMap(w => w.expenses || []));
+    html += `<tr class="wl-group-row"><td colspan="4" class="!py-2 !px-5">
+      <span class="inline-flex items-center gap-2">
+        <span class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">${esc((c.name || '?').trim().charAt(0).toUpperCase())}</span>
+        <span class="text-sm font-semibold text-on-surface">${esc(c.name)}</span>
+        <span class="text-[11px] font-mono text-outline">${c.items.length} piece${c.items.length !== 1 ? 's' : ''}</span>
+        ${withCommission.length ? `<span class="font-mono text-xs bm-commission ml-2">${fmt.byCurrency(total)}</span>` : `<span class="text-[11px] text-outline ml-2">no commission yet</span>`}
+      </span></td></tr>`;
+    for (const w of c.items) {
+      const entries = w.expenses || [];
+      const pending = entries.filter(e => !e.paid_at);
+      html += `
+      <tr class="tbl-row cursor-pointer" onclick="openWatchDetail(${w.id})">
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-3 min-w-0">
+            ${bmThumb(w)}
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+              <p class="text-xs font-mono text-outline truncate">${esc(w.reference_number || '')}${w.serial_number ? ` · ${esc(w.serial_number)}` : ''}</p>
+            </div>
+          </div>
+        </td>
+        <td class="px-5 py-3">${statusBadge(w.status)}</td>
+        <td class="px-5 py-3 text-right font-mono text-sm text-on-surface whitespace-nowrap">${w.list_price != null ? fmt.price(w.list_price, w.currency || 'CHF') : '<span class="text-outline">—</span>'}</td>
+        <td class="px-5 py-3 text-right whitespace-nowrap">${entries.length
+          ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(sum(entries))}</span>
+             <span class="block text-[11px] text-on-surface-variant mt-0.5">${pending.length ? `${fmt.byCurrency(sum(pending))} pending` : 'paid out'}</span>`
+          : `<span class="text-xs text-outline">${w.status === 'wishlist' ? 'wishlist · once handed over' : 'no commission yet'}</span>`}</td>
+      </tr>`;
+    }
+  }
+  body.innerHTML = html;
 }
 
 // ── Watch page ─────────────────────────────────────────────────────────────
