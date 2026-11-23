@@ -97,6 +97,9 @@ async function loadMainKpi() {
   ]);
 
   const { profilePnls, totals } = computeKpiData(profiles, allWatches);
+  // Closed deals and the settled ones waiting to be closed (27-close-deals.js)
+  const profileById = Object.fromEntries(profiles.map(p => [p.id, p]));
+  const deals = closeDealStats(allWatches.map(w => ({ ...w, profile: profileById[w.profile_id] })));
 
   const m   = v => fmt.money(v);
   const sgn = v => v > 0 ? '+' : '';
@@ -113,6 +116,8 @@ async function loadMainKpi() {
     { label: 'Total Expenses',   value: totals.totalExpenses > 0 ? m(totals.totalExpenses) : '—', cls: totals.totalExpenses > 0 ? 'text-sky-300' : 'text-on-surface-variant/40' },
     { label: 'Client Outstanding', value: totals.clientRemaining > 0 ? m(totals.clientRemaining) : '—', cls: totals.clientRemaining > 0 ? 'text-purple-300' : 'text-on-surface-variant/40', sub: totals.clientRemaining > 0 ? 'owed to clients' : 'settled' },
     { label: 'My Outstanding',     value: totals.myRemaining     > 0 ? m(totals.myRemaining)     : '—', cls: totals.myRemaining     > 0 ? 'text-amber-300'  : 'text-on-surface-variant/40', sub: totals.myRemaining     > 0 ? 'not yet withdrawn' : 'settled' },
+    { label: 'Closed deals',   value: deals.closed.n ? fmt.byCurrency(deals.closed.money) : '—', cls: deals.closed.n ? 'text-on-surface' : 'text-on-surface-variant/40', sub: deals.closed.n ? `${deals.closed.n} deal${deals.closed.n !== 1 ? 's' : ''} closed` : 'none closed yet' },
+    { label: 'About to close', value: deals.ready.n  ? fmt.byCurrency(deals.ready.money)  : '—', cls: deals.ready.n  ? 'text-sky-300'   : 'text-on-surface-variant/40', sub: deals.ready.n ? `${deals.ready.n} settled, not yet closed` : 'nothing waiting' },
   ].map(t => `
     <div class="glass-surface rounded-lg p-4">
       <p class="text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5">${t.label}</p>

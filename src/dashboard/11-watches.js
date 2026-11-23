@@ -390,14 +390,14 @@ function watchRow(w, detail, opts) {
   }
 
   const detailPriceCols = detail ? `
-      <td class="px-5 py-3">${statusBadge(w.status)}</td>
+      <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono whitespace-nowrap">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
       <td class="px-5 py-3 text-primary font-semibold text-sm">${w.status !== 'sold' ? '<span class="text-outline">—</span>'
         : (w.market_price != null) ? `${fmt.price(isDiscountRow ? discountCalc(w, { discount_split: opts?.discountSplit }).clientPrice : w.sale_price, cur)}<span class="block text-[11px] text-on-surface-variant/60 font-normal mt-0.5">handover · market ${fmt.price(w.market_price, cur)}</span>` : fmt.price(w.sale_price, cur)}</td>
       ${detailPnlCell()}` : `
-      <td class="px-5 py-3">${statusBadge(w.status)}</td>
+      <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
       <td class="px-5 py-3 font-semibold text-primary text-sm">${fmt.price(w.list_price ?? w.price, cur)}</td>
@@ -440,6 +440,9 @@ function watchRow(w, detail, opts) {
           <button onclick="openWatchDetail(${w.id})" title="View watch detail" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-sky-400 transition-colors">
             <span class="material-symbols-outlined text-[18px]">open_in_new</span>
           </button>
+          ${isClosedDeal(w) ? `<button onclick="reopenWatch(${w.id})" title="Reopen this deal" class="p-2 rounded-lg hover:bg-amber-500/10 text-on-surface-variant hover:text-amber-400 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">lock_open</span>
+          </button>` : ''}
           ${w.status !== 'sold' ? `<button onclick="openMarkSoldModal(${w.id})" title="Mark as Sold" class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-all flex items-center gap-1">
             <span class="material-symbols-outlined text-[13px]">sell</span> Sold
           </button>` : ''}

@@ -35,12 +35,15 @@ async function loadVaultInsights() {
   }
   const count = fn => watches.filter(fn).length;
   const quick = id => QUICK_FILTERS.find(f => f.id === id).test;
+  // Closed deals and the settled ones waiting to be closed (27-close-deals.js)
+  const deals = closeDealStats(watches.map(w => ({ ...w, profile: profileById[w.profile_id] })));
 
   // ── Needs attention: only items that actually need something ──
   const items = [
     { n: count(quick('waiting30')), tone: 'amber',  icon: 'hourglass_top',  title: 'Wishlist waiting 30+ days', cta: 'Review list', go: "openWatchesWithQuickFilter('waiting30')" },
     { money: owedToMe,              tone: 'amber',  icon: 'account_balance_wallet', title: 'Still to withdraw (mine)', cta: 'See payouts', go: "showPage('main-kpi')" },
     { money: owedToClients,         tone: 'violet', icon: 'outbound',       title: 'Still owed to clients', cta: 'See payouts', go: "showPage('main-kpi')" },
+    { money: deals.ready.money,     tone: 'cyan',   icon: 'task_alt',       title: 'About to close', cta: 'Close them', go: "openWatchesWithQuickFilter('readyToClose')" },
     { n: count(quick('held60')),    tone: 'cyan',   icon: 'inventory_2',    title: 'Bought, unsold 60+ days', cta: 'Review stock', go: "openWatchesWithQuickFilter('held60')" },
     { n: count(quick('noPrice')),   tone: 'cyan',   icon: 'money_off',      title: 'Watches without a price', cta: 'Add prices', go: "openWatchesWithQuickFilter('noPrice')" },
   ].filter(it => it.money ? Object.keys(it.money).length : it.n > 0);
@@ -88,6 +91,15 @@ async function loadVaultInsights() {
     tile('wishlist', 'Wishlist', `${stats.wishlist_count}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">pieces</span>`, stats.wishlist_count ? `longest wait ${longest} day${longest !== 1 ? 's' : ''}` : 'nothing waiting',
          vaultSpark('wishlist', vs)),
   ].join('');
+  // ── Deals: closed, and settled but not yet closed ──
+  const dealTile = (label, value, sub, key) => `
+    <button type="button" class="glass-surface rounded-lg p-5 text-left w-full hover:border-primary/40 transition-colors" onclick="openWatchesWithQuickFilter('${key === 'closed' ? 'closed' : 'readyToClose'}')">
+      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-2 flex items-center gap-1.5"><span class="material-symbols-outlined text-[15px] ${key === 'closed' ? 'text-on-surface-variant' : 'text-sky-300'}">${key === 'closed' ? 'lock' : 'task_alt'}</span>${label}</p>
+      <div class="font-playfair text-2xl ${key === 'closed' ? 'text-on-surface' : 'text-sky-300'} leading-tight">${value}</div>
+      <p class="text-xs text-on-surface-variant mt-1">${sub}</p>
+    </button>`;
+  const dealsHost = document.getElementById('vaultDeals');
+  if (dealsHost) dealsHost.innerHTML = closeDealTiles(deals, dealTile).join('');
   _vaultData = { watches, stats };
   restoreVaultChart();             // keep an open chart open across refreshes
 
