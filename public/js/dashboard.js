@@ -640,6 +640,9 @@ async function loadMainKpi() {
   ]);
 
   const { profilePnls, totals } = computeKpiData(profiles, allWatches);
+  // Closed deals and the settled ones waiting to be closed (27-close-deals.js)
+  const profileById = Object.fromEntries(profiles.map(p => [p.id, p]));
+  const deals = closeDealStats(allWatches.map(w => ({ ...w, profile: profileById[w.profile_id] })));
 
   const m   = v => fmt.money(v);
   const sgn = v => v > 0 ? '+' : '';
@@ -656,6 +659,8 @@ async function loadMainKpi() {
     { label: 'Total Expenses',   value: totals.totalExpenses > 0 ? m(totals.totalExpenses) : '—', cls: totals.totalExpenses > 0 ? 'text-sky-300' : 'text-on-surface-variant/40' },
     { label: 'Client Outstanding', value: totals.clientRemaining > 0 ? m(totals.clientRemaining) : '—', cls: totals.clientRemaining > 0 ? 'text-purple-300' : 'text-on-surface-variant/40', sub: totals.clientRemaining > 0 ? 'owed to clients' : 'settled' },
     { label: 'My Outstanding',     value: totals.myRemaining     > 0 ? m(totals.myRemaining)     : '—', cls: totals.myRemaining     > 0 ? 'text-amber-300'  : 'text-on-surface-variant/40', sub: totals.myRemaining     > 0 ? 'not yet withdrawn' : 'settled' },
+    { label: 'Closed deals',   value: deals.closed.n ? fmt.byCurrency(deals.closed.money) : '—', cls: deals.closed.n ? 'text-on-surface' : 'text-on-surface-variant/40', sub: deals.closed.n ? `${deals.closed.n} deal${deals.closed.n !== 1 ? 's' : ''} closed` : 'none closed yet' },
+    { label: 'About to close', value: deals.ready.n  ? fmt.byCurrency(deals.ready.money)  : '—', cls: deals.ready.n  ? 'text-sky-300'   : 'text-on-surface-variant/40', sub: deals.ready.n ? `${deals.ready.n} settled, not yet closed` : 'nothing waiting' },
   ].map(t => `
     <div class="glass-surface rounded-lg p-4">
       <p class="text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5">${t.label}</p>
@@ -2019,7 +2024,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
   const fullAddr = [m.address, m.postal_code ? m.postal_code + (m.city ? ' ' + m.city : '') : m.city, m.country].filter(Boolean).join(', ') || null;
 
   return `
-    <div class="glass-surface rounded-xl overflow-hidden">
+    <div class="glass-surface rounded-xl overflow-hidden" id="membershipCard-${m.id}">
 
       <!-- ── Card header ── -->
       <div class="px-8 py-5 flex items-center justify-between gap-4 border-b border-outline-variant/10" style="background:rgba(255,255,255,0.015)">
@@ -2032,7 +2037,14 @@ function renderMembershipCard(client, m, masterIdBadge) {
             <p class="text-on-surface-variant text-xs mt-0.5">${watches.length} watch${watches.length !== 1 ? 'es' : ''} · added ${fmt.date(m.created_at.split(' ')[0])}</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+          ${closeModeFor(m.id)
+            ? `<button onclick="exitCloseMode()" class="text-[11px] font-semibold uppercase tracking-wider text-primary px-4 py-2 border border-primary/40 bg-primary/10 rounded-lg transition-all flex items-center gap-1.5" aria-pressed="true">
+            <span class="material-symbols-outlined text-[14px]">checklist</span> Closing… cancel
+          </button>`
+            : `<button onclick="enterCloseMode(${m.id})" title="Close finished deals: pick the sold watches, then Close" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-4 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[14px]">lock</span> Close
+          </button>`}
           <button onclick="openAddWatch(${m.id})" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-4 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all flex items-center gap-1.5">
             <span class="material-symbols-outlined text-[14px]">add_circle</span> Add Watch
           </button>
@@ -2090,11 +2102,13 @@ function renderMembershipCard(client, m, masterIdBadge) {
       ${renderMembershipAnalytics(m)}
 
       <!-- ── Watches ── -->
+      ${closeModeFor(m.id) ? closeBarHtml(m.id, watches) : ''}
       ${watches.length ? `
       <div class="overflow-x-auto">
         <table class="w-full text-left">
           <thead>
             <tr class="border-b border-outline-variant/10" style="background:rgba(255,255,255,0.02)">
+              ${closeModeFor(m.id) ? '<th class="pl-8 pr-0 py-3 w-10"></th>' : ''}
               <th class="px-8 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Timepiece</th>
               <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Stock #</th>
               <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Status</th>
@@ -2110,7 +2124,8 @@ function renderMembershipCard(client, m, masterIdBadge) {
             ${groupWishlistRows(watches, w => {
               const wc = w.currency || 'CHF';
               return `
-            <tr class="tbl-row">
+            <tr class="tbl-row ${_closeMode.ids.has(w.id) ? 'bg-primary/5' : ''}" data-close-row="${w.id}">
+              ${closeModeFor(m.id) ? closePickCell(w) : ''}
               <td class="px-8 py-4">
                 <div class="flex items-center gap-3">
                   ${w.image_path
@@ -2124,7 +2139,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                 </div>
               </td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
-              <td class="px-5 py-3">${statusBadge(w.status)}</td>
+              <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-sm">${w.list_price != null ? fmt.price(w.list_price, wc) : '<span class="text-outline">—</span>'}</td>
@@ -2138,6 +2153,10 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   <button onclick="openMarkSoldModal(${w.id})" class="p-1.5 rounded-lg hover:bg-emerald-500/10 text-on-surface-variant hover:text-emerald-400 transition-colors" title="Mark as Sold">
                     <span class="material-symbols-outlined text-[16px]">sell</span>
                   </button>` : ''}
+                  ${isClosedDeal(w) ? `
+                  <button onclick="reopenWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-on-surface-variant hover:text-amber-400 transition-colors" title="Reopen this deal">
+                    <span class="material-symbols-outlined text-[16px]">lock_open</span>
+                  </button>` : ''}
                   <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-[16px]">edit</span>
                   </button>
@@ -2146,7 +2165,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   </button>
                 </div>
               </td>
-            </tr>`;}, 9)}
+            </tr>`;}, closeModeFor(m.id) ? 10 : 9)}
           </tbody>
         </table>
       </div>` : `
@@ -4586,14 +4605,14 @@ function watchRow(w, detail, opts) {
   }
 
   const detailPriceCols = detail ? `
-      <td class="px-5 py-3">${statusBadge(w.status)}</td>
+      <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono whitespace-nowrap">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
       <td class="px-5 py-3 text-primary font-semibold text-sm">${w.status !== 'sold' ? '<span class="text-outline">—</span>'
         : (w.market_price != null) ? `${fmt.price(isDiscountRow ? discountCalc(w, { discount_split: opts?.discountSplit }).clientPrice : w.sale_price, cur)}<span class="block text-[11px] text-on-surface-variant/60 font-normal mt-0.5">handover · market ${fmt.price(w.market_price, cur)}</span>` : fmt.price(w.sale_price, cur)}</td>
       ${detailPnlCell()}` : `
-      <td class="px-5 py-3">${statusBadge(w.status)}</td>
+      <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
       <td class="px-5 py-3 font-semibold text-primary text-sm">${fmt.price(w.list_price ?? w.price, cur)}</td>
@@ -4636,6 +4655,9 @@ function watchRow(w, detail, opts) {
           <button onclick="openWatchDetail(${w.id})" title="View watch detail" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-sky-400 transition-colors">
             <span class="material-symbols-outlined text-[18px]">open_in_new</span>
           </button>
+          ${isClosedDeal(w) ? `<button onclick="reopenWatch(${w.id})" title="Reopen this deal" class="p-2 rounded-lg hover:bg-amber-500/10 text-on-surface-variant hover:text-amber-400 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">lock_open</span>
+          </button>` : ''}
           ${w.status !== 'sold' ? `<button onclick="openMarkSoldModal(${w.id})" title="Mark as Sold" class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-all flex items-center gap-1">
             <span class="material-symbols-outlined text-[13px]">sell</span> Sold
           </button>` : ''}
@@ -7969,12 +7991,15 @@ async function loadVaultInsights() {
   }
   const count = fn => watches.filter(fn).length;
   const quick = id => QUICK_FILTERS.find(f => f.id === id).test;
+  // Closed deals and the settled ones waiting to be closed (27-close-deals.js)
+  const deals = closeDealStats(watches.map(w => ({ ...w, profile: profileById[w.profile_id] })));
 
   // ── Needs attention: only items that actually need something ──
   const items = [
     { n: count(quick('waiting30')), tone: 'amber',  icon: 'hourglass_top',  title: 'Wishlist waiting 30+ days', cta: 'Review list', go: "openWatchesWithQuickFilter('waiting30')" },
     { money: owedToMe,              tone: 'amber',  icon: 'account_balance_wallet', title: 'Still to withdraw (mine)', cta: 'See payouts', go: "showPage('main-kpi')" },
     { money: owedToClients,         tone: 'violet', icon: 'outbound',       title: 'Still owed to clients', cta: 'See payouts', go: "showPage('main-kpi')" },
+    { money: deals.ready.money,     tone: 'cyan',   icon: 'task_alt',       title: 'About to close', cta: 'Close them', go: "openWatchesWithQuickFilter('readyToClose')" },
     { n: count(quick('held60')),    tone: 'cyan',   icon: 'inventory_2',    title: 'Bought, unsold 60+ days', cta: 'Review stock', go: "openWatchesWithQuickFilter('held60')" },
     { n: count(quick('noPrice')),   tone: 'cyan',   icon: 'money_off',      title: 'Watches without a price', cta: 'Add prices', go: "openWatchesWithQuickFilter('noPrice')" },
   ].filter(it => it.money ? Object.keys(it.money).length : it.n > 0);
@@ -8022,6 +8047,15 @@ async function loadVaultInsights() {
     tile('wishlist', 'Wishlist', `${stats.wishlist_count}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">pieces</span>`, stats.wishlist_count ? `longest wait ${longest} day${longest !== 1 ? 's' : ''}` : 'nothing waiting',
          vaultSpark('wishlist', vs)),
   ].join('');
+  // ── Deals: closed, and settled but not yet closed ──
+  const dealTile = (label, value, sub, key) => `
+    <button type="button" class="glass-surface rounded-lg p-5 text-left w-full hover:border-primary/40 transition-colors" onclick="openWatchesWithQuickFilter('${key === 'closed' ? 'closed' : 'readyToClose'}')">
+      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-2 flex items-center gap-1.5"><span class="material-symbols-outlined text-[15px] ${key === 'closed' ? 'text-on-surface-variant' : 'text-sky-300'}">${key === 'closed' ? 'lock' : 'task_alt'}</span>${label}</p>
+      <div class="font-playfair text-2xl ${key === 'closed' ? 'text-on-surface' : 'text-sky-300'} leading-tight">${value}</div>
+      <p class="text-xs text-on-surface-variant mt-1">${sub}</p>
+    </button>`;
+  const dealsHost = document.getElementById('vaultDeals');
+  if (dealsHost) dealsHost.innerHTML = closeDealTiles(deals, dealTile).join('');
   _vaultData = { watches, stats };
   restoreVaultChart();             // keep an open chart open across refreshes
 
@@ -8080,6 +8114,8 @@ const QUICK_FILTERS = [
   { id: 'held60',    label: 'Unsold 60+ days',    icon: 'inventory_2',   test: w => w.status === 'purchased' && (daysSince(watchDate(w)) ?? 0) >= 60 },
   { id: 'noPrice',   label: 'No price',           icon: 'money_off',     test: w => w.status !== 'sold' && w.list_price == null },
   { id: 'noPhoto',   label: 'No photo',           icon: 'hide_image',    test: w => !w.image_path },
+  { id: 'readyToClose', label: 'About to close',  icon: 'task_alt',      test: w => isReadyToClose(w) },
+  { id: 'closed',    label: 'Closed deals',       icon: 'lock',          test: w => isClosedDeal(w) },
 ];
 
 // { id } of a quick filter or a saved view; null = none
@@ -9871,6 +9907,149 @@ function showPaneTab(prefix, tab) {
 function currentPaneTab(prefix) { try { return localStorage.getItem(`meridian.${prefix}Tab`) === 'salary' ? 'salary' : 'commissions'; } catch { return 'commissions'; } }
 document.querySelectorAll('[data-bc-tab]').forEach(b => b.addEventListener('click', () => showPaneTab('bc', b.dataset.bcTab)));
 document.querySelectorAll('[data-cm-tab]').forEach(b => b.addEventListener('click', () => showPaneTab('cm', b.dataset.cmTab)));
+
+
+// ═══ 27-close-deals.js ═══
+// 27-close-deals.js — closing a deal, and the closed / about-to-close figures
+// Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
+// in filename order into public/js/dashboard.js (one classic script, so
+// functions and top-level variables stay shared exactly as before).
+//
+// A deal is CLOSED when a person closes it (Close on a client's membership
+// card → pick the watches → Close). Only sold watches close. ABOUT TO CLOSE is
+// derived, never stored: a sold watch not yet closed with nothing outstanding
+// on either side — no loss still owed, nothing left to pay the client, nothing
+// left to withdraw for me — so the only thing missing is the click.
+
+const isClosedDeal = w => w.status === 'sold' && !!w.closed_at;
+
+// What the deal was worth: the sale price, or the client price of a handover.
+function dealAmount(w) {
+  if (w.sale_price != null) return w.sale_price;
+  if (w.market_price != null && watchRule(w, w.profile) === 'discount') return discountCalc(w, w.profile || w).clientPrice || 0;
+  return 0;
+}
+
+// Sold, not closed, nothing outstanding either way. `w.profile` must be set.
+function isReadyToClose(w) {
+  if (w.status !== 'sold' || w.closed_at) return false;
+  if (w.list_price == null) return false;
+  if (Math.max(0, watchPayoutBalance(w, 'client').remaining) > 0.5) return false;
+  if (Math.max(0, watchPayoutBalance(w, 'my').remaining) > 0.5) return false;
+  if (watchRule(w, w.profile) === 'discount') {
+    const d = discountCalc(w, w.profile || w);
+    if (d.isLoss && d.outstanding > 0.5) return false;
+  }
+  return true;
+}
+
+// { closed: { n, money }, ready: { n, money } } over watches with `profile` set
+function closeDealStats(watches) {
+  const out = { closed: { n: 0, money: {} }, ready: { n: 0, money: {} } };
+  const add = (b, w) => { b.n++; const c = w.currency || 'CHF'; b.money[c] = (b.money[c] || 0) + dealAmount(w); };
+  for (const w of watches) {
+    if (isClosedDeal(w)) add(out.closed, w);
+    else if (isReadyToClose(w)) add(out.ready, w);
+  }
+  return out;
+}
+
+const closedChip = w => isClosedDeal(w)
+  ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/[0.04] text-on-surface-variant border border-outline-variant/30" title="Closed ${w.closed_at ? fmt.date(String(w.closed_at).slice(0, 10)) : ''}${w.closed_by ? ' by ' + esc(w.closed_by) : ''}"><span class="material-symbols-outlined text-[12px]">lock</span>Closed</span>`
+  : '';
+
+// ── Close mode on a membership card ────────────────────────────────────────
+// One card at a time: the Close button turns the card's watch list into a
+// pick list (sold, open watches only), with the action bar on top.
+let _closeMode = { profileId: null, ids: new Set() };
+
+function closeModeFor(profileId) { return _closeMode.profileId === profileId; }
+
+function enterCloseMode(profileId) {
+  _closeMode = { profileId, ids: new Set() };
+  rerenderMembershipCard(profileId);
+}
+function exitCloseMode() {
+  const id = _closeMode.profileId;
+  _closeMode = { profileId: null, ids: new Set() };
+  if (id != null) rerenderMembershipCard(id);
+}
+function toggleCloseSelect(watchId) {
+  if (_closeMode.ids.has(watchId)) _closeMode.ids.delete(watchId); else _closeMode.ids.add(watchId);
+  updateCloseBar();
+}
+function selectAllClosable(profileId) {
+  const m = (_currentClientData?.memberships || []).find(x => x.id === profileId);
+  const all = (m?.watches || []).filter(w => w.status === 'sold' && !w.closed_at).map(w => w.id);
+  const every = all.length && all.every(id => _closeMode.ids.has(id));
+  _closeMode.ids = new Set(every ? [] : all);
+  rerenderMembershipCard(profileId);
+}
+function updateCloseBar() {
+  const n = _closeMode.ids.size;
+  const cnt = document.getElementById('closeBarCount'); if (cnt) cnt.textContent = n ? `${n} selected` : 'Nothing selected yet';
+  const btn = document.getElementById('closeBarBtn');   if (btn) { btn.disabled = !n; btn.textContent = n ? `Close ${n} watch${n !== 1 ? 'es' : ''}` : 'Close'; }
+  document.querySelectorAll('[data-close-row]').forEach(tr => tr.classList.toggle('bg-primary/5', _closeMode.ids.has(Number(tr.dataset.closeRow))));
+}
+async function closeSelectedWatches() {
+  const ids = [..._closeMode.ids];
+  if (!ids.length) return;
+  const btn = document.getElementById('closeBarBtn'); if (btn) btn.disabled = true;
+  try {
+    for (const id of ids) await api('PUT', `/api/watches/${id}/close`, { closed: true });
+    _closeMode = { profileId: null, ids: new Set() };
+    if (currentPage === 'client-detail') await openClientDetail(currentClientId);
+  } catch (e) { alert(e.message); if (btn) btn.disabled = false; }
+}
+async function reopenWatch(id) {
+  try {
+    await api('PUT', `/api/watches/${id}/close`, { closed: false });
+    if (currentPage === 'client-detail') await openClientDetail(currentClientId);
+    else if (currentPage === 'profile-detail') openProfileDetail(currentProfileId);
+    else if (currentPage === 'watches') loadWatches();
+  } catch (e) { alert(e.message); }
+}
+
+// Redraw one membership card in place (the client page keeps the rest)
+function rerenderMembershipCard(profileId) {
+  const client = _currentClientData;
+  const m = (client?.memberships || []).find(x => x.id === profileId);
+  const el = document.getElementById(`membershipCard-${profileId}`);
+  if (!client || !m || !el) return;
+  el.outerHTML = renderMembershipCard(client, m, client.master_id);
+}
+
+// The action bar shown above the watch list while picking
+function closeBarHtml(profileId, watches) {
+  const closable = watches.filter(w => w.status === 'sold' && !w.closed_at).length;
+  const n = _closeMode.ids.size;
+  return `
+    <div class="px-8 py-3 border-b border-primary/20 bg-primary/5 flex items-center gap-3 flex-wrap">
+      <span class="material-symbols-outlined text-primary text-[18px]">checklist</span>
+      <p class="text-sm text-on-surface">Pick the deals to close <span class="text-on-surface-variant">· ${closable ? `${closable} sold watch${closable !== 1 ? 'es' : ''} can be closed` : 'no sold, open watches here'}</span></p>
+      <span id="closeBarCount" class="text-xs font-mono text-on-surface-variant">${n ? `${n} selected` : 'Nothing selected yet'}</span>
+      <span class="flex-1"></span>
+      ${closable ? `<button type="button" onclick="selectAllClosable(${profileId})" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-3 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 transition-all">${n && n === closable ? 'Clear' : 'Select all'}</button>` : ''}
+      <button type="button" onclick="exitCloseMode()" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-3 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 transition-all">Cancel</button>
+      <button type="button" id="closeBarBtn" onclick="closeSelectedWatches()" ${n ? '' : 'disabled'} class="text-[11px] font-semibold uppercase tracking-wider bg-primary text-on-primary px-4 py-2 rounded-lg hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all">${n ? `Close ${n} watch${n !== 1 ? 'es' : ''}` : 'Close'}</button>
+    </div>`;
+}
+
+// The pick cell at the start of each row while picking
+function closePickCell(w) {
+  const can = w.status === 'sold' && !w.closed_at;
+  return `<td class="pl-8 pr-0 py-4 w-10 align-middle">${can
+    ? `<input type="checkbox" aria-label="Close ${esc(w.model)}" ${_closeMode.ids.has(w.id) ? 'checked' : ''} onchange="toggleCloseSelect(${w.id})" class="w-4 h-4 accent-[var(--md-sys-color-primary,#22d3ee)] cursor-pointer">`
+    : `<span class="material-symbols-outlined text-outline/40 text-[16px]" title="${w.closed_at ? 'Already closed' : 'Only a sold watch can be closed'}">${w.closed_at ? 'lock' : 'block'}</span>`}</td>`;
+}
+
+// Tile pair for the Vault and Main KPI
+function closeDealTiles(stats, tile) {
+  return [
+    tile('Closed deals', stats.closed.n ? fmt.byCurrency(stats.closed.money) : '—', stats.closed.n ? `${stats.closed.n} deal${stats.closed.n !== 1 ? 's' : ''} closed` : 'none closed yet', 'closed'),
+    tile('About to close', stats.ready.n ? fmt.byCurrency(stats.ready.money) : '—', stats.ready.n ? `${stats.ready.n} settled, waiting to be closed` : 'nothing waiting', 'ready'),
+  ];
+}
 
 
 // ═══ 99-boot.js ═══

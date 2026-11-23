@@ -346,6 +346,11 @@ function init() {
   // Boutique Commission page's per-piece switch). Off by default: every piece
   // of the shop is shown unless hidden.
   if (!wcols.includes('hidden_from_boutique'))     db.exec("ALTER TABLE watches ADD COLUMN hidden_from_boutique INTEGER NOT NULL DEFAULT 0");
+  // A deal is CLOSED when a person says so (Close on the client page): the
+  // sale is done and nothing more is expected either way. Kept as a stamp,
+  // never derived, so the books can say "closed on … by …".
+  if (!wcols.includes('closed_at')) db.exec("ALTER TABLE watches ADD COLUMN closed_at DATETIME");
+  if (!wcols.includes('closed_by')) db.exec("ALTER TABLE watches ADD COLUMN closed_by TEXT");
   const lpcols = db.prepare("PRAGMA table_info(loss_payments)").all().map(r => r.name);
   if (!lpcols.includes('offset_from_watch_id'))    db.exec("ALTER TABLE loss_payments ADD COLUMN offset_from_watch_id INTEGER");
   // Commission expenses the owner chose to show to the shop's boutique manager
@@ -1252,7 +1257,8 @@ function getStats(ownerId) {
       COUNT(w.id)                                                       AS total_watches,
       SUM(CASE WHEN w.status = 'wishlist'  THEN 1 ELSE 0 END)           AS wishlist_count,
       SUM(CASE WHEN w.status = 'purchased' THEN 1 ELSE 0 END)           AS purchased_count,
-      SUM(CASE WHEN w.status = 'sold'      THEN 1 ELSE 0 END)           AS sold_count
+      SUM(CASE WHEN w.status = 'sold'      THEN 1 ELSE 0 END)           AS sold_count,
+      SUM(CASE WHEN w.status = 'sold' AND w.closed_at IS NOT NULL THEN 1 ELSE 0 END) AS closed_count
     FROM profiles p
     LEFT JOIN watches w ON w.profile_id = p.id
     WHERE p.owner_id = ?
@@ -1266,6 +1272,7 @@ function getStats(ownerId) {
       COALESCE(SUM(CASE WHEN w.status = 'purchased' THEN w.list_price ELSE 0 END), 0) AS active_list_value,
       COALESCE(SUM(CASE WHEN w.status = 'wishlist'  THEN w.list_price ELSE 0 END), 0) AS wishlist_list_value,
       COALESCE(SUM(CASE WHEN w.status = 'sold'      THEN w.sale_price ELSE 0 END), 0) AS total_sale_value,
+      COALESCE(SUM(CASE WHEN w.status = 'sold' AND w.closed_at IS NOT NULL THEN w.sale_price ELSE 0 END), 0) AS closed_value,
       COALESCE(SUM(CASE WHEN w.status = 'sold' AND w.list_price IS NOT NULL AND w.sale_price IS NOT NULL
                         THEN (w.sale_price - w.list_price) ELSE 0 END), 0)            AS net_pnl,
       COALESCE(SUM(CASE WHEN w.status IN ('purchased','sold') THEN w.my_cost     ELSE 0 END), 0) AS my_total_cost,
@@ -1288,6 +1295,7 @@ function getStats(ownerId) {
   const net_pnl             = groupMap('net_pnl');
   const my_total_cost       = groupMap('my_total_cost');
   const client_total_cost   = groupMap('client_total_cost');
+  const closed_value        = groupMap('closed_value');
 
   // total_value = active list + sold proceeds (per currency)
   const total_value = {};
@@ -1301,6 +1309,8 @@ function getStats(ownerId) {
     wishlist_count:  counts.wishlist_count  || 0,
     purchased_count: counts.purchased_count || 0,
     sold_count:      counts.sold_count      || 0,
+    closed_count:    counts.closed_count    || 0,
+    closed_value,
     active_list_value,
     wishlist_list_value,
     total_sale_value,
@@ -1580,6 +1590,11 @@ function setExpensePaid(id, paid) {
 }
 
 // Show / hide a piece itself to the shop's boutique manager
+function setWatchClosed(id, closed, by) {
+  if (closed) db.prepare("UPDATE watches SET closed_at = datetime('now'), closed_by = ? WHERE id = ?").run(by || null, id);
+  else        db.prepare('UPDATE watches SET closed_at = NULL, closed_by = NULL WHERE id = ?').run(id);
+}
+
 function setWatchBoutiqueHidden(id, hidden) {
   db.prepare('UPDATE watches SET hidden_from_boutique = ? WHERE id = ?').run(hidden ? 1 : 0, id);
 }
@@ -1774,7 +1789,7 @@ module.exports = {
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
   applyDiscountOffset, clearOffsetsFrom, listMarketPrices, recordMarketPrice, resyncWatchStatuses,
   listExpenses, getExpense, createExpense, updateExpense, reverseExpense, setExpenseBoutique, setExpensePaid,
-  setWatchBoutiqueHidden,
+  setWatchBoutiqueHidden, setWatchClosed,
   listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
   listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,
   listPatekDeals, getPatekDeal, createPatekDeal, updatePatekDeal, deletePatekDeal,
