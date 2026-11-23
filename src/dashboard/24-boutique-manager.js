@@ -96,8 +96,12 @@ async function renderBoutiqueVault() {
   const section = document.getElementById('bmVault');
   const shop = currentUser.shop;
   const owner = shop.owner_username || 'the owner';
-  const watches = await api('GET', '/api/watches', null, bmHeaders());
+  const [watches, salaries] = await Promise.all([
+    api('GET', '/api/watches', null, bmHeaders()),
+    api('GET', `/api/shops/${shop.id}/salaries`, null, bmHeaders()).catch(() => []),
+  ]);
   watches.forEach(w => { watchCache[w.id] = w; });
+  const salary = salaryTotals(salaries);
 
   const handed = watches.filter(w => w.status === 'handed_over');
   const wish   = watches.filter(w => w.status === 'wishlist').sort((a, b) => (wishlistDays(b) ?? -1) - (wishlistDays(a) ?? -1));
@@ -167,13 +171,16 @@ async function renderBoutiqueVault() {
           <h3 class="font-playfair text-3xl font-semibold text-on-surface leading-tight">${hello}, ${esc(currentUser.username)} 👋</h3>
           <p class="text-on-surface-variant text-sm mt-2">
             ${entries.length
-              ? `You have earned <strong class="bm-commission font-mono">${fmt.byCurrency(total)}</strong> in commission on ${piecesWithComm} piece${piecesWithComm !== 1 ? 's' : ''} at ${esc(shop.name)}${Object.keys(monthComm).length ? ` — <strong class="text-on-surface font-mono">${fmt.byCurrency(monthComm)}</strong> of it this month` : ''}.`
-              : `No commission shared with you yet — ${esc(owner)} marks a commission as visible to the boutique when recording it on a piece.`}
+              ? `You have earned <strong class="bm-commission font-mono">${fmt.byCurrency(total)}</strong> in commission on ${piecesWithComm} piece${piecesWithComm !== 1 ? 's' : ''} at ${esc(shop.name)}${Object.keys(monthComm).length ? ` — <strong class="text-on-surface font-mono">${fmt.byCurrency(monthComm)}</strong> of it this month` : ''}${salary.months ? `, plus <strong class="bm-commission font-mono">${fmt.byCurrency(salary.total)}</strong> in salary over ${salary.months} month${salary.months !== 1 ? 's' : ''}` : ''}.`
+              : salary.months
+                ? `You have earned <strong class="bm-commission font-mono">${fmt.byCurrency(salary.total)}</strong> in salary over ${salary.months} month${salary.months !== 1 ? 's' : ''} at ${esc(shop.name)} — no commission shared with you yet.`
+                : `No commission shared with you yet — ${esc(owner)} marks a commission as visible to the boutique when recording it on a piece.`}
           </p>
           <div class="flex items-center gap-2 flex-wrap mt-4">
             ${chip('watch', `${watches.length} piece${watches.length !== 1 ? 's' : ''} at the shop`)}
             ${chip('handshake', `${handed.length} handed over`, 'text-primary')}
             ${chip('bookmark', `${wish.length} on the wishlist`, wish.length ? 'text-amber-300' : '')}
+            ${salary.months ? chip('account_balance_wallet', `Salary ${fmt.byCurrency(salary.total)}${Object.values(salary.pending).length ? ` · ${fmt.byCurrency(salary.pending)} to come` : ' · all paid'}`, 'text-amber-300') : ''}
             ${top && top[1] ? chip('emoji_events', `Top client: ${esc(top[0])} · ${fmt.price(top[1], mainCur)}`, 'text-amber-300') : ''}
             ${sinceHand != null ? chip('schedule', sinceHand === 0 ? 'A piece handed over today' : `Last handover ${sinceHand} day${sinceHand !== 1 ? 's' : ''} ago`) : ''}
           </div>
@@ -269,10 +276,20 @@ async function loadCommissions() {
   }
   setBmView(true);   // the managed shop's pieces, as the owner shares them
   document.getElementById('commissionsSubtitle').textContent = `Commission set for you on pieces at ${bmShopName()} (${currentUser.shop.owner_username || 'the owner'}'s registry). The owner chooses which commissions appear here.`;
-  const watches = await api('GET', '/api/watches');
+  const [watches, salaries] = await Promise.all([
+    api('GET', '/api/watches'),
+    api('GET', `/api/shops/${currentUser.shop.id}/salaries`).catch(() => []),
+  ]);
   watches.forEach(w => { watchCache[w.id] = w; });
   const entries = watches.flatMap(w => (w.expenses || []).map(e => ({ ...e, watch: w })))
     .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+
+  // Salary tab: what the owner pays them a month, paid month by month — read-only
+  renderSalaryPane(document.getElementById('cmSalaryPane'), salaries, {
+    canEdit: false, shopId: currentUser.shop.id, managerName: 'you', ownerName: currentUser.shop.owner_username || 'the owner',
+    commissionTotals: (() => { const m = {}; for (const e of entries) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; })(),
+  });
+  showPaneTab('cm', currentPaneTab('cm'));
 
   // Tiles: all time, this month, pieces
   const sum = list => { const m = {}; for (const e of list) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; };
@@ -296,10 +313,12 @@ async function loadCommissions() {
     tile('Paid', `<span class="text-emerald-400">${fmt.byCurrency(sum(paid))}</span>`, `${paid.length} entr${paid.length === 1 ? 'y' : 'ies'} paid out to you`),
     tile('Commission left', pending.length ? fmt.byCurrency(sum(pending)) : `<span class="text-on-surface">${fmt.byCurrency(sum(pending))}</span>`, `${pending.length} entr${pending.length === 1 ? 'y' : 'ies'} still to be paid to you`),
     tile(`This month`, fmt.byCurrency(month), monthName),
+    tile('Total · commission + salary', `<span class="text-on-surface">${fmt.byCurrency(sumCurrencyMaps(total, salaryTotals(salaries).total))}</span>`, `${fmt.byCurrency(total)} commission + ${fmt.byCurrency(salaryTotals(salaries).total)} salary · paid ${fmt.byCurrency(sumCurrencyMaps(sum(paid), salaryTotals(salaries).paid))} · left ${fmt.byCurrency(sumCurrencyMaps(sum(pending), salaryTotals(salaries).pending))}`),
     tile('Wishlist pending', `<span class="${wish.length ? 'text-amber-300' : 'text-on-surface'}">${wish.length}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${wish.length === 1 ? 'piece' : 'pieces'}</span></span>`,
          wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
   renderCommissionWishlist(wish);
+  renderCommissionPieces(watches);
   document.getElementById('commissionsCount').textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
   document.getElementById('commissionsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
@@ -368,6 +387,65 @@ function renderCommissionWishlist(wish) {
       <span class="font-mono text-lg font-semibold leading-none ${urgency} whitespace-nowrap">${d}<span class="text-xs font-sans font-medium text-outline ml-1">${d === 1 ? 'day' : 'days'}</span></span>
     </button>`;
   }).join('') : `<p class="px-6 py-10 text-center text-sm text-on-surface-variant">Nothing on the wishlist at ${esc(bmShopName())}.</p>`;
+}
+
+// Every piece the owner shows this manager, grouped by client (as the owner's
+// Boutique Commission page groups them), with the commission set on each —
+// so a piece shown without a commission yet is still seen here.
+function renderCommissionPieces(watches) {
+  const body = document.getElementById('commissionPiecesBody');
+  const count = document.getElementById('commissionPiecesCount');
+  const sub = document.getElementById('commissionPiecesSub');
+  if (!body) return;
+  const sum = list => { const m = {}; for (const e of list) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; };
+  const groups = new Map();
+  for (const w of watches) {
+    const key = w.profile_id ?? `name:${w.client_name || ''}`;
+    if (!groups.has(key)) groups.set(key, { name: w.client_name || 'No client', items: [] });
+    groups.get(key).items.push(w);
+  }
+  const clients = [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+  count.textContent = watches.length ? `${watches.length} piece${watches.length !== 1 ? 's' : ''} · ${clients.length} client${clients.length !== 1 ? 's' : ''}` : '';
+  sub.textContent = `Every piece the owner shows you at ${bmShopName()}, by client, with the commission set on it.`;
+  if (!watches.length) {
+    body.innerHTML = `<tr><td colspan="4" class="px-6 py-10 text-center text-sm text-on-surface-variant">No pieces shared with you yet at ${esc(bmShopName())}.</td></tr>`;
+    return;
+  }
+  let html = '';
+  for (const c of clients) {
+    const withCommission = c.items.filter(w => (w.expenses || []).length);
+    const total = sum(c.items.flatMap(w => w.expenses || []));
+    html += `<tr class="wl-group-row"><td colspan="4" class="!py-2 !px-5">
+      <span class="inline-flex items-center gap-2">
+        <span class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">${esc((c.name || '?').trim().charAt(0).toUpperCase())}</span>
+        <span class="text-sm font-semibold text-on-surface">${esc(c.name)}</span>
+        <span class="text-[11px] font-mono text-outline">${c.items.length} piece${c.items.length !== 1 ? 's' : ''}</span>
+        ${withCommission.length ? `<span class="font-mono text-xs bm-commission ml-2">${fmt.byCurrency(total)}</span>` : `<span class="text-[11px] text-outline ml-2">no commission yet</span>`}
+      </span></td></tr>`;
+    for (const w of c.items) {
+      const entries = w.expenses || [];
+      const pending = entries.filter(e => !e.paid_at);
+      html += `
+      <tr class="tbl-row cursor-pointer" onclick="openWatchDetail(${w.id})">
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-3 min-w-0">
+            ${bmThumb(w)}
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+              <p class="text-xs font-mono text-outline truncate">${esc(w.reference_number || '')}${w.serial_number ? ` · ${esc(w.serial_number)}` : ''}</p>
+            </div>
+          </div>
+        </td>
+        <td class="px-5 py-3">${statusBadge(w.status)}</td>
+        <td class="px-5 py-3 text-right font-mono text-sm text-on-surface whitespace-nowrap">${w.list_price != null ? fmt.price(w.list_price, w.currency || 'CHF') : '<span class="text-outline">—</span>'}</td>
+        <td class="px-5 py-3 text-right whitespace-nowrap">${entries.length
+          ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(sum(entries))}</span>
+             <span class="block text-[11px] text-on-surface-variant mt-0.5">${pending.length ? `${fmt.byCurrency(sum(pending))} pending` : 'paid out'}</span>`
+          : `<span class="text-xs text-outline">${w.status === 'wishlist' ? 'wishlist · once handed over' : 'no commission yet'}</span>`}</td>
+      </tr>`;
+    }
+  }
+  body.innerHTML = html;
 }
 
 // ── Watch page ─────────────────────────────────────────────────────────────

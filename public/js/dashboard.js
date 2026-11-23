@@ -270,8 +270,10 @@ document.querySelectorAll('.admin-tab').forEach(b => {
   b.addEventListener('click', () => showAdminTab(b.dataset.adminTab));
 });
 
+let _adminUsers = [];
 async function loadAdminUsers() {
   const users = await api('GET', '/api/admin/users');
+  _adminUsers = users;
   const me    = currentUser?.id;
   const body  = document.getElementById('adminUsersBody');
   body.innerHTML = users.map(u => {
@@ -310,17 +312,9 @@ async function loadAdminUsers() {
             <button onclick="adminViewAs(${u.id})" title="View their workspace" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
               <span class="material-symbols-outlined text-[16px]">visibility</span>
             </button>` : ''}
-            ${isBm ? `
-            <button onclick="adminChangeShop(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}', ${u.owner_id || 'null'})" title="Change shop" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-amber-400 transition-colors">
-              <span class="material-symbols-outlined text-[16px]">store</span>
-            </button>` : ''}
-            <button onclick="adminResetPassword(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}' )" title="Reset password" class="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors">
-              <span class="material-symbols-outlined text-[16px]">key</span>
+            <button onclick="adminEditUser(${u.id})" title="Edit user" class="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-colors">
+              <span class="material-symbols-outlined text-[16px]">edit</span>
             </button>
-            ${u.role === 'master' || isBm || isMe ? '' : `
-            <button onclick="adminPromote(${u.id})" title="Promote to master" class="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors">
-              <span class="material-symbols-outlined text-[16px]">workspace_premium</span>
-            </button>`}
             ${!isMe ? `
             <button onclick="adminDeleteUser(${u.id}, '${esc(u.username).replace(/'/g,"\\\\'")}' )" title="Delete user" class="p-1.5 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors">
               <span class="material-symbols-outlined text-[16px]">delete</span>
@@ -331,53 +325,80 @@ async function loadAdminUsers() {
   }).join('');
 }
 
-// Move a boutique manager to another shop of the registry they belong to.
-// The shop list comes from the current workspace, so switch to that owner's
-// workspace (View as) first when the manager belongs to someone else.
-async function adminChangeShop(userId, username, ownerId) {
-  const workspace = currentUser?.viewing_as?.id || currentUser?.id;
-  if (ownerId && ownerId !== workspace) {
-    alert(`${username} belongs to another registry. Use "View their workspace" on its owner first, then change the shop from there.`);
-    return;
+// ── Edit user (dialog): username, role, the managed shop, a new password ──
+// One place for everything that used to be a prompt: rename, admin ↔ master,
+// move a boutique manager between the shops of the registry they belong to
+// (listed by the server, so no "view as" first), and reset the password.
+async function adminEditUser(userId) {
+  const u = _adminUsers.find(x => x.id === userId);
+  if (!u) return;
+  const isBm = u.role === 'boutique_manager', isMe = u.id === currentUser?.id;
+  document.getElementById('userModalId').value = u.id;
+  document.getElementById('userModalSub').textContent = `ID #${u.id}${isBm ? ` · boutique manager${u.owner_username ? ` in ${u.owner_username}'s registry` : ''}` : ''}`;
+  document.getElementById('userModalUsername').value = u.username;
+  document.getElementById('userModalPassword').value = '';
+  const err = document.getElementById('userModalError'); err.classList.add('hidden'); err.textContent = '';
+
+  const roleWrap = document.getElementById('userModalRoleWrap'), role = document.getElementById('userModalRole'), roleHint = document.getElementById('userModalRoleHint');
+  roleWrap.classList.toggle('hidden', isBm);
+  role.value = u.role === 'master' ? 'master' : 'admin';
+  role.disabled = isMe;
+  roleHint.textContent = isMe ? 'You cannot change your own role.' : 'Master sees every workspace and the Admin page; Admin has an isolated workspace.';
+
+  const shopWrap = document.getElementById('userModalShopWrap'), shop = document.getElementById('userModalShop'), shopHint = document.getElementById('userModalShopHint');
+  shopWrap.classList.toggle('hidden', !isBm);
+  if (isBm) {
+    shop.innerHTML = '<option>Loading…</option>';
+    try {
+      const shops = await api('GET', `/api/admin/users/${u.id}/shops`);
+      shop.innerHTML = shops.map(s => `<option value="${s.id}" style="background:#131A24;color:#E6EDF7" ${s.id === u.shop_id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')
+        || '<option value="">No shops in that registry</option>';
+      shopHint.textContent = `The shops of ${u.owner_username || 'the owner'}'s registry. The manager sees only this shop's clients and pieces.`;
+    } catch (e) { shop.innerHTML = '<option value="">Could not load shops</option>'; shopHint.textContent = e.message; }
   }
-  let shops;
-  try { shops = await api('GET', '/api/shops'); } catch (e) { alert(e.message); return; }
-  if (!shops.length) { alert('This workspace has no shops yet.'); return; }
-  const choice = prompt(`Which shop should ${username} look after?\n\n` + shops.map((s, i) => `${i + 1}. ${s.name}`).join('\n') + '\n\nType the number:');
-  if (!choice) return;
-  const shop = shops[Number(choice) - 1];
-  if (!shop) { alert('No shop with that number.'); return; }
+  document.getElementById('userModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('userModalUsername').focus(), 50);
+}
+
+function closeUserModal() { document.getElementById('userModal').classList.add('hidden'); }
+
+async function saveAdminUser() {
+  const id = Number(document.getElementById('userModalId').value);
+  const u = _adminUsers.find(x => x.id === id);
+  if (!u) return;
+  const err = document.getElementById('userModalError');
+  const fail = msg => { err.textContent = msg; err.classList.remove('hidden'); };
+  const username = document.getElementById('userModalUsername').value.trim();
+  const password = document.getElementById('userModalPassword').value;
+  if (username.length < 3) return fail('Username must be at least 3 characters.');
+  if (password && password.length < 6) return fail('New password must be at least 6 characters.');
+
+  const body = {};
+  if (username !== u.username) body.username = username;
+  if (u.role === 'boutique_manager') {
+    const shopId = Number(document.getElementById('userModalShop').value);
+    if (shopId && shopId !== u.shop_id) body.shop_id = shopId;
+  } else {
+    const role = document.getElementById('userModalRole').value;
+    if (role !== u.role && u.id !== currentUser?.id) body.role = role;
+  }
+  const btn = document.getElementById('saveUserBtn');
+  btn.disabled = true;
   try {
-    await api('PUT', `/api/admin/users/${userId}`, { shop_id: shop.id });
+    if (Object.keys(body).length) await api('PUT', `/api/admin/users/${id}`, body);
+    if (password) await api('PUT', `/api/admin/users/${id}/password`, { new_password: password });
+    closeUserModal();
+    if (id === currentUser?.id && body.username) await refreshCurrentUser();
     await loadAdminUsers();
-  } catch (e) { alert(e.message); }
+  } catch (e) { fail(e.message); }
+  finally { btn.disabled = false; }
 }
 
-async function adminViewAs(userId) {
-  try {
-    await api('POST', '/api/admin/view-as', { user_id: userId });
-    await refreshCurrentUser();
-    showPage('dashboard');
-  } catch (e) { alert(e.message); }
-}
-
-async function adminResetPassword(userId, username) {
-  const pw = prompt(`Set a new password for ${username}\n(at least 6 characters)`);
-  if (!pw) return;
-  if (pw.length < 6) { alert('Password must be at least 6 characters'); return; }
-  try {
-    await api('PUT', `/api/admin/users/${userId}/password`, { new_password: pw });
-    alert(`Password for ${username} has been reset.`);
-  } catch (e) { alert(e.message); }
-}
-
-async function adminPromote(userId) {
-  if (!confirm('Promote this user to master? They will gain full access to all workspaces.')) return;
-  try {
-    await api('PUT', `/api/admin/users/${userId}`, { role: 'master' });
-    await loadAdminUsers();
-  } catch (e) { alert(e.message); }
-}
+document.getElementById('closeUserModal').addEventListener('click', closeUserModal);
+document.getElementById('cancelUserModal').addEventListener('click', closeUserModal);
+document.getElementById('saveUserBtn').addEventListener('click', saveAdminUser);
+document.getElementById('userModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeUserModal(); });
+document.getElementById('userModal').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); saveAdminUser(); } });
 
 async function adminDeleteUser(userId, username) {
   if (!confirm(`Delete user "${username}" and ALL their data (clients, watches, settings)? This cannot be undone.`)) return;
@@ -634,6 +655,9 @@ async function loadMainKpi() {
   ]);
 
   const { profilePnls, totals } = computeKpiData(profiles, allWatches);
+  // Closed deals and the settled ones waiting to be closed (27-close-deals.js)
+  const profileById = Object.fromEntries(profiles.map(p => [p.id, p]));
+  const deals = closeDealStats(allWatches.map(w => ({ ...w, profile: profileById[w.profile_id] })));
 
   const m   = v => fmt.money(v);
   const sgn = v => v > 0 ? '+' : '';
@@ -650,6 +674,8 @@ async function loadMainKpi() {
     { label: 'Total Expenses',   value: totals.totalExpenses > 0 ? m(totals.totalExpenses) : '—', cls: totals.totalExpenses > 0 ? 'text-sky-300' : 'text-on-surface-variant/40' },
     { label: 'Client Outstanding', value: totals.clientRemaining > 0 ? m(totals.clientRemaining) : '—', cls: totals.clientRemaining > 0 ? 'text-purple-300' : 'text-on-surface-variant/40', sub: totals.clientRemaining > 0 ? 'owed to clients' : 'settled' },
     { label: 'My Outstanding',     value: totals.myRemaining     > 0 ? m(totals.myRemaining)     : '—', cls: totals.myRemaining     > 0 ? 'text-amber-300'  : 'text-on-surface-variant/40', sub: totals.myRemaining     > 0 ? 'not yet withdrawn' : 'settled' },
+    { label: 'Closed deals',   value: deals.closed.n ? fmt.byCurrency(deals.closed.money) : '—', cls: deals.closed.n ? 'text-on-surface' : 'text-on-surface-variant/40', sub: deals.closed.n ? `${deals.closed.n} deal${deals.closed.n !== 1 ? 's' : ''} closed` : 'none closed yet' },
+    { label: 'About to close', value: deals.ready.n  ? fmt.byCurrency(deals.ready.money)  : '—', cls: deals.ready.n  ? 'text-sky-300'   : 'text-on-surface-variant/40', sub: deals.ready.n ? `${deals.ready.n} settled, not yet closed` : 'nothing waiting' },
   ].map(t => `
     <div class="glass-surface rounded-lg p-4">
       <p class="text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5">${t.label}</p>
@@ -877,9 +903,80 @@ function watchTileHtml(w) {
 }
 
 async function loadClients() {
-  allClients = await api('GET', '/api/clients');
+  [allClients] = await Promise.all([api('GET', '/api/clients'), loadSharedClients()]);
   clientPage = 1;
   renderClients();
+}
+
+// ── Clients at shops shared with me ────────────────────────────────────────
+// A client added inside a shop another registry shared with me (as a
+// collaborator) — or at the shop I manage (as a boutique manager) — lives in
+// THAT owner's registry, not in my own client book, so the list above never
+// showed them. They are listed in their own card underneath, named with the
+// shop and whose registry it is; opening one goes to their membership at that
+// shop (the shop page itself, for a boutique manager).
+let _sharedClients = [];
+async function loadSharedClients() {
+  const out = [];
+  try {
+    const bm = typeof isBoutiqueManager === 'function' && isBoutiqueManager();
+    const shared = bm ? [] : await api('GET', '/api/collab/shops').catch(() => []);
+    for (const s of shared) {
+      const shop = await api('GET', `/api/shops/${s.shop_id}`, null, { 'X-Collab-Shop': String(s.shop_id) }).catch(() => null);
+      for (const p of shop?.profiles || []) out.push({ ...p, shop_id: s.shop_id, shop_name: s.shop_name, owner_username: s.owner_username, kind: 'collab' });
+    }
+    if (bm && currentUser?.shop) {
+      const shop = await api('GET', `/api/shops/${currentUser.shop.id}`, null, { 'X-Boutique-Shop': String(currentUser.shop.id) }).catch(() => null);
+      for (const p of shop?.profiles || []) out.push({ ...p, shop_id: currentUser.shop.id, shop_name: currentUser.shop.name, owner_username: currentUser.shop.owner_username, kind: 'managed' });
+    }
+  } catch (e) { console.error('Shared clients failed', e); }
+  _sharedClients = out;
+}
+
+function renderSharedClients() {
+  let card = document.getElementById('sharedClientsCard');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'sharedClientsCard';
+    card.className = 'glass-surface rounded-lg overflow-hidden mt-8';
+    document.getElementById('page-profiles').appendChild(card);
+  }
+  const q = document.getElementById('profileSearch').value.trim().toLowerCase();
+  const list = q ? _sharedClients.filter(p => (p.name || '').toLowerCase().includes(q)) : _sharedClients;
+  if (!_sharedClients.length) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const bm = _sharedClients.every(p => p.kind === 'managed');
+  const shops = [...new Set(_sharedClients.map(p => p.shop_name))];
+  card.innerHTML = `
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h3 class="font-playfair text-xl text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[20px]">group</span>${bm ? 'Clients at the shop you manage' : 'Clients at shops shared with you'}</h3>
+        <p class="text-xs text-on-surface-variant mt-0.5">${esc(shops.join(' · '))} — these clients belong to ${bm ? "the owner's" : "that owner's"} registry, so they are kept apart from your own book above.</p>
+      </div>
+      <span class="text-xs font-mono text-outline">${_sharedClients.length} client${_sharedClients.length !== 1 ? 's' : ''}</span>
+    </div>
+    <div class="divide-y divide-white/[0.04]">${list.length ? list.map(p => `
+      <button type="button" class="tbl-row w-full px-5 py-3 flex items-center gap-4 text-left" onclick="openSharedClient(${p.shop_id}, ${p.id}, '${p.kind}')">
+        ${avatarHtml(p.name, p.photo_path)}
+        <span class="flex-1 min-w-0">
+          <span class="block text-sm font-medium text-on-surface truncate">${esc(p.name)}</span>
+          <span class="block text-xs text-on-surface-variant truncate">${esc(p.email || '—')}${p.portfolio_name ? ` · ${esc(p.portfolio_name)}` : ''}</span>
+        </span>
+        <span class="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-lg border border-primary/30 text-primary bg-primary/5 whitespace-nowrap"><span class="material-symbols-outlined text-[14px]">storefront</span>${esc(p.shop_name)} · ${esc(p.owner_username || 'owner')}</span>
+        <span class="flex items-center gap-1.5 text-on-surface-variant text-sm whitespace-nowrap"><span class="material-symbols-outlined text-[15px]">watch</span>${p.watch_count || 0} watch${(p.watch_count || 0) !== 1 ? 'es' : ''}</span>
+        <span class="hidden md:block text-on-surface-variant text-sm whitespace-nowrap">${fmt.date((p.created_at || '').split(' ')[0])}</span>
+        <span class="material-symbols-outlined text-outline text-[18px]">open_in_new</span>
+      </button>`).join('')
+      : `<p class="px-6 py-8 text-center text-sm text-on-surface-variant">No client at a shared shop matches.</p>`}</div>`;
+}
+
+// Open a shared shop's client: their membership there, under that shop's scope
+function openSharedClient(shopId, profileId, kind) {
+  const p = _sharedClients.find(x => x.shop_id === shopId && x.id === profileId);
+  if (!p) return;
+  if (kind === 'managed') { if (typeof openBoutiqueShop === 'function') openBoutiqueShop(); return; }
+  setCollabShop({ id: shopId, name: p.shop_name, owner_username: p.owner_username });
+  openProfileDetail(profileId);
 }
 
 function renderClients() {
@@ -888,6 +985,7 @@ function renderClients() {
   const total = data.length;
   const slice = data.slice((clientPage - 1) * PER_PAGE, clientPage * PER_PAGE);
 
+  renderSharedClients();
   const asCards = getView('clients') === 'cards';
   document.getElementById('profilesListWrap').classList.toggle('hidden', asCards);
   document.getElementById('profilesCards').classList.toggle('hidden', !asCards);
@@ -1941,7 +2039,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
   const fullAddr = [m.address, m.postal_code ? m.postal_code + (m.city ? ' ' + m.city : '') : m.city, m.country].filter(Boolean).join(', ') || null;
 
   return `
-    <div class="glass-surface rounded-xl overflow-hidden">
+    <div class="glass-surface rounded-xl overflow-hidden" id="membershipCard-${m.id}">
 
       <!-- ── Card header ── -->
       <div class="px-8 py-5 flex items-center justify-between gap-4 border-b border-outline-variant/10" style="background:rgba(255,255,255,0.015)">
@@ -1954,7 +2052,14 @@ function renderMembershipCard(client, m, masterIdBadge) {
             <p class="text-on-surface-variant text-xs mt-0.5">${watches.length} watch${watches.length !== 1 ? 'es' : ''} · added ${fmt.date(m.created_at.split(' ')[0])}</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+          ${closeModeFor(m.id)
+            ? `<button onclick="exitCloseMode()" class="text-[11px] font-semibold uppercase tracking-wider text-primary px-4 py-2 border border-primary/40 bg-primary/10 rounded-lg transition-all flex items-center gap-1.5" aria-pressed="true">
+            <span class="material-symbols-outlined text-[14px]">checklist</span> Closing… cancel
+          </button>`
+            : `<button onclick="enterCloseMode(${m.id})" title="Close finished deals: pick the sold watches, then Close" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-4 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[14px]">lock</span> Close
+          </button>`}
           <button onclick="openAddWatch(${m.id})" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-4 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all flex items-center gap-1.5">
             <span class="material-symbols-outlined text-[14px]">add_circle</span> Add Watch
           </button>
@@ -2012,11 +2117,13 @@ function renderMembershipCard(client, m, masterIdBadge) {
       ${renderMembershipAnalytics(m)}
 
       <!-- ── Watches ── -->
+      ${closeModeFor(m.id) ? closeBarHtml(m.id, watches) : ''}
       ${watches.length ? `
       <div class="overflow-x-auto">
         <table class="w-full text-left">
           <thead>
             <tr class="border-b border-outline-variant/10" style="background:rgba(255,255,255,0.02)">
+              ${closeModeFor(m.id) ? '<th class="pl-8 pr-0 py-3 w-10"></th>' : ''}
               <th class="px-8 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Timepiece</th>
               <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Stock #</th>
               <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Status</th>
@@ -2032,7 +2139,8 @@ function renderMembershipCard(client, m, masterIdBadge) {
             ${groupWishlistRows(watches, w => {
               const wc = w.currency || 'CHF';
               return `
-            <tr class="tbl-row">
+            <tr class="tbl-row ${_closeMode.ids.has(w.id) ? 'bg-primary/5' : ''}" data-close-row="${w.id}">
+              ${closeModeFor(m.id) ? closePickCell(w) : ''}
               <td class="px-8 py-4">
                 <div class="flex items-center gap-3">
                   ${w.image_path
@@ -2046,7 +2154,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                 </div>
               </td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
-              <td class="px-5 py-3">${statusBadge(w.status)}</td>
+              <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-sm">${w.list_price != null ? fmt.price(w.list_price, wc) : '<span class="text-outline">—</span>'}</td>
@@ -2060,6 +2168,10 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   <button onclick="openMarkSoldModal(${w.id})" class="p-1.5 rounded-lg hover:bg-emerald-500/10 text-on-surface-variant hover:text-emerald-400 transition-colors" title="Mark as Sold">
                     <span class="material-symbols-outlined text-[16px]">sell</span>
                   </button>` : ''}
+                  ${isClosedDeal(w) ? `
+                  <button onclick="reopenWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-on-surface-variant hover:text-amber-400 transition-colors" title="Reopen this deal">
+                    <span class="material-symbols-outlined text-[16px]">lock_open</span>
+                  </button>` : ''}
                   <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-[16px]">edit</span>
                   </button>
@@ -2068,7 +2180,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   </button>
                 </div>
               </td>
-            </tr>`;}, 9)}
+            </tr>`;}, closeModeFor(m.id) ? 10 : 9)}
           </tbody>
         </table>
       </div>` : `
@@ -4508,14 +4620,14 @@ function watchRow(w, detail, opts) {
   }
 
   const detailPriceCols = detail ? `
-      <td class="px-5 py-3">${statusBadge(w.status)}</td>
+      <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono whitespace-nowrap">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm">${fmt.price(w.list_price, cur)}</td>
       <td class="px-5 py-3 text-primary font-semibold text-sm">${w.status !== 'sold' ? '<span class="text-outline">—</span>'
         : (w.market_price != null) ? `${fmt.price(isDiscountRow ? discountCalc(w, { discount_split: opts?.discountSplit }).clientPrice : w.sale_price, cur)}<span class="block text-[11px] text-on-surface-variant/60 font-normal mt-0.5">handover · market ${fmt.price(w.market_price, cur)}</span>` : fmt.price(w.sale_price, cur)}</td>
       ${detailPnlCell()}` : `
-      <td class="px-5 py-3">${statusBadge(w.status)}</td>
+      <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
       <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
       <td class="px-5 py-3 text-on-surface-variant text-sm">${fmt.date(w.purchase_date)}</td>
       <td class="px-5 py-3 font-semibold text-primary text-sm">${fmt.price(w.list_price ?? w.price, cur)}</td>
@@ -4558,6 +4670,9 @@ function watchRow(w, detail, opts) {
           <button onclick="openWatchDetail(${w.id})" title="View watch detail" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-sky-400 transition-colors">
             <span class="material-symbols-outlined text-[18px]">open_in_new</span>
           </button>
+          ${isClosedDeal(w) ? `<button onclick="reopenWatch(${w.id})" title="Reopen this deal" class="p-2 rounded-lg hover:bg-amber-500/10 text-on-surface-variant hover:text-amber-400 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">lock_open</span>
+          </button>` : ''}
           ${w.status !== 'sold' ? `<button onclick="openMarkSoldModal(${w.id})" title="Mark as Sold" class="text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition-all flex items-center gap-1">
             <span class="material-symbols-outlined text-[13px]">sell</span> Sold
           </button>` : ''}
@@ -5174,6 +5289,15 @@ async function toggleExpenseBoutique(expenseId, visible) {
   } catch (e) {
     alert(e.message || 'Failed to update commission');
   }
+}
+
+// Show or hide a piece itself to the boutique manager (Boutique Commission page)
+async function toggleWatchBoutique(watchId, visible) {
+  try {
+    await api('PUT', `/api/watches/${watchId}/boutique`, { visible: !!visible });
+    if (currentPage === 'boutique-commission') loadBoutiqueCommissionShop();
+    else if (currentPage === 'watch-detail' && currentWatchId) openWatchDetail(currentWatchId);
+  } catch (e) { alert(e.message || 'Failed to update the piece'); }
 }
 
 // A commission was paid out to the boutique (or back to pending)
@@ -6637,7 +6761,7 @@ function renderPagination(containerId, current, total, perPage, onChange) {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   closeProfileModal(); closeWatchModal(); closeConfirm(); closeCompanyDocModal(); closeShopModal(); closeMarkSoldModal();
-  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal(); closeRecordPayoutModal(); closeShareLinkModal();
+  closePortfolioModal(); closeClientPickerModal(); closeClientEditModal(); closeRecordPaymentModal(); closeAddExpenseModal(); closeRecordPayoutModal(); closeShareLinkModal(); closeUserModal();
   document.getElementById('lightbox').classList.add('hidden');
 });
 
@@ -7882,12 +8006,15 @@ async function loadVaultInsights() {
   }
   const count = fn => watches.filter(fn).length;
   const quick = id => QUICK_FILTERS.find(f => f.id === id).test;
+  // Closed deals and the settled ones waiting to be closed (27-close-deals.js)
+  const deals = closeDealStats(watches.map(w => ({ ...w, profile: profileById[w.profile_id] })));
 
   // ── Needs attention: only items that actually need something ──
   const items = [
     { n: count(quick('waiting30')), tone: 'amber',  icon: 'hourglass_top',  title: 'Wishlist waiting 30+ days', cta: 'Review list', go: "openWatchesWithQuickFilter('waiting30')" },
     { money: owedToMe,              tone: 'amber',  icon: 'account_balance_wallet', title: 'Still to withdraw (mine)', cta: 'See payouts', go: "showPage('main-kpi')" },
     { money: owedToClients,         tone: 'violet', icon: 'outbound',       title: 'Still owed to clients', cta: 'See payouts', go: "showPage('main-kpi')" },
+    { money: deals.ready.money,     tone: 'cyan',   icon: 'task_alt',       title: 'About to close', cta: 'Close them', go: "openWatchesWithQuickFilter('readyToClose')" },
     { n: count(quick('held60')),    tone: 'cyan',   icon: 'inventory_2',    title: 'Bought, unsold 60+ days', cta: 'Review stock', go: "openWatchesWithQuickFilter('held60')" },
     { n: count(quick('noPrice')),   tone: 'cyan',   icon: 'money_off',      title: 'Watches without a price', cta: 'Add prices', go: "openWatchesWithQuickFilter('noPrice')" },
   ].filter(it => it.money ? Object.keys(it.money).length : it.n > 0);
@@ -7935,6 +8062,15 @@ async function loadVaultInsights() {
     tile('wishlist', 'Wishlist', `${stats.wishlist_count}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">pieces</span>`, stats.wishlist_count ? `longest wait ${longest} day${longest !== 1 ? 's' : ''}` : 'nothing waiting',
          vaultSpark('wishlist', vs)),
   ].join('');
+  // ── Deals: closed, and settled but not yet closed ──
+  const dealTile = (label, value, sub, key) => `
+    <button type="button" class="glass-surface rounded-lg p-5 text-left w-full hover:border-primary/40 transition-colors" onclick="openWatchesWithQuickFilter('${key === 'closed' ? 'closed' : 'readyToClose'}')">
+      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-2 flex items-center gap-1.5"><span class="material-symbols-outlined text-[15px] ${key === 'closed' ? 'text-on-surface-variant' : 'text-sky-300'}">${key === 'closed' ? 'lock' : 'task_alt'}</span>${label}</p>
+      <div class="font-playfair text-2xl ${key === 'closed' ? 'text-on-surface' : 'text-sky-300'} leading-tight">${value}</div>
+      <p class="text-xs text-on-surface-variant mt-1">${sub}</p>
+    </button>`;
+  const dealsHost = document.getElementById('vaultDeals');
+  if (dealsHost) dealsHost.innerHTML = closeDealTiles(deals, dealTile).join('');
   _vaultData = { watches, stats };
   restoreVaultChart();             // keep an open chart open across refreshes
 
@@ -7993,6 +8129,8 @@ const QUICK_FILTERS = [
   { id: 'held60',    label: 'Unsold 60+ days',    icon: 'inventory_2',   test: w => w.status === 'purchased' && (daysSince(watchDate(w)) ?? 0) >= 60 },
   { id: 'noPrice',   label: 'No price',           icon: 'money_off',     test: w => w.status !== 'sold' && w.list_price == null },
   { id: 'noPhoto',   label: 'No photo',           icon: 'hide_image',    test: w => !w.image_path },
+  { id: 'readyToClose', label: 'About to close',  icon: 'task_alt',      test: w => isReadyToClose(w) },
+  { id: 'closed',    label: 'Closed deals',       icon: 'lock',          test: w => isClosedDeal(w) },
 ];
 
 // { id } of a quick filter or a saved view; null = none
@@ -8738,8 +8876,12 @@ async function renderBoutiqueVault() {
   const section = document.getElementById('bmVault');
   const shop = currentUser.shop;
   const owner = shop.owner_username || 'the owner';
-  const watches = await api('GET', '/api/watches', null, bmHeaders());
+  const [watches, salaries] = await Promise.all([
+    api('GET', '/api/watches', null, bmHeaders()),
+    api('GET', `/api/shops/${shop.id}/salaries`, null, bmHeaders()).catch(() => []),
+  ]);
   watches.forEach(w => { watchCache[w.id] = w; });
+  const salary = salaryTotals(salaries);
 
   const handed = watches.filter(w => w.status === 'handed_over');
   const wish   = watches.filter(w => w.status === 'wishlist').sort((a, b) => (wishlistDays(b) ?? -1) - (wishlistDays(a) ?? -1));
@@ -8809,13 +8951,16 @@ async function renderBoutiqueVault() {
           <h3 class="font-playfair text-3xl font-semibold text-on-surface leading-tight">${hello}, ${esc(currentUser.username)} 👋</h3>
           <p class="text-on-surface-variant text-sm mt-2">
             ${entries.length
-              ? `You have earned <strong class="bm-commission font-mono">${fmt.byCurrency(total)}</strong> in commission on ${piecesWithComm} piece${piecesWithComm !== 1 ? 's' : ''} at ${esc(shop.name)}${Object.keys(monthComm).length ? ` — <strong class="text-on-surface font-mono">${fmt.byCurrency(monthComm)}</strong> of it this month` : ''}.`
-              : `No commission shared with you yet — ${esc(owner)} marks a commission as visible to the boutique when recording it on a piece.`}
+              ? `You have earned <strong class="bm-commission font-mono">${fmt.byCurrency(total)}</strong> in commission on ${piecesWithComm} piece${piecesWithComm !== 1 ? 's' : ''} at ${esc(shop.name)}${Object.keys(monthComm).length ? ` — <strong class="text-on-surface font-mono">${fmt.byCurrency(monthComm)}</strong> of it this month` : ''}${salary.months ? `, plus <strong class="bm-commission font-mono">${fmt.byCurrency(salary.total)}</strong> in salary over ${salary.months} month${salary.months !== 1 ? 's' : ''}` : ''}.`
+              : salary.months
+                ? `You have earned <strong class="bm-commission font-mono">${fmt.byCurrency(salary.total)}</strong> in salary over ${salary.months} month${salary.months !== 1 ? 's' : ''} at ${esc(shop.name)} — no commission shared with you yet.`
+                : `No commission shared with you yet — ${esc(owner)} marks a commission as visible to the boutique when recording it on a piece.`}
           </p>
           <div class="flex items-center gap-2 flex-wrap mt-4">
             ${chip('watch', `${watches.length} piece${watches.length !== 1 ? 's' : ''} at the shop`)}
             ${chip('handshake', `${handed.length} handed over`, 'text-primary')}
             ${chip('bookmark', `${wish.length} on the wishlist`, wish.length ? 'text-amber-300' : '')}
+            ${salary.months ? chip('account_balance_wallet', `Salary ${fmt.byCurrency(salary.total)}${Object.values(salary.pending).length ? ` · ${fmt.byCurrency(salary.pending)} to come` : ' · all paid'}`, 'text-amber-300') : ''}
             ${top && top[1] ? chip('emoji_events', `Top client: ${esc(top[0])} · ${fmt.price(top[1], mainCur)}`, 'text-amber-300') : ''}
             ${sinceHand != null ? chip('schedule', sinceHand === 0 ? 'A piece handed over today' : `Last handover ${sinceHand} day${sinceHand !== 1 ? 's' : ''} ago`) : ''}
           </div>
@@ -8911,10 +9056,20 @@ async function loadCommissions() {
   }
   setBmView(true);   // the managed shop's pieces, as the owner shares them
   document.getElementById('commissionsSubtitle').textContent = `Commission set for you on pieces at ${bmShopName()} (${currentUser.shop.owner_username || 'the owner'}'s registry). The owner chooses which commissions appear here.`;
-  const watches = await api('GET', '/api/watches');
+  const [watches, salaries] = await Promise.all([
+    api('GET', '/api/watches'),
+    api('GET', `/api/shops/${currentUser.shop.id}/salaries`).catch(() => []),
+  ]);
   watches.forEach(w => { watchCache[w.id] = w; });
   const entries = watches.flatMap(w => (w.expenses || []).map(e => ({ ...e, watch: w })))
     .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+
+  // Salary tab: what the owner pays them a month, paid month by month — read-only
+  renderSalaryPane(document.getElementById('cmSalaryPane'), salaries, {
+    canEdit: false, shopId: currentUser.shop.id, managerName: 'you', ownerName: currentUser.shop.owner_username || 'the owner',
+    commissionTotals: (() => { const m = {}; for (const e of entries) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; })(),
+  });
+  showPaneTab('cm', currentPaneTab('cm'));
 
   // Tiles: all time, this month, pieces
   const sum = list => { const m = {}; for (const e of list) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; };
@@ -8938,10 +9093,12 @@ async function loadCommissions() {
     tile('Paid', `<span class="text-emerald-400">${fmt.byCurrency(sum(paid))}</span>`, `${paid.length} entr${paid.length === 1 ? 'y' : 'ies'} paid out to you`),
     tile('Commission left', pending.length ? fmt.byCurrency(sum(pending)) : `<span class="text-on-surface">${fmt.byCurrency(sum(pending))}</span>`, `${pending.length} entr${pending.length === 1 ? 'y' : 'ies'} still to be paid to you`),
     tile(`This month`, fmt.byCurrency(month), monthName),
+    tile('Total · commission + salary', `<span class="text-on-surface">${fmt.byCurrency(sumCurrencyMaps(total, salaryTotals(salaries).total))}</span>`, `${fmt.byCurrency(total)} commission + ${fmt.byCurrency(salaryTotals(salaries).total)} salary · paid ${fmt.byCurrency(sumCurrencyMaps(sum(paid), salaryTotals(salaries).paid))} · left ${fmt.byCurrency(sumCurrencyMaps(sum(pending), salaryTotals(salaries).pending))}`),
     tile('Wishlist pending', `<span class="${wish.length ? 'text-amber-300' : 'text-on-surface'}">${wish.length}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${wish.length === 1 ? 'piece' : 'pieces'}</span></span>`,
          wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
   renderCommissionWishlist(wish);
+  renderCommissionPieces(watches);
   document.getElementById('commissionsCount').textContent = entries.length ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}` : '';
   document.getElementById('commissionsUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
@@ -9010,6 +9167,65 @@ function renderCommissionWishlist(wish) {
       <span class="font-mono text-lg font-semibold leading-none ${urgency} whitespace-nowrap">${d}<span class="text-xs font-sans font-medium text-outline ml-1">${d === 1 ? 'day' : 'days'}</span></span>
     </button>`;
   }).join('') : `<p class="px-6 py-10 text-center text-sm text-on-surface-variant">Nothing on the wishlist at ${esc(bmShopName())}.</p>`;
+}
+
+// Every piece the owner shows this manager, grouped by client (as the owner's
+// Boutique Commission page groups them), with the commission set on each —
+// so a piece shown without a commission yet is still seen here.
+function renderCommissionPieces(watches) {
+  const body = document.getElementById('commissionPiecesBody');
+  const count = document.getElementById('commissionPiecesCount');
+  const sub = document.getElementById('commissionPiecesSub');
+  if (!body) return;
+  const sum = list => { const m = {}; for (const e of list) m[e.currency || 'CHF'] = (m[e.currency || 'CHF'] || 0) + Number(e.amount || 0); return m; };
+  const groups = new Map();
+  for (const w of watches) {
+    const key = w.profile_id ?? `name:${w.client_name || ''}`;
+    if (!groups.has(key)) groups.set(key, { name: w.client_name || 'No client', items: [] });
+    groups.get(key).items.push(w);
+  }
+  const clients = [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+  count.textContent = watches.length ? `${watches.length} piece${watches.length !== 1 ? 's' : ''} · ${clients.length} client${clients.length !== 1 ? 's' : ''}` : '';
+  sub.textContent = `Every piece the owner shows you at ${bmShopName()}, by client, with the commission set on it.`;
+  if (!watches.length) {
+    body.innerHTML = `<tr><td colspan="4" class="px-6 py-10 text-center text-sm text-on-surface-variant">No pieces shared with you yet at ${esc(bmShopName())}.</td></tr>`;
+    return;
+  }
+  let html = '';
+  for (const c of clients) {
+    const withCommission = c.items.filter(w => (w.expenses || []).length);
+    const total = sum(c.items.flatMap(w => w.expenses || []));
+    html += `<tr class="wl-group-row"><td colspan="4" class="!py-2 !px-5">
+      <span class="inline-flex items-center gap-2">
+        <span class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center">${esc((c.name || '?').trim().charAt(0).toUpperCase())}</span>
+        <span class="text-sm font-semibold text-on-surface">${esc(c.name)}</span>
+        <span class="text-[11px] font-mono text-outline">${c.items.length} piece${c.items.length !== 1 ? 's' : ''}</span>
+        ${withCommission.length ? `<span class="font-mono text-xs bm-commission ml-2">${fmt.byCurrency(total)}</span>` : `<span class="text-[11px] text-outline ml-2">no commission yet</span>`}
+      </span></td></tr>`;
+    for (const w of c.items) {
+      const entries = w.expenses || [];
+      const pending = entries.filter(e => !e.paid_at);
+      html += `
+      <tr class="tbl-row cursor-pointer" onclick="openWatchDetail(${w.id})">
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-3 min-w-0">
+            ${bmThumb(w)}
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-on-surface truncate">${esc(w.model)}</p>
+              <p class="text-xs font-mono text-outline truncate">${esc(w.reference_number || '')}${w.serial_number ? ` · ${esc(w.serial_number)}` : ''}</p>
+            </div>
+          </div>
+        </td>
+        <td class="px-5 py-3">${statusBadge(w.status)}</td>
+        <td class="px-5 py-3 text-right font-mono text-sm text-on-surface whitespace-nowrap">${w.list_price != null ? fmt.price(w.list_price, w.currency || 'CHF') : '<span class="text-outline">—</span>'}</td>
+        <td class="px-5 py-3 text-right whitespace-nowrap">${entries.length
+          ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(sum(entries))}</span>
+             <span class="block text-[11px] text-on-surface-variant mt-0.5">${pending.length ? `${fmt.byCurrency(sum(pending))} pending` : 'paid out'}</span>`
+          : `<span class="text-xs text-outline">${w.status === 'wishlist' ? 'wishlist · once handed over' : 'no commission yet'}</span>`}</td>
+      </tr>`;
+    }
+  }
+  body.innerHTML = html;
 }
 
 // ── Watch page ─────────────────────────────────────────────────────────────
@@ -9238,20 +9454,25 @@ async function loadBoutiqueCommissionShop() {
     document.getElementById('bcShopSub').textContent = `${managerNames} is not linked to a shop yet — assign one under Admin → Users (store icon).`;
     document.getElementById('bcNewClient').innerHTML = '';
     document.getElementById('bcCollab').innerHTML = '';
+    document.getElementById('bcSalaryPane').innerHTML = '';
     body.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
     return;
   }
-  const [shop, watches, collaborators] = await Promise.all([
+  const [shop, watches, collaborators, salaries] = await Promise.all([
     api('GET', `/api/shops/${c.shop_id}`),
     api('GET', `/api/watches?shop_id=${c.shop_id}`),
     api('GET', `/api/shops/${c.shop_id}/collaborators`).catch(() => []),
+    api('GET', `/api/shops/${c.shop_id}/salaries`).catch(() => []),
   ]);
   _bcShop = shop; _bcWatches = watches; _bcCollaborators = collaborators;
   watches.forEach(w => { watchCache[w.id] = w; });
 
   // ── Tiles: the balance with the boutique — total shown, paid out, still pending ──
   const all = watches.flatMap(bcCommissions);
-  const shared = all.filter(e => e.for_boutique);
+  const visibleIds = new Set(watches.filter(w => !w.hidden_from_boutique).map(w => w.id));
+  const shared = all.filter(e => e.for_boutique && visibleIds.has(e.watch_id));
+  const salaryT = salaryTotals(salaries);
+  const hiddenPieces = watches.filter(w => w.hidden_from_boutique).length;
   const paid = shared.filter(e => e.paid_at), pending = shared.filter(e => !e.paid_at);
   const tile = (label, value, sub, cls = 'bm-commission') => `
     <div class="glass-surface rounded-lg p-5">
@@ -9267,10 +9488,11 @@ async function loadBoutiqueCommissionShop() {
   const longest = wish.reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
   const waiting30 = wish.filter(w => (wishlistDays(w) ?? 0) >= 30).length;
   document.getElementById('bcTiles').innerHTML = [
-    tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}`),
+    tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}${salaryTotals(salaries).months ? ` · + ${fmt.byCurrency(salaryTotals(salaries).total)} salary` : ''}`),
     tile('Paid', fmt.byCurrency(bcSum(paid)), `${n(paid)} paid out to ${seenBy}`, 'text-emerald-400'),
     tile('Commission left', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay ${seenBy}`, pending.length ? 'bm-commission' : 'text-on-surface'),
-    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${n(all.filter(e => !e.for_boutique))} recorded but not shown`, 'text-on-surface'),
+    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique || !visibleIds.has(e.watch_id)))), `${n(all.filter(e => !e.for_boutique || !visibleIds.has(e.watch_id)))} recorded but not shown${hiddenPieces ? ` · ${hiddenPieces} piece${hiddenPieces !== 1 ? 's' : ''} hidden` : ''}`, 'text-on-surface'),
+    tile(`Total · commission + salary`, `<span class="text-on-surface">${fmt.byCurrency(sumCurrencyMaps(bcSum(shared), salaryT.total))}</span>`, `${fmt.byCurrency(bcSum(shared))} commission + ${fmt.byCurrency(salaryT.total)} salary · paid ${fmt.byCurrency(sumCurrencyMaps(bcSum(paid), salaryT.paid))} · left ${fmt.byCurrency(sumCurrencyMaps(bcSum(pending), salaryT.pending))}`),
     tile('Wishlist pending', `<span class="${wish.length ? 'text-amber-300' : 'text-on-surface'}">${wish.length}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${wish.length === 1 ? 'piece' : 'pieces'}</span></span>`,
          wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
@@ -9291,6 +9513,14 @@ async function loadBoutiqueCommissionShop() {
   document.getElementById('bcNewPieceBtn').classList.toggle('opacity-50', !profiles.length);
 
   renderBcCollaborators(c);
+
+  // ── Salary tab: the manager's monthly salary, paid month by month ──
+  renderSalaryPane(document.getElementById('bcSalaryPane'), salaries, {
+    canEdit: true, shopId: c.shop_id, managerName: managerNames || 'the boutique manager',
+    ownerName: inCollab ? c.owner_username : 'you', commissionTotals: bcSum(shared),
+    reload: loadBoutiqueCommissionShop,
+  });
+  showPaneTab('bc', currentPaneTab('bc'));
 
   // ── Pieces table: one block per client — their bought pieces first, then their wishlist ──
   body.innerHTML = watches.length ? bcGroupsHtml(watches, profiles)
@@ -9332,6 +9562,7 @@ function bcGroupsHtml(watches, profiles) {
             <span class="text-[11px] font-mono text-on-surface-variant">${g.watches.length} piece${g.watches.length !== 1 ? 's' : ''}</span>
             ${owned.length ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-purple-300"><span class="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"></span>${owned.length} purchased</span>` : ''}
             ${wish.length  ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>${wish.length} wishlist</span>` : ''}
+            ${g.watches.some(w => w.hidden_from_boutique) ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-outline"><span class="material-symbols-outlined text-[13px]">visibility_off</span>${g.watches.filter(w => w.hidden_from_boutique).length} hidden</span>` : ''}
             <span class="ml-auto flex items-center gap-5 text-[11px] text-on-surface-variant">
               ${owned.length ? `<span>List <span class="font-mono text-on-surface">${fmt.byCurrency(listTotal)}</span></span>` : ''}
               ${shared.length ? `<span>Shown <span class="font-mono font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span></span>` : `<span class="text-outline">nothing shown</span>`}
@@ -9463,7 +9694,7 @@ function bcRowHtml(w) {
       </button>
     </div>`).join('');
   return `
-    <tr class="tbl-row">
+    <tr class="tbl-row ${w.hidden_from_boutique ? 'opacity-60' : ''}">
       <td class="pl-9 pr-5 py-3">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-11 h-11 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">${thumb}</div>
@@ -9476,7 +9707,10 @@ function bcRowHtml(w) {
       <td class="px-5 py-3">${statusBadge(w.status)}</td>
       <td class="px-5 py-3 text-sm font-mono text-on-surface">${w.list_price != null ? fmt.price(w.list_price, cur) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-3">
-        ${shared.length ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="text-xs text-outline">nothing shown</span>`}
+        <button onclick="toggleWatchBoutique(${w.id}, ${w.hidden_from_boutique ? 'true' : 'false'})" title="${w.hidden_from_boutique ? 'This piece is hidden from the boutique manager — click to show it' : 'This piece is shown to the boutique manager — click to hide it'}" class="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border transition-all mb-1.5 ${w.hidden_from_boutique ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-amber-400/30 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15'}">
+          <span class="material-symbols-outlined text-[14px]">${w.hidden_from_boutique ? 'visibility_off' : 'visibility'}</span>${w.hidden_from_boutique ? 'Piece hidden' : 'Piece shown'}
+        </button>
+        ${shared.length ? `<span class="block font-mono text-sm font-semibold ${w.hidden_from_boutique ? 'text-on-surface-variant line-through' : 'bm-commission'}">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="block text-xs text-outline">no commission shown</span>`}
         ${shared.length ? (shared.every(e => e.paid_at)
             ? `<span class="block text-[11px] text-emerald-400 mt-0.5">paid</span>`
             : `<span class="block text-[11px] text-on-surface-variant mt-0.5">${fmt.byCurrency(bcSum(shared, e => !e.paid_at))} pending</span>`) : ''}
@@ -9525,6 +9759,311 @@ function onBoutiqueWatchCreated(w) {
   if (w.status === 'wishlist') return;    // nothing to set on a wishlist piece yet
   watchCache[w.id] = { ...w, client_name: _bcShop?.profiles?.find(p => p.id === w.profile_id)?.name };
   openBoutiqueCommissionModal(w.id);
+}
+
+
+// ═══ 26-salary.js ═══
+// 26-salary.js — the boutique manager's salary (the Salary tab)
+// Besides commissions, an owner may pay the shop's boutique manager a fixed
+// monthly salary. The owner (and a collaborator of the shop) sets it on the
+// Boutique Commission page's Salary tab — an amount a month from a start
+// month, still running or until an end month — and marks each month paid; the
+// manager's Commissions page has the same tab read-only, with what they earn
+// with the owner in all: commission + salary. One renderer for both sides
+// (renderSalaryPane), the data from /api/shops/:id/salaries.
+// Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
+// in filename order into public/js/dashboard.js (one classic script, so
+// functions and top-level variables stay shared exactly as before).
+
+const SALARY_CURRENCIES = ['EUR', 'CHF', 'USD', 'GBP'];
+
+function salaryMonthLabel(m) {
+  return m ? new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : '—';
+}
+function salaryMonthShort(m) {
+  return m ? new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '—';
+}
+// Per-currency sums over every month of every salary: all, paid, pending
+function salaryTotals(salaries) {
+  const add = (map, e) => { map[e.currency || 'EUR'] = (map[e.currency || 'EUR'] || 0) + Number(e.amount || 0); return map; };
+  const total = {}, paid = {}, pending = {};
+  let months = 0;
+  for (const sl of salaries || []) for (const mo of sl.months || []) { months++; add(total, mo); add(mo.paid_at ? paid : pending, mo); }
+  return { total, paid, pending, months };
+}
+// Add two per-currency maps (commission + salary = earned in all)
+function sumCurrencyMaps(a, b) {
+  const out = { ...(a || {}) };
+  for (const [cur, v] of Object.entries(b || {})) out[cur] = (out[cur] || 0) + v;
+  return out;
+}
+const salaryTile = (label, value, sub, cls = 'bm-commission') => `
+  <div class="glass-surface rounded-lg p-5">
+    <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-3">${label}</p>
+    <p class="font-playfair text-2xl ${cls}">${value}</p>
+    <p class="text-[11px] text-on-surface-variant mt-1">${sub}</p>
+  </div>`;
+
+// opts: { canEdit, shopId, managerName, ownerName, commissionTotals (per-currency map, for "earned in all"), reload }
+function renderSalaryPane(container, salaries, opts) {
+  const { canEdit, shopId, managerName, ownerName, commissionTotals, reload } = opts;
+  const t = salaryTotals(salaries);
+  const who = managerName || 'the boutique manager';
+  const first = (salaries || []).map(s => s.start_month).sort()[0];
+  const allIn = sumCurrencyMaps(commissionTotals, t.total);
+  const running = (salaries || []).filter(s => !s.end_month);
+
+  const tiles = `
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      ${salaryTile('Salary', fmt.byCurrency(t.total), first ? `${t.months} month${t.months !== 1 ? 's' : ''} since ${salaryMonthLabel(first)}${running.length ? ` · ${running.map(s => fmt.price(s.amount, s.currency)).join(' + ')} a month` : ''}` : `no salary set for ${esc(who)} yet`)}
+      ${salaryTile('Paid', fmt.byCurrency(t.paid), `${Object.values(t.paid).length ? 'paid out to' : 'nothing paid out to'} ${esc(who)}`, 'text-emerald-400')}
+      ${salaryTile('Left to pay', fmt.byCurrency(t.pending), `${(salaries || []).reduce((n, s) => n + s.months.filter(m => !m.paid_at).length, 0)} month${(salaries || []).reduce((n, s) => n + s.months.filter(m => !m.paid_at).length, 0) !== 1 ? 's' : ''} still to pay`, Object.values(t.pending).length ? 'bm-commission' : 'text-on-surface')}
+      ${salaryTile(canEdit ? `${esc(who)} earns with ${esc(ownerName || 'you')} in all` : `Earned with ${esc(ownerName || 'the owner')} in all`, `<span class="text-on-surface">${fmt.byCurrency(allIn)}</span>`, `commission ${fmt.byCurrency(commissionTotals || {})} + salary ${fmt.byCurrency(t.total)}`)}
+    </div>`;
+
+  const cards = (salaries || []).length ? salaries.map(sl => `
+    <div class="glass-surface rounded-lg overflow-hidden mb-4">
+      <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
+        <div class="min-w-0">
+          <h3 class="font-playfair text-xl text-on-surface"><span class="bm-commission font-mono">${fmt.price(sl.amount, sl.currency)}</span> a month</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">since ${salaryMonthLabel(sl.start_month)}${sl.end_month ? ` until ${salaryMonthLabel(sl.end_month)}` : ' · still running'}${sl.description ? ` · ${esc(sl.description)}` : ''}</p>
+        </div>
+        ${canEdit ? `
+        <div class="flex items-center gap-1">
+          <button onclick="editSalary(${sl.id})" title="Change this salary" aria-label="Change this salary" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[18px]">edit</span></button>
+          <button onclick="endSalary(${sl.id})" title="${sl.end_month ? 'Already ended' : 'End this salary this month'}" aria-label="End this salary" class="p-2 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-amber-300 transition-colors ${sl.end_month ? 'opacity-40 pointer-events-none' : ''}"><span class="material-symbols-outlined text-[18px]">event_busy</span></button>
+          <button onclick="deleteSalary(${sl.id})" title="Remove this salary" aria-label="Remove this salary" class="p-2 rounded-lg hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+        </div>` : ''}
+      </div>
+      <div class="divide-y divide-white/[0.04]">
+        ${sl.months.length ? sl.months.map(mo => `
+        <div class="px-6 py-3 flex items-center gap-4 flex-wrap">
+          <span class="text-sm font-medium text-on-surface w-40">${salaryMonthLabel(mo.month)}</span>
+          <span class="font-mono text-sm ${mo.paid_at ? 'text-on-surface-variant' : 'bm-commission'}">${fmt.price(mo.amount, mo.currency)}</span>
+          ${mo.paid_at
+            ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400" title="Paid ${fmt.date(mo.paid_at)}">Paid</span>`
+            : `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-white/[0.04] text-on-surface-variant">Pending</span>`}
+          ${canEdit ? `<button onclick="toggleSalaryMonthPaid(${sl.id}, '${mo.month}', ${mo.paid_at ? 'false' : 'true'})" class="ml-auto text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded border transition-all ${mo.paid_at ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'}">${mo.paid_at ? 'Unpaid' : 'Mark paid'}</button>` : ''}
+        </div>`).join('')
+        : `<p class="px-6 py-6 text-sm text-on-surface-variant">Starts ${salaryMonthLabel(sl.start_month)} — no month due yet.</p>`}
+      </div>
+    </div>`).join('')
+    : `<div class="glass-surface rounded-lg p-10 text-center text-on-surface-variant text-sm mb-4">
+        <span class="material-symbols-outlined text-outline text-3xl block mb-2">payments</span>
+        ${canEdit ? `No salary set for ${esc(who)} yet. Add one below — every month from the start month shows up here, to mark paid as you pay it, and ${esc(who)} sees it on their Salary tab.` : `No salary recorded for you yet. ${esc(ownerName || 'The owner')} sets it on their side.`}
+      </div>`;
+
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const form = canEdit ? `
+    <div class="glass-surface rounded-lg px-6 py-5">
+      <p class="text-[11px] uppercase tracking-[0.06em] text-on-surface-variant font-semibold mb-1">Add a salary</p>
+      <p class="text-xs text-on-surface-variant mb-4">A fixed amount a month for ${esc(who)}, from the month it started. Leave "until" empty while it is still running.</p>
+      <form onsubmit="submitSalary(event, ${shopId})" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+        <label class="block"><span class="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1">Amount a month</span>
+          <input name="amount" type="number" min="1" step="1" required placeholder="5000" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-3 py-2 text-on-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary"></label>
+        <label class="block"><span class="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1">Currency</span>
+          <select name="currency" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-3 py-2 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary">${SALARY_CURRENCIES.map(c => `<option value="${c}" style="background:#131A24;color:#E6EDF7">${c}</option>`).join('')}</select></label>
+        <label class="block"><span class="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1">From</span>
+          <input name="start_month" type="month" required value="${thisMonth}" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-3 py-2 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary"></label>
+        <label class="block"><span class="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1">Until <span class="normal-case tracking-normal text-outline">(optional)</span></span>
+          <input name="end_month" type="month" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-3 py-2 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary"></label>
+        <button type="submit" class="bg-primary text-on-primary text-xs font-semibold px-4 py-2.5 rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 h-[38px]"><span class="material-symbols-outlined text-[16px]">add_circle</span> Add salary</button>
+        <label class="block sm:col-span-2 lg:col-span-5"><span class="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1">Note <span class="normal-case tracking-normal text-outline">(optional)</span></span>
+          <input name="description" type="text" placeholder="e.g. Fixed monthly salary" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-3 py-2 text-on-surface text-sm focus:outline-none focus:ring-1 focus:ring-primary"></label>
+      </form>
+      <p id="salaryFormError" class="hidden text-xs text-error mt-2"></p>
+    </div>` : '';
+
+  container.innerHTML = tiles + cards + form;
+  container.dataset.shopId = String(shopId);
+  _salaryReload = reload;
+}
+
+let _salaryReload = null;
+async function salaryCall(method, url, body) {
+  try { await api(method, url, body); if (_salaryReload) await _salaryReload(); }
+  catch (e) { alert(e.message || 'Could not update the salary'); }
+}
+async function submitSalary(ev, shopId) {
+  ev.preventDefault();
+  const f = ev.target, err = document.getElementById('salaryFormError');
+  const body = { amount: Number(f.amount.value), currency: f.currency.value, start_month: f.start_month.value, end_month: f.end_month.value || null, description: f.description.value.trim() || undefined };
+  err?.classList.add('hidden');
+  try { await api('POST', `/api/shops/${shopId}/salaries`, body); if (_salaryReload) await _salaryReload(); }
+  catch (e) { if (err) { err.textContent = e.message; err.classList.remove('hidden'); } else alert(e.message); }
+}
+function toggleSalaryMonthPaid(id, month, paid) { return salaryCall('PUT', `/api/salaries/${id}/months/${month}/paid`, { paid }); }
+async function editSalary(id) {
+  const amount = prompt('Amount a month:');
+  if (amount == null) return;
+  if (!(Number(amount) > 0)) { alert('Enter a positive amount.'); return; }
+  return salaryCall('PUT', `/api/salaries/${id}`, { amount: Number(amount) });
+}
+function endSalary(id) {
+  const month = new Date().toISOString().slice(0, 7);
+  if (!confirm(`End this salary with ${salaryMonthLabel(month)}? Months up to now stay; nothing is due after.`)) return;
+  return salaryCall('PUT', `/api/salaries/${id}`, { end_month: month });
+}
+function deleteSalary(id) {
+  if (!confirm('Remove this salary and its paid months? This cannot be undone.')) return;
+  return salaryCall('DELETE', `/api/salaries/${id}`);
+}
+
+// Tab rows on both pages: Commissions | Salary
+function salaryTabClass(active) {
+  return 'text-xs font-semibold uppercase tracking-wider px-4 py-3 border-b-2 transition-colors ' + (active ? 'border-amber-400 text-amber-300' : 'border-transparent text-on-surface-variant hover:text-on-surface');
+}
+function showPaneTab(prefix, tab) {
+  document.querySelectorAll(`[data-${prefix}-tab]`).forEach(b => { b.className = salaryTabClass(b.dataset[`${prefix}Tab`] === tab); b.setAttribute('aria-selected', String(b.dataset[`${prefix}Tab`] === tab)); });
+  document.getElementById(`${prefix}CommissionsPane`)?.classList.toggle('hidden', tab !== 'commissions');
+  document.getElementById(`${prefix}SalaryPane`)?.classList.toggle('hidden', tab !== 'salary');
+  try { localStorage.setItem(`meridian.${prefix}Tab`, tab); } catch {}
+}
+function currentPaneTab(prefix) { try { return localStorage.getItem(`meridian.${prefix}Tab`) === 'salary' ? 'salary' : 'commissions'; } catch { return 'commissions'; } }
+document.querySelectorAll('[data-bc-tab]').forEach(b => b.addEventListener('click', () => showPaneTab('bc', b.dataset.bcTab)));
+document.querySelectorAll('[data-cm-tab]').forEach(b => b.addEventListener('click', () => showPaneTab('cm', b.dataset.cmTab)));
+
+
+// ═══ 27-close-deals.js ═══
+// 27-close-deals.js — closing a deal, and the closed / about-to-close figures
+// Part of the dashboard script: scripts/build.js concatenates src/dashboard/*.js
+// in filename order into public/js/dashboard.js (one classic script, so
+// functions and top-level variables stay shared exactly as before).
+//
+// A deal is CLOSED when a person closes it (Close on a client's membership
+// card → pick the watches → Close). Only sold watches close. ABOUT TO CLOSE is
+// derived, never stored: a sold watch not yet closed with nothing outstanding
+// on either side — no loss still owed, nothing left to pay the client, nothing
+// left to withdraw for me — so the only thing missing is the click.
+
+const isClosedDeal = w => w.status === 'sold' && !!w.closed_at;
+
+// What the deal was worth: the sale price, or the client price of a handover.
+function dealAmount(w) {
+  if (w.sale_price != null) return w.sale_price;
+  if (w.market_price != null && watchRule(w, w.profile) === 'discount') return discountCalc(w, w.profile || w).clientPrice || 0;
+  return 0;
+}
+
+// Sold, not closed, nothing outstanding either way. `w.profile` must be set.
+function isReadyToClose(w) {
+  if (w.status !== 'sold' || w.closed_at) return false;
+  if (w.list_price == null) return false;
+  if (Math.max(0, watchPayoutBalance(w, 'client').remaining) > 0.5) return false;
+  if (Math.max(0, watchPayoutBalance(w, 'my').remaining) > 0.5) return false;
+  if (watchRule(w, w.profile) === 'discount') {
+    const d = discountCalc(w, w.profile || w);
+    if (d.isLoss && d.outstanding > 0.5) return false;
+  }
+  return true;
+}
+
+// { closed: { n, money }, ready: { n, money } } over watches with `profile` set
+function closeDealStats(watches) {
+  const out = { closed: { n: 0, money: {} }, ready: { n: 0, money: {} } };
+  const add = (b, w) => { b.n++; const c = w.currency || 'CHF'; b.money[c] = (b.money[c] || 0) + dealAmount(w); };
+  for (const w of watches) {
+    if (isClosedDeal(w)) add(out.closed, w);
+    else if (isReadyToClose(w)) add(out.ready, w);
+  }
+  return out;
+}
+
+const closedChip = w => isClosedDeal(w)
+  ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/[0.04] text-on-surface-variant border border-outline-variant/30" title="Closed ${w.closed_at ? fmt.date(String(w.closed_at).slice(0, 10)) : ''}${w.closed_by ? ' by ' + esc(w.closed_by) : ''}"><span class="material-symbols-outlined text-[12px]">lock</span>Closed</span>`
+  : '';
+
+// ── Close mode on a membership card ────────────────────────────────────────
+// One card at a time: the Close button turns the card's watch list into a
+// pick list (sold, open watches only), with the action bar on top.
+let _closeMode = { profileId: null, ids: new Set() };
+
+function closeModeFor(profileId) { return _closeMode.profileId === profileId; }
+
+function enterCloseMode(profileId) {
+  _closeMode = { profileId, ids: new Set() };
+  rerenderMembershipCard(profileId);
+}
+function exitCloseMode() {
+  const id = _closeMode.profileId;
+  _closeMode = { profileId: null, ids: new Set() };
+  if (id != null) rerenderMembershipCard(id);
+}
+function toggleCloseSelect(watchId) {
+  if (_closeMode.ids.has(watchId)) _closeMode.ids.delete(watchId); else _closeMode.ids.add(watchId);
+  updateCloseBar();
+}
+function selectAllClosable(profileId) {
+  const m = (_currentClientData?.memberships || []).find(x => x.id === profileId);
+  const all = (m?.watches || []).filter(w => w.status === 'sold' && !w.closed_at).map(w => w.id);
+  const every = all.length && all.every(id => _closeMode.ids.has(id));
+  _closeMode.ids = new Set(every ? [] : all);
+  rerenderMembershipCard(profileId);
+}
+function updateCloseBar() {
+  const n = _closeMode.ids.size;
+  const cnt = document.getElementById('closeBarCount'); if (cnt) cnt.textContent = n ? `${n} selected` : 'Nothing selected yet';
+  const btn = document.getElementById('closeBarBtn');   if (btn) { btn.disabled = !n; btn.textContent = n ? `Close ${n} watch${n !== 1 ? 'es' : ''}` : 'Close'; }
+  document.querySelectorAll('[data-close-row]').forEach(tr => tr.classList.toggle('bg-primary/5', _closeMode.ids.has(Number(tr.dataset.closeRow))));
+}
+async function closeSelectedWatches() {
+  const ids = [..._closeMode.ids];
+  if (!ids.length) return;
+  const btn = document.getElementById('closeBarBtn'); if (btn) btn.disabled = true;
+  try {
+    for (const id of ids) await api('PUT', `/api/watches/${id}/close`, { closed: true });
+    _closeMode = { profileId: null, ids: new Set() };
+    if (currentPage === 'client-detail') await openClientDetail(currentClientId);
+  } catch (e) { alert(e.message); if (btn) btn.disabled = false; }
+}
+async function reopenWatch(id) {
+  try {
+    await api('PUT', `/api/watches/${id}/close`, { closed: false });
+    if (currentPage === 'client-detail') await openClientDetail(currentClientId);
+    else if (currentPage === 'profile-detail') openProfileDetail(currentProfileId);
+    else if (currentPage === 'watches') loadWatches();
+  } catch (e) { alert(e.message); }
+}
+
+// Redraw one membership card in place (the client page keeps the rest)
+function rerenderMembershipCard(profileId) {
+  const client = _currentClientData;
+  const m = (client?.memberships || []).find(x => x.id === profileId);
+  const el = document.getElementById(`membershipCard-${profileId}`);
+  if (!client || !m || !el) return;
+  el.outerHTML = renderMembershipCard(client, m, client.master_id);
+}
+
+// The action bar shown above the watch list while picking
+function closeBarHtml(profileId, watches) {
+  const closable = watches.filter(w => w.status === 'sold' && !w.closed_at).length;
+  const n = _closeMode.ids.size;
+  return `
+    <div class="px-8 py-3 border-b border-primary/20 bg-primary/5 flex items-center gap-3 flex-wrap">
+      <span class="material-symbols-outlined text-primary text-[18px]">checklist</span>
+      <p class="text-sm text-on-surface">Pick the deals to close <span class="text-on-surface-variant">· ${closable ? `${closable} sold watch${closable !== 1 ? 'es' : ''} can be closed` : 'no sold, open watches here'}</span></p>
+      <span id="closeBarCount" class="text-xs font-mono text-on-surface-variant">${n ? `${n} selected` : 'Nothing selected yet'}</span>
+      <span class="flex-1"></span>
+      ${closable ? `<button type="button" onclick="selectAllClosable(${profileId})" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-3 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 transition-all">${n && n === closable ? 'Clear' : 'Select all'}</button>` : ''}
+      <button type="button" onclick="exitCloseMode()" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-3 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 transition-all">Cancel</button>
+      <button type="button" id="closeBarBtn" onclick="closeSelectedWatches()" ${n ? '' : 'disabled'} class="text-[11px] font-semibold uppercase tracking-wider bg-primary text-on-primary px-4 py-2 rounded-lg hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all">${n ? `Close ${n} watch${n !== 1 ? 'es' : ''}` : 'Close'}</button>
+    </div>`;
+}
+
+// The pick cell at the start of each row while picking
+function closePickCell(w) {
+  const can = w.status === 'sold' && !w.closed_at;
+  return `<td class="pl-8 pr-0 py-4 w-10 align-middle">${can
+    ? `<input type="checkbox" aria-label="Close ${esc(w.model)}" ${_closeMode.ids.has(w.id) ? 'checked' : ''} onchange="toggleCloseSelect(${w.id})" class="w-4 h-4 accent-[var(--md-sys-color-primary,#22d3ee)] cursor-pointer">`
+    : `<span class="material-symbols-outlined text-outline/40 text-[16px]" title="${w.closed_at ? 'Already closed' : 'Only a sold watch can be closed'}">${w.closed_at ? 'lock' : 'block'}</span>`}</td>`;
+}
+
+// Tile pair for the Vault and Main KPI
+function closeDealTiles(stats, tile) {
+  return [
+    tile('Closed deals', stats.closed.n ? fmt.byCurrency(stats.closed.money) : '—', stats.closed.n ? `${stats.closed.n} deal${stats.closed.n !== 1 ? 's' : ''} closed` : 'none closed yet', 'closed'),
+    tile('About to close', stats.ready.n ? fmt.byCurrency(stats.ready.money) : '—', stats.ready.n ? `${stats.ready.n} settled, waiting to be closed` : 'nothing waiting', 'ready'),
+  ];
 }
 
 

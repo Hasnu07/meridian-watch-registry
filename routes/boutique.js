@@ -19,7 +19,8 @@
  * wishlist or has been handed over (never purchased vs sold), dates, list
  * price, image, notes, which client (membership) it belongs to, and the
  * COMMISSION the owner chose to share with them (expenses of category
- * 'commission' flagged for_boutique; their Commissions tab lists these).
+ * 'commission' flagged for_boutique; their Commissions tab lists these) and
+ * the SALARY the owner pays them, month by month (the Salary tab).
  * Never: stock number, the resale price, who bought it, costs, payouts, loss
  * settlements, split rules or capital.
  */
@@ -90,6 +91,7 @@ function sanitizeWatch(w) {
 
 function sanitizeProfile(p) {
   return {
+    // watch_count re-counted below where the watches are listed; here as given
     id:             p.id,
     name:           p.name,
     email:          p.email,
@@ -115,8 +117,12 @@ function sanitizePortfolio(pt) {
 }
 
 // A sanitised profile list with full watch rows (for shop detail expand rows)
+// A piece the owner hid from the boutique (watches.hidden_from_boutique) is
+// left out everywhere here — lists, counts, its page — commissions included.
+const shown = w => !w.hidden_from_boutique;
+
 function profileWithWatches(p, ownerId) {
-  return { ...sanitizeProfile(p), watches: db.listWatchesForProfile(p.id, ownerId).map(w => sanitizeWatch({ ...w, client_name: p.name, shop_name: p.shop_name })) };
+  return { ...sanitizeProfile(p), watches: db.listWatchesForProfile(p.id, ownerId).filter(shown).map(w => sanitizeWatch({ ...w, client_name: p.name, shop_name: p.shop_name })) };
 }
 
 function myShop(req) {
@@ -125,7 +131,7 @@ function myShop(req) {
 
 function shopWatches(req, q) {
   if (!req.bm.shopId) return [];
-  return db.listAllWatches({ q, shop_id: req.bm.shopId, ownerId: req.bm.ownerId }).map(sanitizeWatch);
+  return db.listAllWatches({ q, shop_id: req.bm.shopId, ownerId: req.bm.ownerId }).filter(shown).map(sanitizeWatch);
 }
 
 // ── Endpoints ──────────────────────────────────────────────────────────────
@@ -168,6 +174,15 @@ router.get('/shops/:id', (req, res) => {
   res.json({ ...sanitizeShop(shop), profiles: db.listProfilesForShop(shop.id, req.bm.ownerId).map(sanitizeProfile) });
 });
 
+// The salary the owner pays them, month by month (read-only)
+router.get('/shops/:id/salaries', (req, res) => {
+  const shop = myShop(req);
+  if (!shop || Number(req.params.id) !== shop.id) return res.status(404).json({ error: 'Not found' });
+  res.json(db.listSalaries(shop.id, req.bm.ownerId).map(sl => ({
+    id: sl.id, amount: sl.amount, currency: sl.currency, start_month: sl.start_month, end_month: sl.end_month, description: sl.description, months: sl.months,
+  })));
+});
+
 router.get('/shops/:id/individual-clients', (req, res) => {
   const shop = myShop(req);
   if (!shop || Number(req.params.id) !== shop.id) return res.status(404).json({ error: 'Not found' });
@@ -201,7 +216,7 @@ router.get('/watches/:id', (req, res) => {
   const shop = myShop(req);
   const w = shop && db.getWatch(req.params.id, req.bm.ownerId);
   const p = w && db.getProfile(w.profile_id, req.bm.ownerId);
-  if (!w || !p || p.shop_id !== shop.id) return res.status(404).json({ error: 'Not found' });
+  if (!w || !p || p.shop_id !== shop.id || !shown(w)) return res.status(404).json({ error: 'Not found' });
   res.json({ ...sanitizeWatch({ ...w, client_name: p.name, shop_name: p.shop_name }), profile: sanitizeProfile(p) });
 });
 

@@ -10,6 +10,8 @@ const QUICK_FILTERS = [
   { id: 'held60',    label: 'Unsold 60+ days',    icon: 'inventory_2',   test: w => w.status === 'purchased' && (daysSince(watchDate(w)) ?? 0) >= 60 },
   { id: 'noPrice',   label: 'No price',           icon: 'money_off',     test: w => w.status !== 'sold' && w.list_price == null },
   { id: 'noPhoto',   label: 'No photo',           icon: 'hide_image',    test: w => !w.image_path },
+  { id: 'readyToClose', label: 'About to close',  icon: 'task_alt',      test: w => isReadyToClose(w) },
+  { id: 'closed',    label: 'Closed deals',       icon: 'lock',          test: w => isClosedDeal(w) },
 ];
 
 // { id } of a quick filter or a saved view; null = none

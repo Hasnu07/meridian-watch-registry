@@ -124,20 +124,25 @@ async function loadBoutiqueCommissionShop() {
     document.getElementById('bcShopSub').textContent = `${managerNames} is not linked to a shop yet — assign one under Admin → Users (store icon).`;
     document.getElementById('bcNewClient').innerHTML = '';
     document.getElementById('bcCollab').innerHTML = '';
+    document.getElementById('bcSalaryPane').innerHTML = '';
     body.innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-on-surface-variant text-sm">Nothing to show until the manager has a shop.</td></tr>`;
     return;
   }
-  const [shop, watches, collaborators] = await Promise.all([
+  const [shop, watches, collaborators, salaries] = await Promise.all([
     api('GET', `/api/shops/${c.shop_id}`),
     api('GET', `/api/watches?shop_id=${c.shop_id}`),
     api('GET', `/api/shops/${c.shop_id}/collaborators`).catch(() => []),
+    api('GET', `/api/shops/${c.shop_id}/salaries`).catch(() => []),
   ]);
   _bcShop = shop; _bcWatches = watches; _bcCollaborators = collaborators;
   watches.forEach(w => { watchCache[w.id] = w; });
 
   // ── Tiles: the balance with the boutique — total shown, paid out, still pending ──
   const all = watches.flatMap(bcCommissions);
-  const shared = all.filter(e => e.for_boutique);
+  const visibleIds = new Set(watches.filter(w => !w.hidden_from_boutique).map(w => w.id));
+  const shared = all.filter(e => e.for_boutique && visibleIds.has(e.watch_id));
+  const salaryT = salaryTotals(salaries);
+  const hiddenPieces = watches.filter(w => w.hidden_from_boutique).length;
   const paid = shared.filter(e => e.paid_at), pending = shared.filter(e => !e.paid_at);
   const tile = (label, value, sub, cls = 'bm-commission') => `
     <div class="glass-surface rounded-lg p-5">
@@ -153,10 +158,11 @@ async function loadBoutiqueCommissionShop() {
   const longest = wish.reduce((mx, w) => Math.max(mx, wishlistDays(w) ?? 0), 0);
   const waiting30 = wish.filter(w => (wishlistDays(w) ?? 0) >= 30).length;
   document.getElementById('bcTiles').innerHTML = [
-    tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}`),
+    tile(`Total balance · shown to ${seenBy}`, fmt.byCurrency(bcSum(shared)), `${n(shared)} · ${new Set(shared.map(e => e.watch_id)).size} piece${new Set(shared.map(e => e.watch_id)).size !== 1 ? 's' : ''} · ${fmt.byCurrency(bcSum(shared, e => isThisMonth(e.date)))} in ${monthName}${salaryTotals(salaries).months ? ` · + ${fmt.byCurrency(salaryTotals(salaries).total)} salary` : ''}`),
     tile('Paid', fmt.byCurrency(bcSum(paid)), `${n(paid)} paid out to ${seenBy}`, 'text-emerald-400'),
     tile('Commission left', fmt.byCurrency(bcSum(pending)), `${n(pending)} still to pay ${seenBy}`, pending.length ? 'bm-commission' : 'text-on-surface'),
-    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique))), `${n(all.filter(e => !e.for_boutique))} recorded but not shown`, 'text-on-surface'),
+    tile('Kept private', fmt.byCurrency(bcSum(all.filter(e => !e.for_boutique || !visibleIds.has(e.watch_id)))), `${n(all.filter(e => !e.for_boutique || !visibleIds.has(e.watch_id)))} recorded but not shown${hiddenPieces ? ` · ${hiddenPieces} piece${hiddenPieces !== 1 ? 's' : ''} hidden` : ''}`, 'text-on-surface'),
+    tile(`Total · commission + salary`, `<span class="text-on-surface">${fmt.byCurrency(sumCurrencyMaps(bcSum(shared), salaryT.total))}</span>`, `${fmt.byCurrency(bcSum(shared))} commission + ${fmt.byCurrency(salaryT.total)} salary · paid ${fmt.byCurrency(sumCurrencyMaps(bcSum(paid), salaryT.paid))} · left ${fmt.byCurrency(sumCurrencyMaps(bcSum(pending), salaryT.pending))}`),
     tile('Wishlist pending', `<span class="${wish.length ? 'text-amber-300' : 'text-on-surface'}">${wish.length}<span class="text-sm text-on-surface-variant font-sans font-medium ml-1">${wish.length === 1 ? 'piece' : 'pieces'}</span></span>`,
          wish.length ? `not bought yet · longest wait ${longest} day${longest !== 1 ? 's' : ''}${waiting30 ? ` · ${waiting30} over 30 days` : ''}` : 'nothing waiting at the shop'),
   ].join('');
@@ -177,6 +183,14 @@ async function loadBoutiqueCommissionShop() {
   document.getElementById('bcNewPieceBtn').classList.toggle('opacity-50', !profiles.length);
 
   renderBcCollaborators(c);
+
+  // ── Salary tab: the manager's monthly salary, paid month by month ──
+  renderSalaryPane(document.getElementById('bcSalaryPane'), salaries, {
+    canEdit: true, shopId: c.shop_id, managerName: managerNames || 'the boutique manager',
+    ownerName: inCollab ? c.owner_username : 'you', commissionTotals: bcSum(shared),
+    reload: loadBoutiqueCommissionShop,
+  });
+  showPaneTab('bc', currentPaneTab('bc'));
 
   // ── Pieces table: one block per client — their bought pieces first, then their wishlist ──
   body.innerHTML = watches.length ? bcGroupsHtml(watches, profiles)
@@ -218,6 +232,7 @@ function bcGroupsHtml(watches, profiles) {
             <span class="text-[11px] font-mono text-on-surface-variant">${g.watches.length} piece${g.watches.length !== 1 ? 's' : ''}</span>
             ${owned.length ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-purple-300"><span class="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"></span>${owned.length} purchased</span>` : ''}
             ${wish.length  ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300"><span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>${wish.length} wishlist</span>` : ''}
+            ${g.watches.some(w => w.hidden_from_boutique) ? `<span class="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-outline"><span class="material-symbols-outlined text-[13px]">visibility_off</span>${g.watches.filter(w => w.hidden_from_boutique).length} hidden</span>` : ''}
             <span class="ml-auto flex items-center gap-5 text-[11px] text-on-surface-variant">
               ${owned.length ? `<span>List <span class="font-mono text-on-surface">${fmt.byCurrency(listTotal)}</span></span>` : ''}
               ${shared.length ? `<span>Shown <span class="font-mono font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span></span>` : `<span class="text-outline">nothing shown</span>`}
@@ -349,7 +364,7 @@ function bcRowHtml(w) {
       </button>
     </div>`).join('');
   return `
-    <tr class="tbl-row">
+    <tr class="tbl-row ${w.hidden_from_boutique ? 'opacity-60' : ''}">
       <td class="pl-9 pr-5 py-3">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-11 h-11 rounded-lg bg-surface-container border border-outline-variant/15 flex items-center justify-center flex-shrink-0 overflow-hidden">${thumb}</div>
@@ -362,7 +377,10 @@ function bcRowHtml(w) {
       <td class="px-5 py-3">${statusBadge(w.status)}</td>
       <td class="px-5 py-3 text-sm font-mono text-on-surface">${w.list_price != null ? fmt.price(w.list_price, cur) : '<span class="text-outline">—</span>'}</td>
       <td class="px-5 py-3">
-        ${shared.length ? `<span class="font-mono text-sm font-semibold bm-commission">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="text-xs text-outline">nothing shown</span>`}
+        <button onclick="toggleWatchBoutique(${w.id}, ${w.hidden_from_boutique ? 'true' : 'false'})" title="${w.hidden_from_boutique ? 'This piece is hidden from the boutique manager — click to show it' : 'This piece is shown to the boutique manager — click to hide it'}" class="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-lg border transition-all mb-1.5 ${w.hidden_from_boutique ? 'border-outline-variant/30 text-on-surface-variant hover:text-on-surface' : 'border-amber-400/30 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15'}">
+          <span class="material-symbols-outlined text-[14px]">${w.hidden_from_boutique ? 'visibility_off' : 'visibility'}</span>${w.hidden_from_boutique ? 'Piece hidden' : 'Piece shown'}
+        </button>
+        ${shared.length ? `<span class="block font-mono text-sm font-semibold ${w.hidden_from_boutique ? 'text-on-surface-variant line-through' : 'bm-commission'}">${fmt.byCurrency(bcSum(shared))}</span>` : `<span class="block text-xs text-outline">no commission shown</span>`}
         ${shared.length ? (shared.every(e => e.paid_at)
             ? `<span class="block text-[11px] text-emerald-400 mt-0.5">paid</span>`
             : `<span class="block text-[11px] text-on-surface-variant mt-0.5">${fmt.byCurrency(bcSum(shared, e => !e.paid_at))} pending</span>`) : ''}

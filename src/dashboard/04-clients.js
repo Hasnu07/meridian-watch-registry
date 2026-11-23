@@ -138,9 +138,80 @@ function watchTileHtml(w) {
 }
 
 async function loadClients() {
-  allClients = await api('GET', '/api/clients');
+  [allClients] = await Promise.all([api('GET', '/api/clients'), loadSharedClients()]);
   clientPage = 1;
   renderClients();
+}
+
+// ── Clients at shops shared with me ────────────────────────────────────────
+// A client added inside a shop another registry shared with me (as a
+// collaborator) — or at the shop I manage (as a boutique manager) — lives in
+// THAT owner's registry, not in my own client book, so the list above never
+// showed them. They are listed in their own card underneath, named with the
+// shop and whose registry it is; opening one goes to their membership at that
+// shop (the shop page itself, for a boutique manager).
+let _sharedClients = [];
+async function loadSharedClients() {
+  const out = [];
+  try {
+    const bm = typeof isBoutiqueManager === 'function' && isBoutiqueManager();
+    const shared = bm ? [] : await api('GET', '/api/collab/shops').catch(() => []);
+    for (const s of shared) {
+      const shop = await api('GET', `/api/shops/${s.shop_id}`, null, { 'X-Collab-Shop': String(s.shop_id) }).catch(() => null);
+      for (const p of shop?.profiles || []) out.push({ ...p, shop_id: s.shop_id, shop_name: s.shop_name, owner_username: s.owner_username, kind: 'collab' });
+    }
+    if (bm && currentUser?.shop) {
+      const shop = await api('GET', `/api/shops/${currentUser.shop.id}`, null, { 'X-Boutique-Shop': String(currentUser.shop.id) }).catch(() => null);
+      for (const p of shop?.profiles || []) out.push({ ...p, shop_id: currentUser.shop.id, shop_name: currentUser.shop.name, owner_username: currentUser.shop.owner_username, kind: 'managed' });
+    }
+  } catch (e) { console.error('Shared clients failed', e); }
+  _sharedClients = out;
+}
+
+function renderSharedClients() {
+  let card = document.getElementById('sharedClientsCard');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'sharedClientsCard';
+    card.className = 'glass-surface rounded-lg overflow-hidden mt-8';
+    document.getElementById('page-profiles').appendChild(card);
+  }
+  const q = document.getElementById('profileSearch').value.trim().toLowerCase();
+  const list = q ? _sharedClients.filter(p => (p.name || '').toLowerCase().includes(q)) : _sharedClients;
+  if (!_sharedClients.length) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const bm = _sharedClients.every(p => p.kind === 'managed');
+  const shops = [...new Set(_sharedClients.map(p => p.shop_name))];
+  card.innerHTML = `
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <h3 class="font-playfair text-xl text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-primary text-[20px]">group</span>${bm ? 'Clients at the shop you manage' : 'Clients at shops shared with you'}</h3>
+        <p class="text-xs text-on-surface-variant mt-0.5">${esc(shops.join(' · '))} — these clients belong to ${bm ? "the owner's" : "that owner's"} registry, so they are kept apart from your own book above.</p>
+      </div>
+      <span class="text-xs font-mono text-outline">${_sharedClients.length} client${_sharedClients.length !== 1 ? 's' : ''}</span>
+    </div>
+    <div class="divide-y divide-white/[0.04]">${list.length ? list.map(p => `
+      <button type="button" class="tbl-row w-full px-5 py-3 flex items-center gap-4 text-left" onclick="openSharedClient(${p.shop_id}, ${p.id}, '${p.kind}')">
+        ${avatarHtml(p.name, p.photo_path)}
+        <span class="flex-1 min-w-0">
+          <span class="block text-sm font-medium text-on-surface truncate">${esc(p.name)}</span>
+          <span class="block text-xs text-on-surface-variant truncate">${esc(p.email || '—')}${p.portfolio_name ? ` · ${esc(p.portfolio_name)}` : ''}</span>
+        </span>
+        <span class="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-lg border border-primary/30 text-primary bg-primary/5 whitespace-nowrap"><span class="material-symbols-outlined text-[14px]">storefront</span>${esc(p.shop_name)} · ${esc(p.owner_username || 'owner')}</span>
+        <span class="flex items-center gap-1.5 text-on-surface-variant text-sm whitespace-nowrap"><span class="material-symbols-outlined text-[15px]">watch</span>${p.watch_count || 0} watch${(p.watch_count || 0) !== 1 ? 'es' : ''}</span>
+        <span class="hidden md:block text-on-surface-variant text-sm whitespace-nowrap">${fmt.date((p.created_at || '').split(' ')[0])}</span>
+        <span class="material-symbols-outlined text-outline text-[18px]">open_in_new</span>
+      </button>`).join('')
+      : `<p class="px-6 py-8 text-center text-sm text-on-surface-variant">No client at a shared shop matches.</p>`}</div>`;
+}
+
+// Open a shared shop's client: their membership there, under that shop's scope
+function openSharedClient(shopId, profileId, kind) {
+  const p = _sharedClients.find(x => x.shop_id === shopId && x.id === profileId);
+  if (!p) return;
+  if (kind === 'managed') { if (typeof openBoutiqueShop === 'function') openBoutiqueShop(); return; }
+  setCollabShop({ id: shopId, name: p.shop_name, owner_username: p.owner_username });
+  openProfileDetail(profileId);
 }
 
 function renderClients() {
@@ -149,6 +220,7 @@ function renderClients() {
   const total = data.length;
   const slice = data.slice((clientPage - 1) * PER_PAGE, clientPage * PER_PAGE);
 
+  renderSharedClients();
   const asCards = getView('clients') === 'cards';
   document.getElementById('profilesListWrap').classList.toggle('hidden', asCards);
   document.getElementById('profilesCards').classList.toggle('hidden', !asCards);

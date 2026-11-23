@@ -49,6 +49,30 @@ router.get('/:id', (req, res) => {
   });
 });
 
+// PUT /api/watches/:id/boutique { visible: true|false }
+// Show or hide the piece itself to the shop's boutique manager (their view,
+// routes/boutique.js, leaves a hidden piece out entirely — commissions included).
+// PUT /api/watches/:id/close { closed: true|false } — close a finished deal
+// (or reopen it). Only a sold watch can be closed; the stamp says who and when.
+router.put('/:id/close', (req, res) => {
+  const watch = db.getWatch(req.params.id, uid(req));
+  if (!watch) return res.status(404).json({ error: 'Not found' });
+  const closed = !!req.body?.closed;
+  if (closed && watch.status !== 'sold') return res.status(400).json({ error: 'Only a sold watch can be closed' });
+  db.setWatchClosed(watch.id, closed, req.session.user.username);
+  audit(req, { action: 'update', targetType: 'watch', targetId: watch.id, details: { model: watch.model, closed } });
+  res.json({ ok: true, watch: db.getWatch(watch.id, uid(req)) });
+});
+
+router.put('/:id/boutique', (req, res) => {
+  const watch = db.getWatch(req.params.id, uid(req));
+  if (!watch) return res.status(404).json({ error: 'Not found' });
+  const visible = !!req.body?.visible;
+  db.setWatchBoutiqueHidden(watch.id, !visible);
+  audit(req, { action: 'update', targetType: 'watch', targetId: watch.id, details: { model: watch.model, shown_to_boutique: visible } });
+  res.json({ ok: true, watch: db.getWatch(watch.id, uid(req)) });
+});
+
 // PUT /api/watches/:id
 router.put('/:id', (req, res) => {
   upload.single('image')(req, res, async (err) => {

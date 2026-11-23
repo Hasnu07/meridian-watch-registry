@@ -342,6 +342,15 @@ function init() {
   // Rule a sold watch was settled under ('split' | 'discount'); NULL = the
   // client's (profile's) rule. Chosen per watch on Mark Sold.
   if (!wcols.includes('rule_applied'))             db.exec("ALTER TABLE watches ADD COLUMN rule_applied TEXT");
+  // A piece the owner keeps off the boutique manager's view altogether (the
+  // Boutique Commission page's per-piece switch). Off by default: every piece
+  // of the shop is shown unless hidden.
+  if (!wcols.includes('hidden_from_boutique'))     db.exec("ALTER TABLE watches ADD COLUMN hidden_from_boutique INTEGER NOT NULL DEFAULT 0");
+  // A deal is CLOSED when a person says so (Close on the client page): the
+  // sale is done and nothing more is expected either way. Kept as a stamp,
+  // never derived, so the books can say "closed on … by …".
+  if (!wcols.includes('closed_at')) db.exec("ALTER TABLE watches ADD COLUMN closed_at DATETIME");
+  if (!wcols.includes('closed_by')) db.exec("ALTER TABLE watches ADD COLUMN closed_by TEXT");
   const lpcols = db.prepare("PRAGMA table_info(loss_payments)").all().map(r => r.name);
   if (!lpcols.includes('offset_from_watch_id'))    db.exec("ALTER TABLE loss_payments ADD COLUMN offset_from_watch_id INTEGER");
   // Commission expenses the owner chose to show to the shop's boutique manager
@@ -462,6 +471,35 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_shop_collaborators_user ON shop_collaborators(user_id);
   `);
 
+  // ── Boutique salaries ────────────────────────────────────────────────────
+  // Besides commissions, an owner may pay the shop's boutique manager a fixed
+  // monthly salary. A salary is a monthly amount from a start month, until an
+  // end month or still running; each month is paid or pending
+  // (boutique_salary_paid). Owned by the registry; the manager sees it
+  // read-only (routes/boutique.js); collaborators of the shop manage it like
+  // commissions (routes/collab.js).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS boutique_salaries (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      shop_id     INTEGER NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
+      owner_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount      REAL    NOT NULL,
+      currency    TEXT    NOT NULL DEFAULT 'EUR',
+      start_month TEXT    NOT NULL,
+      end_month   TEXT,
+      description TEXT,
+      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  DATETIME DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_boutique_salaries_shop ON boutique_salaries(shop_id);
+    CREATE TABLE IF NOT EXISTS boutique_salary_paid (
+      salary_id INTEGER NOT NULL REFERENCES boutique_salaries(id) ON DELETE CASCADE,
+      month     TEXT    NOT NULL,
+      paid_at   TEXT    NOT NULL,
+      PRIMARY KEY (salary_id, month)
+    );
+  `);
+
   // Per-owner email uniqueness — safe here because owner_id now exists on
   // profiles (fresh DBs: just added above; existing DBs: already present).
   // NULL emails are ignored (SQLite treats NULLs as distinct in indices).
@@ -571,6 +609,10 @@ function createUser({ username, passwordHash, role, ownerId, shopId }) {
   return id;
 }
 
+function setUsername(id, username) {
+  db.prepare('UPDATE users SET username = ? WHERE id = ?').run(username, id);
+}
+
 function updateUserRole(id, role) {
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
 }
@@ -590,6 +632,77 @@ function listBoutiqueManagers(ownerId) {
     WHERE u.role = 'boutique_manager' AND u.owner_id = ?
     ORDER BY s.name ASC, u.username ASC
   `).all(ownerId);
+}
+
+// ── Boutique salaries ──────────────────────────────────────────────────────
+
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+function isMonth(m) { return typeof m === 'string' && MONTH_RE.test(m); }
+function currentMonth() { return new Date().toISOString().slice(0, 7); }
+// Every month from `from` to `to` inclusive ('YYYY-MM')
+function monthsBetween(from, to) {
+  const out = [];
+  if (!isMonth(from) || !isMonth(to) || from > to) return out;
+  let [y, m] = from.split('-').map(Number);
+  for (;;) {
+    const k = `${y}-${String(m).padStart(2, '0')}`;
+    out.push(k);
+    if (k >= to) break;
+    if (++m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+
+// A salary with its months so far (newest first) and whether each was paid.
+// Months run from the start month to the end month, or to the current month
+// while the salary is still running.
+function salaryWithMonths(row) {
+  const paid = Object.fromEntries(db.prepare('SELECT month, paid_at FROM boutique_salary_paid WHERE salary_id = ?').all(row.id).map(r => [r.month, r.paid_at]));
+  const upTo = row.end_month && row.end_month < currentMonth() ? row.end_month : currentMonth();
+  const months = monthsBetween(row.start_month, upTo).reverse().map(month => ({ month, amount: row.amount, currency: row.currency, paid_at: paid[month] || null }));
+  return { ...row, months };
+}
+
+function listSalaries(shopId, ownerId) {
+  return db.prepare('SELECT * FROM boutique_salaries WHERE shop_id = ? AND owner_id = ? ORDER BY start_month DESC, id DESC')
+    .all(shopId, ownerId).map(salaryWithMonths);
+}
+
+function getSalary(id) {
+  const row = db.prepare('SELECT * FROM boutique_salaries WHERE id = ?').get(id);
+  return row ? salaryWithMonths(row) : null;
+}
+
+function createSalary({ shopId, ownerId, amount, currency, start_month, end_month, description, createdBy }) {
+  return db.prepare(
+    'INSERT INTO boutique_salaries (shop_id, owner_id, amount, currency, start_month, end_month, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(shopId, ownerId, Number(amount), currency || 'EUR', start_month, end_month || null, description || null, createdBy ?? null).lastInsertRowid;
+}
+
+function updateSalary(id, { amount, currency, start_month, end_month, description }) {
+  const fields = [], values = [];
+  if (amount      !== undefined) { fields.push('amount = ?');      values.push(Number(amount)); }
+  if (currency    !== undefined) { fields.push('currency = ?');    values.push(currency || 'EUR'); }
+  if (start_month !== undefined) { fields.push('start_month = ?'); values.push(start_month); }
+  if (end_month   !== undefined) { fields.push('end_month = ?');   values.push(end_month || null); }
+  if (description !== undefined) { fields.push('description = ?'); values.push(description || null); }
+  if (!fields.length) return;
+  values.push(id);
+  db.prepare(`UPDATE boutique_salaries SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+}
+
+function deleteSalary(id) {
+  db.prepare('DELETE FROM boutique_salaries WHERE id = ?').run(id);
+}
+
+// A month of a salary was paid out (or wasn't after all)
+function setSalaryMonthPaid(id, month, paid) {
+  if (paid) {
+    db.prepare('INSERT INTO boutique_salary_paid (salary_id, month, paid_at) VALUES (?, ?, ?) ON CONFLICT(salary_id, month) DO UPDATE SET paid_at = excluded.paid_at')
+      .run(id, month, new Date().toISOString().split('T')[0]);
+  } else {
+    db.prepare('DELETE FROM boutique_salary_paid WHERE salary_id = ? AND month = ?').run(id, month);
+  }
 }
 
 // ── Shop collaborators ─────────────────────────────────────────────────────
@@ -1144,7 +1257,8 @@ function getStats(ownerId) {
       COUNT(w.id)                                                       AS total_watches,
       SUM(CASE WHEN w.status = 'wishlist'  THEN 1 ELSE 0 END)           AS wishlist_count,
       SUM(CASE WHEN w.status = 'purchased' THEN 1 ELSE 0 END)           AS purchased_count,
-      SUM(CASE WHEN w.status = 'sold'      THEN 1 ELSE 0 END)           AS sold_count
+      SUM(CASE WHEN w.status = 'sold'      THEN 1 ELSE 0 END)           AS sold_count,
+      SUM(CASE WHEN w.status = 'sold' AND w.closed_at IS NOT NULL THEN 1 ELSE 0 END) AS closed_count
     FROM profiles p
     LEFT JOIN watches w ON w.profile_id = p.id
     WHERE p.owner_id = ?
@@ -1158,6 +1272,7 @@ function getStats(ownerId) {
       COALESCE(SUM(CASE WHEN w.status = 'purchased' THEN w.list_price ELSE 0 END), 0) AS active_list_value,
       COALESCE(SUM(CASE WHEN w.status = 'wishlist'  THEN w.list_price ELSE 0 END), 0) AS wishlist_list_value,
       COALESCE(SUM(CASE WHEN w.status = 'sold'      THEN w.sale_price ELSE 0 END), 0) AS total_sale_value,
+      COALESCE(SUM(CASE WHEN w.status = 'sold' AND w.closed_at IS NOT NULL THEN w.sale_price ELSE 0 END), 0) AS closed_value,
       COALESCE(SUM(CASE WHEN w.status = 'sold' AND w.list_price IS NOT NULL AND w.sale_price IS NOT NULL
                         THEN (w.sale_price - w.list_price) ELSE 0 END), 0)            AS net_pnl,
       COALESCE(SUM(CASE WHEN w.status IN ('purchased','sold') THEN w.my_cost     ELSE 0 END), 0) AS my_total_cost,
@@ -1180,6 +1295,7 @@ function getStats(ownerId) {
   const net_pnl             = groupMap('net_pnl');
   const my_total_cost       = groupMap('my_total_cost');
   const client_total_cost   = groupMap('client_total_cost');
+  const closed_value        = groupMap('closed_value');
 
   // total_value = active list + sold proceeds (per currency)
   const total_value = {};
@@ -1193,6 +1309,8 @@ function getStats(ownerId) {
     wishlist_count:  counts.wishlist_count  || 0,
     purchased_count: counts.purchased_count || 0,
     sold_count:      counts.sold_count      || 0,
+    closed_count:    counts.closed_count    || 0,
+    closed_value,
     active_list_value,
     wishlist_list_value,
     total_sale_value,
@@ -1471,6 +1589,16 @@ function setExpensePaid(id, paid) {
     .run(paid ? new Date().toISOString().split('T')[0] : null, id);
 }
 
+// Show / hide a piece itself to the shop's boutique manager
+function setWatchClosed(id, closed, by) {
+  if (closed) db.prepare("UPDATE watches SET closed_at = datetime('now'), closed_by = ? WHERE id = ?").run(by || null, id);
+  else        db.prepare('UPDATE watches SET closed_at = NULL, closed_by = NULL WHERE id = ?').run(id);
+}
+
+function setWatchBoutiqueHidden(id, hidden) {
+  db.prepare('UPDATE watches SET hidden_from_boutique = ? WHERE id = ?').run(hidden ? 1 : 0, id);
+}
+
 // Share / unshare a commission with the shop's boutique manager
 function setExpenseBoutique(id, visible) {
   db.prepare("UPDATE watch_expenses SET for_boutique = ? WHERE id = ? AND category = 'commission'").run(visible ? 1 : 0, id);
@@ -1644,8 +1772,9 @@ function deletePatekDeal(id, ownerId) {
 module.exports = {
   init,
   getUserByUsername, getUserById, setUserPassword, listUsers, listUsersWithStats,
-  createUser, updateUserRole, setUserShop, listBoutiqueManagers, deleteUser,
+  createUser, updateUserRole, setUserShop, setUsername, listBoutiqueManagers, deleteUser,
   listShopCollaborators, addShopCollaborator, removeShopCollaborator, getCollaboration, listCollaborationsForUser,
+  listSalaries, getSalary, createSalary, updateSalary, deleteSalary, setSalaryMonthPaid, isMonth, monthsBetween,
   logAudit, listAuditLog, countAuditLog,
   listShops, getShop, createShop, updateShop, deleteShop, listProfilesForShop, listIndividualProfilesForShop,
   listPortfolios, getPortfolio, createPortfolio, updatePortfolio, deletePortfolio, listProfilesForPortfolio, setPortfolioToken, getPortfolioByToken,
@@ -1660,6 +1789,7 @@ module.exports = {
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
   applyDiscountOffset, clearOffsetsFrom, listMarketPrices, recordMarketPrice, resyncWatchStatuses,
   listExpenses, getExpense, createExpense, updateExpense, reverseExpense, setExpenseBoutique, setExpensePaid,
+  setWatchBoutiqueHidden, setWatchClosed,
   listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
   listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,
   listPatekDeals, getPatekDeal, createPatekDeal, updatePatekDeal, deletePatekDeal,

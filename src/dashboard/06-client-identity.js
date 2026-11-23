@@ -206,7 +206,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
   const fullAddr = [m.address, m.postal_code ? m.postal_code + (m.city ? ' ' + m.city : '') : m.city, m.country].filter(Boolean).join(', ') || null;
 
   return `
-    <div class="glass-surface rounded-xl overflow-hidden">
+    <div class="glass-surface rounded-xl overflow-hidden" id="membershipCard-${m.id}">
 
       <!-- ── Card header ── -->
       <div class="px-8 py-5 flex items-center justify-between gap-4 border-b border-outline-variant/10" style="background:rgba(255,255,255,0.015)">
@@ -219,7 +219,14 @@ function renderMembershipCard(client, m, masterIdBadge) {
             <p class="text-on-surface-variant text-xs mt-0.5">${watches.length} watch${watches.length !== 1 ? 'es' : ''} · added ${fmt.date(m.created_at.split(' ')[0])}</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+          ${closeModeFor(m.id)
+            ? `<button onclick="exitCloseMode()" class="text-[11px] font-semibold uppercase tracking-wider text-primary px-4 py-2 border border-primary/40 bg-primary/10 rounded-lg transition-all flex items-center gap-1.5" aria-pressed="true">
+            <span class="material-symbols-outlined text-[14px]">checklist</span> Closing… cancel
+          </button>`
+            : `<button onclick="enterCloseMode(${m.id})" title="Close finished deals: pick the sold watches, then Close" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-4 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[14px]">lock</span> Close
+          </button>`}
           <button onclick="openAddWatch(${m.id})" class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant px-4 py-2 border border-outline-variant/30 rounded-lg hover:bg-surface-variant/30 hover:text-on-surface transition-all flex items-center gap-1.5">
             <span class="material-symbols-outlined text-[14px]">add_circle</span> Add Watch
           </button>
@@ -277,11 +284,13 @@ function renderMembershipCard(client, m, masterIdBadge) {
       ${renderMembershipAnalytics(m)}
 
       <!-- ── Watches ── -->
+      ${closeModeFor(m.id) ? closeBarHtml(m.id, watches) : ''}
       ${watches.length ? `
       <div class="overflow-x-auto">
         <table class="w-full text-left">
           <thead>
             <tr class="border-b border-outline-variant/10" style="background:rgba(255,255,255,0.02)">
+              ${closeModeFor(m.id) ? '<th class="pl-8 pr-0 py-3 w-10"></th>' : ''}
               <th class="px-8 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Timepiece</th>
               <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Stock #</th>
               <th class="px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Status</th>
@@ -297,7 +306,8 @@ function renderMembershipCard(client, m, masterIdBadge) {
             ${groupWishlistRows(watches, w => {
               const wc = w.currency || 'CHF';
               return `
-            <tr class="tbl-row">
+            <tr class="tbl-row ${_closeMode.ids.has(w.id) ? 'bg-primary/5' : ''}" data-close-row="${w.id}">
+              ${closeModeFor(m.id) ? closePickCell(w) : ''}
               <td class="px-8 py-4">
                 <div class="flex items-center gap-3">
                   ${w.image_path
@@ -311,7 +321,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                 </div>
               </td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${w.stock_number ? esc(w.stock_number) : '<span class="text-outline">—</span>'}</td>
-              <td class="px-5 py-3">${statusBadge(w.status)}</td>
+              <td class="px-5 py-3"><div class="flex items-center gap-1.5 flex-wrap">${statusBadge(w.status)}${closedChip(w)}</div></td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.serial_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-sm font-mono">${esc(w.reference_number || '—')}</td>
               <td class="px-5 py-3 text-on-surface-variant text-sm">${w.list_price != null ? fmt.price(w.list_price, wc) : '<span class="text-outline">—</span>'}</td>
@@ -325,6 +335,10 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   <button onclick="openMarkSoldModal(${w.id})" class="p-1.5 rounded-lg hover:bg-emerald-500/10 text-on-surface-variant hover:text-emerald-400 transition-colors" title="Mark as Sold">
                     <span class="material-symbols-outlined text-[16px]">sell</span>
                   </button>` : ''}
+                  ${isClosedDeal(w) ? `
+                  <button onclick="reopenWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-amber-500/10 text-on-surface-variant hover:text-amber-400 transition-colors" title="Reopen this deal">
+                    <span class="material-symbols-outlined text-[16px]">lock_open</span>
+                  </button>` : ''}
                   <button onclick="openEditWatch(${w.id})" class="p-1.5 rounded-lg hover:bg-surface-variant/30 text-on-surface-variant hover:text-primary transition-colors">
                     <span class="material-symbols-outlined text-[16px]">edit</span>
                   </button>
@@ -333,7 +347,7 @@ function renderMembershipCard(client, m, masterIdBadge) {
                   </button>
                 </div>
               </td>
-            </tr>`;}, 9)}
+            </tr>`;}, closeModeFor(m.id) ? 10 : 9)}
           </tbody>
         </table>
       </div>` : `
