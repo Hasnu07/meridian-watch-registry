@@ -283,6 +283,9 @@ function renderMembershipCard(client, m, masterIdBadge) {
       <!-- ── Shop Analytics ── -->
       ${renderMembershipAnalytics(m)}
 
+      <!-- ── Packages: the watches closed together, with their report (27-close-deals.js) ── -->
+      ${renderPackagesSection(m)}
+
       <!-- ── Watches ── -->
       ${closeModeFor(m.id) ? closeBarHtml(m.id, watches) : ''}
       ${watches.length ? `
