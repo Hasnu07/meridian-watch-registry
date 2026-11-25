@@ -206,6 +206,7 @@ app.use('/api',                                   requireAuth, require('./routes
 app.use('/api',                                   requireAuth, require('./routes/expenses'));
 app.use('/api',                                   requireAuth, require('./routes/payouts'));
 app.use('/api',                                   requireAuth, require('./routes/salaries'));
+app.use('/api',                                   requireAuth, require('./routes/packages'));
 app.use('/api/admin',                             requireAuth, require('./routes/admin'));
 
 // Stats — scoped to current user

@@ -351,6 +351,22 @@ function init() {
   // never derived, so the books can say "closed on … by …".
   if (!wcols.includes('closed_at')) db.exec("ALTER TABLE watches ADD COLUMN closed_at DATETIME");
   if (!wcols.includes('closed_by')) db.exec("ALTER TABLE watches ADD COLUMN closed_by TEXT");
+  // A PACKAGE: the watches closed together in one go at a shop — the unit
+  // the business thinks in ("the Hettich package: one loss, one profit").
+  // Closing from the client page always makes one; reopening a watch takes
+  // it out, and an emptied package goes.
+  db.exec(`CREATE TABLE IF NOT EXISTS deal_packages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    name       TEXT,
+    note       TEXT,
+    closed_at  DATETIME DEFAULT (datetime('now')),
+    closed_by  TEXT,
+    loss_held_by_me REAL NOT NULL DEFAULT 0
+  )`);
+  const pkcols = db.prepare('PRAGMA table_info(deal_packages)').all().map(c => c.name);
+  if (!pkcols.includes('loss_held_by_me')) db.exec("ALTER TABLE deal_packages ADD COLUMN loss_held_by_me REAL NOT NULL DEFAULT 0");
+  if (!wcols.includes('package_id')) db.exec("ALTER TABLE watches ADD COLUMN package_id INTEGER REFERENCES deal_packages(id) ON DELETE SET NULL");
   const lpcols = db.prepare("PRAGMA table_info(loss_payments)").all().map(r => r.name);
   if (!lpcols.includes('offset_from_watch_id'))    db.exec("ALTER TABLE loss_payments ADD COLUMN offset_from_watch_id INTEGER");
   // Commission expenses the owner chose to show to the shop's boutique manager
@@ -963,6 +979,7 @@ function getClientWithMemberships(id, ownerId) {
       my_payouts:     listMyPayouts(w.id),
     }));
     m.company_docs = db.prepare('SELECT * FROM company_docs WHERE profile_id = ? ORDER BY created_at DESC').all(m.id);
+    m.packages     = listPackages(m.id);
   });
   return { ...client, memberships };
 }
@@ -1591,8 +1608,64 @@ function setExpensePaid(id, paid) {
 
 // Show / hide a piece itself to the shop's boutique manager
 function setWatchClosed(id, closed, by) {
-  if (closed) db.prepare("UPDATE watches SET closed_at = datetime('now'), closed_by = ? WHERE id = ?").run(by || null, id);
-  else        db.prepare('UPDATE watches SET closed_at = NULL, closed_by = NULL WHERE id = ?').run(id);
+  if (closed) { db.prepare("UPDATE watches SET closed_at = datetime('now'), closed_by = ? WHERE id = ?").run(by || null, id); return; }
+  const w = db.prepare('SELECT package_id FROM watches WHERE id = ?').get(id);
+  db.prepare('UPDATE watches SET closed_at = NULL, closed_by = NULL, package_id = NULL WHERE id = ?').run(id);
+  if (w?.package_id) dropPackageIfEmpty(w.package_id);
+}
+
+// ── Packages ──────────────────────────────────────────────────────────────
+function dropPackageIfEmpty(packageId) {
+  const n = db.prepare('SELECT COUNT(*) AS n FROM watches WHERE package_id = ?').get(packageId).n;
+  if (!n) db.prepare('DELETE FROM deal_packages WHERE id = ?').run(packageId);
+}
+
+// Close the watches together as one package. All must be sold, open watches
+// of this profile; returns the package (null when any watch does not fit).
+function createPackage({ profileId, name, note, by, watchIds }) {
+  const ids = [...new Set((watchIds || []).map(Number).filter(Boolean))];
+  if (!ids.length) return null;
+  const ok = db.prepare(`SELECT COUNT(*) AS n FROM watches WHERE profile_id = ? AND status = 'sold' AND closed_at IS NULL AND id IN (${ids.map(() => '?').join(',')})`).get(profileId, ...ids).n;
+  if (ok !== ids.length) return null;
+  db.exec('BEGIN TRANSACTION');
+  let id;
+  try {
+    id = db.prepare('INSERT INTO deal_packages (profile_id, name, note, closed_by) VALUES (?, ?, ?, ?)').run(profileId, name || null, note || null, by || null).lastInsertRowid;
+    const upd = db.prepare("UPDATE watches SET closed_at = datetime('now'), closed_by = ?, package_id = ? WHERE id = ?");
+    for (const w of ids) upd.run(by || null, id, w);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+  return getPackage(id, null);
+}
+
+function getPackage(id, ownerId) {
+  const pkg = ownerId == null
+    ? db.prepare('SELECT * FROM deal_packages WHERE id = ?').get(id)
+    : db.prepare('SELECT dp.* FROM deal_packages dp JOIN profiles p ON p.id = dp.profile_id WHERE dp.id = ? AND p.owner_id = ?').get(id, ownerId);
+  if (!pkg) return null;
+  pkg.watches = db.prepare('SELECT * FROM watches WHERE package_id = ? ORDER BY purchase_date ASC, id ASC').all(id)
+    .map(w => ({ ...w, loss_payments: listLossPayments(w.id), expenses: listExpenses(w.id), client_payouts: listClientPayouts(w.id), my_payouts: listMyPayouts(w.id) }));
+  return pkg;
+}
+
+function listPackages(profileId) {
+  return db.prepare('SELECT * FROM deal_packages WHERE profile_id = ? ORDER BY closed_at DESC, id DESC').all(profileId)
+    .map(pkg => getPackage(pkg.id, null));
+}
+
+// Reopen the whole package: its watches go back to open, the package goes.
+function deletePackage(id) {
+  db.exec('BEGIN TRANSACTION');
+  try {
+    db.prepare('UPDATE watches SET closed_at = NULL, closed_by = NULL, package_id = NULL WHERE package_id = ?').run(id);
+    db.prepare('DELETE FROM deal_packages WHERE id = ?').run(id);
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
+
+function updatePackage(id, { name, note, lossHeldByMe }) {
+  db.prepare('UPDATE deal_packages SET name = COALESCE(?, name), note = COALESCE(?, note), loss_held_by_me = COALESCE(?, loss_held_by_me) WHERE id = ?')
+    .run(name ?? null, note ?? null, lossHeldByMe ?? null, id);
 }
 
 function setWatchBoutiqueHidden(id, hidden) {
@@ -1789,7 +1862,7 @@ module.exports = {
   listLossPayments, getLossPayment, createLossPayment, reversePayment,
   applyDiscountOffset, clearOffsetsFrom, listMarketPrices, recordMarketPrice, resyncWatchStatuses,
   listExpenses, getExpense, createExpense, updateExpense, reverseExpense, setExpenseBoutique, setExpensePaid,
-  setWatchBoutiqueHidden, setWatchClosed,
+  setWatchBoutiqueHidden, setWatchClosed, createPackage, getPackage, listPackages, deletePackage, updatePackage,
   listClientPayouts, getClientPayout, createClientPayout, reverseClientPayout,
   listMyPayouts,     getMyPayout,     createMyPayout,     reverseMyPayout,
   listPatekDeals, getPatekDeal, createPatekDeal, updatePatekDeal, deletePatekDeal,
