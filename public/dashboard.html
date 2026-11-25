@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="style.css?v=3ef1a39868">
   <script src="/cursor.js?v=1d36b475b2"></script>
   <link rel="stylesheet" href="/neon.css?v=83ffa28203">
-  <link rel="stylesheet" href="/css/app.css?v=583c6f0860">
+  <link rel="stylesheet" href="/css/app.css?v=a4ce973933">
 </head>
 <body class="bg-background text-on-surface font-sans antialiased">
 
@@ -2085,6 +2085,23 @@
   </div>
 </div>
 
+<!-- ═══ PACKAGE / WALLET STATEMENT MODAL (27-close-deals.js) ══════════════ -->
+<div id="packageModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
+  <div class="w-full max-w-4xl max-h-[92vh] bg-surface-container border border-white/10 rounded-lg shadow-2xl flex flex-col">
+    <div class="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between gap-4">
+      <div class="min-w-0">
+        <h2 id="packageModalTitle" class="font-playfair text-xl text-on-surface truncate">Package</h2>
+        <p id="packageModalSub" class="text-[11px] text-on-surface-variant mt-0.5 truncate"></p>
+      </div>
+      <button id="closePackageModal" type="button" aria-label="Close" class="text-outline hover:text-on-surface transition-colors flex-shrink-0">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="packageModalBody" class="p-5 overflow-y-auto min-h-0 flex-1"></div>
+    <div id="packageModalActions" class="px-6 py-3 border-t border-white/[0.06] empty:hidden"></div>
+  </div>
+</div>
+
 <!-- ═══ PORTFOLIO MODAL ══════════════════════════════════════════════════ -->
 <div id="portfolioModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center modal-backdrop p-4">
   <div class="w-full max-w-sm bg-surface-container border border-white/10 rounded-lg shadow-2xl">
@@ -2187,6 +2204,6 @@
      style="background:#131A24;border:1px solid rgba(34, 211, 255,0.20);color:#E6EDF7;max-width:380px;min-width:200px;backdrop-filter:blur(8px);transition:opacity 0.12s ease"></div>
 
 <!-- ═══ JAVASCRIPT ════════════════════════════════════════════════════════ -->
-<script src="/js/dashboard.js?v=6c0231bc88"></script>
+<script src="/js/dashboard.js?v=9c7c5c4859"></script>
 </body>
 </html>

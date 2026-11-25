@@ -620,6 +620,9 @@ async function openClientDetail(id) {
         </div>
       </div>
       <div class="flex items-center gap-2 flex-wrap min-w-0">
+        <button onclick="openWalletStatement(${id})" title="The wallet statement: open losses, pending lines, every package" class="text-[11px] font-semibold uppercase tracking-wider text-amber-300 px-4 py-2 border border-amber-400/30 rounded-lg hover:bg-amber-400/10 transition-all flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[14px]">receipt_long</span> Statement
+        </button>
         <button onclick="downloadClientPdf()" class="text-[11px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-4 py-2 border border-primary/40 rounded-lg hover:bg-primary/20 transition-all flex items-center gap-1.5">
           <span class="material-symbols-outlined text-[14px]">picture_as_pdf</span> PDF Report
         </button>
